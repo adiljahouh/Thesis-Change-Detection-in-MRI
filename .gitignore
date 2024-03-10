@@ -3,4 +3,4 @@
 *.log
 *.csv
 *.tsv
-/data/*
+/data/* 
