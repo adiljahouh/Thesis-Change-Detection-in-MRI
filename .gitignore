@@ -1,0 +1,6 @@
+*.gz
+*.txt
+*.log
+*.csv
+*.tsv
+/data/*
