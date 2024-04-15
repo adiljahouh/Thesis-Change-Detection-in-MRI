@@ -1,23 +1,33 @@
 import torch
-print(torch.cuda.is_available()) # should be True
-# t = torch.rand(10, 10).cuda()
-# print(t.device) # should be CUDA]
 import torch.optim as optim
-import torchvision.transforms as transforms
 from network import SiameseThreeDim
 from loss_functions import ConstractiveLoss
 from loader import create_subject_pairs, transform_subjects, create_loaders
-from PIL import Image
 import os
-import nibabel as nib
-import matplotlib.pyplot as plt
-import torchio as tio
+from distance_measures import various_distance
 
-
-
+def predict(siamese_net, test_loader, threshold=0.3):
+    siamese_net.to(device)
+    siamese_net.eval()  # Set the model to evaluation mode
+    with torch.no_grad():
+        for index, subject in enumerate(test_loader):
+            input1 = subject['t1']['data'].float().to(device)
+            input2 = subject['t2']['data'].float().to(device)
+            label = subject['label'].to(device)
+            output1, output2 = siamese_net(input1, input2)
+            distance1 = various_distance(output1, output2, 'l2')  # Compute the distance euclidean
+            distance = torch.dist(output1, output2, p=2)
+            # print(f"Distance: {distance}")
+            #similarity_score = 1 - distance.item()  # Convert distance to similarity score
+            prediction = distance < threshold  # Determine if the pair is similar based on the threshold
+            if prediction:
+                print("The pair is similar with a distance of:", distance, " label:", label)
+            else:
+                print("The pair is dissimilar with a distance of:", distance, " label:", label)
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
-          save_dir='models', model_name='masked.pth'):
+          save_dir='models', model_name='masked.pth', device=torch.device('cuda')):
+    siamese_net.to(device)
     print(f"Number of samples in training set: {len(train_loader)}")
     print(f"Number of samples in validation set: {len(val_loader)}")
     
@@ -29,9 +39,12 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
         for index, subject in enumerate(train_loader):
+            input1 = subject['t1']['data'].float().to(device)
+            input2 = subject['t2']['data'].float().to(device)
             siamese_net.train()  # switch to training mode
-            output1, output2 = siamese_net(subject['t1']['data'].float(), subject['t2']['data'].float())
-            loss = criterion(output1, output2, subject['label'])
+            label = subject['label'].to(device)
+            output1, output2 = siamese_net(input1, input2)
+            loss = criterion(output1, output2, label)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -41,8 +54,11 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         siamese_net.eval()  # switch to evaluation mode
         with torch.no_grad():
             for index, subject in enumerate(val_loader):
-                output1, output2 = siamese_net(subject['t1']['data'].float(), subject['t2']['data'].float())
-                loss = criterion(output1, output2, subject['label'])
+                input1 = subject['t1']['data'].float().to(device)
+                input2 = subject['t2']['data'].float().to(device)
+                output1, output2 = siamese_net(input1, input2)
+                label = subject['label'].to(device)
+                loss = criterion(output1, output2, label)
                 epoch_val_loss += loss.item()
         
         # Calculate average loss for the epoch
@@ -65,21 +81,25 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
                 print(f'Early stopping at epoch {epoch+1} as no improvement for {patience} consecutive epochs.')
                 break
 
-
 if __name__ == "__main__":
-    print("Test")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Using device:", device)
     siamese3Dnet = SiameseThreeDim()
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
     train_loader_t1, val_loader_t1, test_loader_t1 = create_loaders(subjects, split=(0.6, 0.2, 0.2))
-    # siamese3Dnet = siamese3Dnet.cuda()  # Move the network to GPU
     save_dir = './models'
     if os.path.exists(os.path.join(save_dir, '3d.pth')):
         siamese3Dnet.load_state_dict(torch.load(os.path.join(save_dir, '3d.pth')))
         print('Loaded the best model')
     else:
-        criterion = ConstractiveLoss(margin=0.3)
+        criterion = ConstractiveLoss(margin=0.0)
         optimizer = optim.Adam(siamese3Dnet.parameters(), lr=0.001)
         # Train the Siamese network
-        train(siamese3Dnet,  optimizer, criterion, train_loader=train_loader_t1, val_loader=val_loader_t1,
-            epochs=10, patience=5, save_dir='./models', model_name='3d.pth')
+        train(siamese3Dnet, optimizer, criterion, train_loader=train_loader_t1, val_loader=val_loader_t1,
+              epochs=50, patience=5, save_dir='./models', model_name='3d.pth', device=device)
+    
+    
+    predict(siamese3Dnet, test_loader_t1, 0.014)
+    # heatmap = single_layer_similar_heatmap_visual(output1,output2, 'l2')
+    # merge_images(img1_set[0][0].numpy(), img2_set[0][0].numpy(), heatmap, f'./data/heatmaps/raw/unmasked/{patient_id}.jpg')
