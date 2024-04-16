@@ -4,7 +4,9 @@ from network import SiameseThreeDim
 from loss_functions import ConstractiveLoss
 from loader import create_subject_pairs, transform_subjects, create_loaders
 import os
+from visualizations import single_layer_similar_heatmap_visual, multiple_layer_similar_heatmap_visiual
 from distance_measures import various_distance
+import cv2
 
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
@@ -25,6 +27,11 @@ def predict(siamese_net, test_loader, threshold=0.3):
             else:
                 print("The pair is dissimilar with a distance of:", distance, " label:", label)
 
+            # Visualize the similarity heatmap
+            heatmap = multiple_layer_similar_heatmap_visiual(output1, output2, 'l2')
+            # Save the heatmap
+            save_path = f'./data/heatmaps/threedim/{index}.jpg'
+            cv2.imwrite(save_path, heatmap)
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
           save_dir='models', model_name='masked.pth', device=torch.device('cuda')):
     siamese_net.to(device)
