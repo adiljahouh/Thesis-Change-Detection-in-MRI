@@ -44,7 +44,7 @@ def create_subject_pairs(root, id):
 def transform_subjects(subjects: list[tio.Subject]) -> tio.SubjectsDataset:
     transforms = [
     # tio.RescaleIntensity(out_min_max=(0, 1)),
-    tio.Resize((164, 164, 164)),
+    tio.CropOrPad((160, 256, 256)),
     ]
     transform = tio.Compose(transforms)
     return tio.SubjectsDataset(subjects, transform=transform)

@@ -46,6 +46,9 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
         for index, subject in enumerate(train_loader):
+            print(index)
+            print(subject['t1']['data'].shape)
+            print(subject['t1']['data'].shape)
             input1 = subject['t1']['data'].float().to(device)
             input2 = subject['t2']['data'].float().to(device)
             siamese_net.train()  # switch to training mode
@@ -95,6 +98,8 @@ if __name__ == "__main__":
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
     train_loader_t1, val_loader_t1, test_loader_t1 = create_loaders(subjects, split=(0.6, 0.2, 0.2))
+    # for index, subject in enumerate(train_loader_t1):
+    #     print(index)
     save_dir = './models'
     if os.path.exists(os.path.join(save_dir, '3d.pth')):
         siamese3Dnet.load_state_dict(torch.load(os.path.join(save_dir, '3d.pth')))
