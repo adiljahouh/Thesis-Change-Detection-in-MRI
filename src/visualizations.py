@@ -23,24 +23,20 @@ def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
 ## TODO: compute request kirsten
 ## TODO: pad instead of resize
 ## TODO: nifti output? pass header and affine
-## TODO:  gvgvgg
+## TODO:  https://medium.com/@rehman.aimal/implement-3d-unet-for-cardiac-volumetric-mri-scans-in-pytorch-79f8cca7dc68
 
 ## DONE: Try slicer, models seem to all not work (glioma and meninglomas)
-## switched to padding 
+## switched to padding but need compute cuz the images are just too much data if pad them all 
+## requested compute
+## Pretrained model worked for them ebcause they just want to segment the object, we want to find
+## dissimalarities between two images even them not being the tumor itself
+## imported vgg16 and trying it as its a better architecture for similarity learning
+
+
 def multiple_layer_similar_heatmap_visiual(output_t0, output_t1, dist_flag):
     # Assuming output_t0 and output_t1 are torch tensors of shape (n, c, d, h, w)
-    interp = nn.Upsample(size=[256,256, 256], mode='trilinear')
-    
-    ## remove this
-    # output_t0 = torch.zeros((1, 1, 10, 10, 10))
-    # output_t1 = torch.zeros_like(output_t0)
-    # output_t0[0, 0, 0, 0, 0] = 1  # Set a single point to a high value
-
-    ##
-
-
+    interp = nn.Upsample(size=[164,164, 164], mode='trilinear')   
     n, c, d, h, w = output_t0.shape
-    print(n, c, d, h, w)
     
     # Reshape to (n, c, d*h*w)
     out_t0_flat = output_t0.view(c, d*h*w).transpose(1, 0)
@@ -58,6 +54,8 @@ def multiple_layer_similar_heatmap_visiual(output_t0, output_t1, dist_flag):
     # plotter.add_mesh(grid, scalars="Similarity")
     # plotter.show_grid()
     # plotter.show()
-    sleep(10)
     # similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
-    return scaled_data
+    sliced_images = [scaled_data[i] for i in range(scaled_data.shape[0])]
+    
+    return sliced_images
+

@@ -21,6 +21,7 @@ def create_subject_pairs(root, id):
                                     t1=nifti_1,
                                     t2=nifti_2,
                                     label=1,
+                                    name= root.split("/")[-1],
                                     path= os.path.join(root, filename)
                                             )
                                     )
@@ -30,6 +31,7 @@ def create_subject_pairs(root, id):
                                     t1=nifti_1,
                                     t2=nifti_2,
                                     label=0,
+                                    name= root.split("/")[-1],
                                     path= os.path.join(root, filename)
                                             )
                                     )
@@ -44,7 +46,7 @@ def create_subject_pairs(root, id):
 def transform_subjects(subjects: list[tio.Subject]) -> tio.SubjectsDataset:
     transforms = [
     # tio.RescaleIntensity(out_min_max=(0, 1)),
-    tio.CropOrPad((160, 256, 256)),
+    tio.CropOrPad((164, 164, 164)),
     ]
     transform = tio.Compose(transforms)
     return tio.SubjectsDataset(subjects, transform=transform)
