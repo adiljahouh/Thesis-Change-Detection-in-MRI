@@ -26,6 +26,7 @@ class SiameseThreeDim(nn.Module):
         
         output1 = F.relu(self.bn3(self.conv3(output1)))
         output1 = F.max_pool3d(output1, kernel_size=2, stride=2)
+        output1 = self.dropout(output1)
         
         output1 = F.relu(self.bn4(self.conv4(output1)))
         output1 = F.max_pool3d(output1, kernel_size=2, stride=2)
@@ -38,6 +39,7 @@ class SiameseThreeDim(nn.Module):
        
         output2 = F.relu(self.bn3(self.conv3(output2)))
         output2 = F.max_pool3d(output2, kernel_size=2, stride=2)
+        output2 = self.dropout(output2)
 
         output2 = F.relu(self.bn4(self.conv4(output2)))
         output2 = F.max_pool3d(output2, kernel_size=2, stride=2)

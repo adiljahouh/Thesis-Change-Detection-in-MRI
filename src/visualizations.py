@@ -2,10 +2,34 @@ import torch.nn as nn
 import torch
 import numpy as np
 import cv2
-import pyvista
+import os
+from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt
 from distance_measures import various_distance
-from time import sleep
+def generate_roc_curve(distances, labels, save_dir):
+    # # Invert distances because lower distance indicates more similarity
+    distances = [d.cpu().item() for d in distances]
+    labels = [l.cpu().item() for l in labels]
 
+    scores = [-d for d in distances]
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure()
+    lw = 2
+    plt.plot(fpr, tpr, color='darkorange', lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic')
+    plt.legend(loc="lower right")
+
+    # Save the plot to the specified directory
+    plt.savefig(os.path.join(save_dir, 'roc_curve.png'))
+    plt.close()  # Close the plot to free up memory
+    return thresholds
 def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
 
     interp = nn.Upsample(size=[512,512], mode='bilinear')
@@ -21,17 +45,17 @@ def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
     return similar_dis_map_colorize
 
 ## TODO: compute request kirsten
-## TODO: pad instead of resize
 ## TODO: nifti output? pass header and affine
 ## TODO:  https://medium.com/@rehman.aimal/implement-3d-unet-for-cardiac-volumetric-mri-scans-in-pytorch-79f8cca7dc68
+## TODO: ROC CURVE DECCISION BOUNDARY!
 
 ## DONE: Try slicer, models seem to all not work (glioma and meninglomas)
-## switched to padding but need compute cuz the images are just too much data if pad them all 
+## switched to padding but need compute cuz the images are just too much data if pad them all (reserves affine) 
 ## requested compute
 ## Pretrained model worked for them ebcause they just want to segment the object, we want to find
 ## dissimalarities between two images even them not being the tumor itself
 ## imported vgg16 and trying it as its a better architecture for similarity learning
-
+## read (https://pure.tue.nl/ws/portalfiles/portal/292941365/Trinh_P.pdf)
 
 def multiple_layer_similar_heatmap_visiual(output_t0, output_t1, dist_flag):
     # Assuming output_t0 and output_t1 are torch tensors of shape (n, c, d, h, w)

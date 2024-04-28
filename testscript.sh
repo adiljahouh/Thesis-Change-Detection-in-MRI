@@ -1,0 +1,1 @@
+python src/main.py test --model custom --filename custom_0.2m_226val.pth

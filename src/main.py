@@ -4,13 +4,15 @@ from network import SiameseThreeDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
 from loader import create_subject_pairs, transform_subjects, create_loaders
 import os
-from visualizations import single_layer_similar_heatmap_visual, multiple_layer_similar_heatmap_visiual
+from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
 import argparse
 import cv2
 
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
+    distances = []
+    labels = []
     with torch.no_grad():
         for index, subject in enumerate(test_loader):
             input1 = subject['t1']['data'].float().to(device)
@@ -20,6 +22,8 @@ def predict(siamese_net, test_loader, threshold=0.3):
             output1, output2 = siamese_net(input1, input2)
             # distance1 = various_distance(output1, output2, 'l2')  # Compute the distance euclidean
             distance = torch.dist(output1, output2, p=2)
+            distances.append(distance)
+            labels.append(label)
             # print(f"Distance: {distance}")
             #similarity_score = 1 - distance.item()  # Convert distance to similarity score
             prediction = distance < threshold  # Determine if the pair is similar based on the threshold
@@ -30,13 +34,14 @@ def predict(siamese_net, test_loader, threshold=0.3):
 
             # Visualize the similarity heatmap
             heatmap = multiple_layer_similar_heatmap_visiual(output1, output2, 'l2')
-            print(len(heatmap))
             # Save the heatmap
             save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/threedim/{subject["name"][0]}')
             os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
             for i, img in enumerate(heatmap):
                 save_path = f'./data/heatmaps/threedim/{subject["name"][0]}/{i}.jpg'
                 cv2.imwrite(os.path.join(os.getcwd(), save_path), img)
+    return distances, labels
+
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
           save_dir='models', model_name='masked.pth', device=torch.device('cuda')):
     siamese_net.to(device)
@@ -95,21 +100,24 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
-    subparsers = parser.add_subparsers(title="modes", description="Valid operation modes", help="Sub-command help", dest="mode")
+    subparsers = parser.add_subparsers(title="modes", description="Valid operation modes", 
+                                       help="Sub-command help", dest="mode", required=True)
     
     # Create a subparser for the training mode
     parser_train = subparsers.add_parser("train", help="Train the network")
-    parser_train.add_argument('--model_type', type=str, choices=['custom', 'vgg16'],
+    parser_train.add_argument('--model', type=str, choices=['custom', 'vgg16'],
                              help='Type of model architecture to use (custom or VGG16-based).', required=True)
     parser_train.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
-    parser_train.add_argument("--learning_rate", type=float, default=0.001, help="Learning rate for the optimizer")
-    parser_train.add_argument("--patience", type=int, default=10, help="Patience for early stopping")
+    parser_train.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
+    parser_train.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
     parser_train.add_argument("--margin", type=float, default=0.2, help="Margin of the constractive loss")
     
     # Create a subparser for the evaluation mode
     parser_test = subparsers.add_parser("test", help="Use a trained model to test similarity")
-    parser_test.add_argument("--model_name", type=str, required=True, help="Model name in ./models, omitting the .pth")
-    parser_test.add_argument("--threshold", type=float, required=True, help="Threshold for deciding similarity")
+    parser_test.add_argument('--model', type=str, choices=['custom', 'vgg16'],
+                             help='Type of model architecture to use (custom or VGG16-based).', required=True)
+    parser_test.add_argument("--filename", type=str, required=True, help="Model name in ./models, e.g vgg16.pth")
+    parser_test.add_argument("--threshold", type=float, default=9, help="Threshold for deciding similarity")
     
     # Parse arguments
     args = parser.parse_args()
@@ -117,11 +125,11 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
 
-    if args.model_name == 'custom':
+    if args.model == 'custom':
         model_type = SiameseThreeDim()
-    elif args.model_name == 'vgg16':
+    elif args.model == 'vgg16':
         model_type = SiameseVGG3D()
-    save_dir = f'./models/{args.model_name}'
+    save_dir = f'./models/{args.model}'
 
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
@@ -129,22 +137,22 @@ if __name__ == "__main__":
 
     if args.mode == 'train':
         criterion = ConstractiveLoss(margin=args.margin)
-        optimizer = optim.Adam(model_type.parameters(), lr=args.learning_rate)
+        optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
         # Train the network
         train(model_type, optimizer, criterion, train_loader=train_loader_t1, val_loader=val_loader_t1,
-            epochs=args.epochs, patience=args.patience, save_dir=save_dir, model_name=args.model_name, device=device)
+            epochs=args.epochs, patience=args.patience, save_dir=save_dir, model_name=f'{args.model}.pth', device=device)
     
     elif args.mode == 'test':
-        print(f"Attempting to load {args.model_name}")
-        if os.path.exists(os.path.join(save_dir, f'{args.model_name}.pth')):
+        print(f"Attempting to load {args.filename}")
+        if os.path.exists(os.path.join(save_dir, f'{args.filename}')):
             try:
-                model_type.load_state_dict(torch.load(os.path.join(save_dir, '3d.pth')))
+                model_type.load_state_dict(torch.load(os.path.join(save_dir, args.filename)))
             except Exception as ex:
                 print(f"{ex} : Something went wrong loading hte model")
             print('Loaded ')
         else:
-            print(f"File does not exist: {args.model_name}")
+            print(f"File does not exist: {args.filename}")
         
-        predict(model_type, test_loader_t1, args.threshold)
-    # heatmap = single_layer_similar_heatmap_visual(output1,output2, 'l2')
-    # merge_images(img1_set[0][0].numpy(), img2_set[0][0].numpy(), heatmap, f'./data/heatmaps/raw/unmasked/{patient_id}.jpg')
+        distances, labels = predict(model_type, test_loader_t1, args.threshold)
+        thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
+        print(thresholds)
