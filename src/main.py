@@ -21,7 +21,7 @@ def predict(siamese_net, test_loader, threshold=0.3):
             input2 = subject['t2']['data'].float().to(device)
             label = subject['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
-            distance = torch.dist(output1, output2, p=2)
+            distance = ConstractiveLoss(output1, output2, p=2)
             distances.append(distance)
             labels.append(label)
             # print(f"Distance: {distance}")
@@ -119,11 +119,12 @@ if __name__ == "__main__":
     loo = LeaveOneOut()
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
+    print(f"Number of subjects: {len(subjects)}")
     if args.model == 'custom':
         model_type = SiameseThreeDim()
     elif args.model == 'vgg16':
         model_type = SiameseVGG3D()
-    criterion = ConstractiveLoss(margin=args.patience, dist_flag=args.dist_flag)
+    criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
                 # Train the network
     for i, (train_index, test_index) in enumerate(loo.split(subjects)):
@@ -134,10 +135,10 @@ if __name__ == "__main__":
         train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
-            'lr-{args.lr}_marg-{args.margin}.pth', device=device)
+            f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
         
+        ##TODO: fix validation method
         distances, labels = predict(model_type, test_loader, 7)
-        thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
-        print(thresholds)
+        #thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
 
 
