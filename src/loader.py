@@ -51,7 +51,7 @@ def transform_subjects(subjects: list[tio.Subject]) -> tio.SubjectsDataset:
     transform = tio.Compose(transforms)
     return tio.SubjectsDataset(subjects, transform=transform)
 
-def create_loaders(dataset, train_index, test_index, batch_size=1):
+def create_loaders_with_index(dataset, train_index, test_index, batch_size=1):
     train_dataset = Subset(dataset, train_index)
     test_dataset = Subset(dataset, test_index)
     
@@ -59,3 +59,10 @@ def create_loaders(dataset, train_index, test_index, batch_size=1):
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, test_loader
+
+def create_loaders_with_split(dataset: Dataset, split=(0.8, 0.2), generator=None):
+    train_t1, test_t1 = random_split(dataset=dataset, lengths=split, generator=generator)
+    BATCH_SIZE=1
+    train_loader_t1 = DataLoader(train_t1, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader_t1 = DataLoader(test_t1, batch_size=BATCH_SIZE, shuffle=False)
+    return train_loader_t1, test_loader_t1

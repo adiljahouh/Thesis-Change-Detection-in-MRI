@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SiameseThreeDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
-from loader import create_subject_pairs, transform_subjects, create_loaders
+from loader import create_subject_pairs, transform_subjects, create_loaders_with_index, create_loaders_with_split
 import os
 from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
 import argparse
@@ -127,9 +127,11 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
                 # Train the network
     for i, (train_index, test_index) in enumerate(loo.split(subjects)):
-        train_val_loader, test_loader = create_loaders(subjects, train_index, test_index)
-        train_loader, val_loader = create_loaders(train_val_loader.dataset, split=(0.8, 0.2), generator=None)
-        train(model_type, optimizer, criterion, train_loader=train_loader, 
+        train_val_loader, test_loader = create_loaders_with_index(subjects, train_index, test_index)
+        train_loader, val_loader = create_loaders_with_split(train_val_loader.dataset, 
+                                                             split=(0.8, 0.2), generator=
+                                                             torch.random.manual_seed(42))
+        train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
             'lr-{args.lr}_marg-{args.margin}.pth', device=device)
