@@ -1,6 +1,6 @@
 import torchio as tio
 import os
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, random_split, Subset
 
 def create_subject_pairs(root, id):
     data = []
@@ -51,10 +51,11 @@ def transform_subjects(subjects: list[tio.Subject]) -> tio.SubjectsDataset:
     transform = tio.Compose(transforms)
     return tio.SubjectsDataset(subjects, transform=transform)
 
-def create_loaders(dataset: Dataset, split=(0.6, 0.2, 0.2), generator=None):
-    train_t1, val_t1, test_t1 = random_split(dataset=dataset, lengths=split, generator=generator)
-    BATCH_SIZE=1
-    train_loader_t1 = DataLoader(train_t1, batch_size=BATCH_SIZE, shuffle=False)
-    val_loader_t1 = DataLoader(val_t1, batch_size=BATCH_SIZE, shuffle=False)
-    test_loader_t1 = DataLoader(test_t1, batch_size=BATCH_SIZE, shuffle=False)
-    return train_loader_t1, val_loader_t1, test_loader_t1
+def create_loaders(dataset, train_index, test_index, batch_size=1):
+    train_dataset = Subset(dataset, train_index)
+    test_dataset = Subset(dataset, test_index)
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    
+    return train_loader, test_loader

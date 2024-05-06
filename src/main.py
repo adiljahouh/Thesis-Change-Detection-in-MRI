@@ -7,7 +7,9 @@ import os
 from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
 import argparse
 import cv2
-
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+## using leave-one-out cross validation because our data is small
+## change loss function to incorporate multiple layer losses
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -17,10 +19,8 @@ def predict(siamese_net, test_loader, threshold=0.3):
         for index, subject in enumerate(test_loader):
             input1 = subject['t1']['data'].float().to(device)
             input2 = subject['t2']['data'].float().to(device)
-            # print(subject['name'])
             label = subject['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
-            # distance1 = various_distance(output1, output2, 'l2')  # Compute the distance euclidean
             distance = torch.dist(output1, output2, p=2)
             distances.append(distance)
             labels.append(label)
@@ -100,59 +100,54 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
-    subparsers = parser.add_subparsers(title="modes", description="Valid operation modes", 
-                                       help="Sub-command help", dest="mode", required=True)
+    # subparsers = parser.add_subparsers(title="modes", description="Valid operation modes", 
+    #                                    help="Sub-command help", dest="mode", required=True)
     
-    # Create a subparser for the training mode
-    parser_train = subparsers.add_parser("train", help="Train the network")
-    parser_train.add_argument('--model', type=str, choices=['custom', 'vgg16'],
-                             help='Type of model architecture to use (custom or VGG16-based).', required=True)
-    parser_train.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
-    parser_train.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
-    parser_train.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
-    parser_train.add_argument("--margin", type=float, default=0.2, help="Margin of the constractive loss")
+    # # Create a subparser for the training mode
+    # parser_train = subparsers.add_parser("train", help="Train the network")
+    parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
+                             help='Type of model architecture to use (custom or VGG16-based).', 
+                             required=True)
+    parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], required=True, help=
+                        "Distance flag to use for the loss function (l2, l1, or cos)")
+    parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
+    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
+    parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
+    parser.add_argument("--margin", type=float, default=0.2, help="Margin of the constractive loss")
     
-    # Create a subparser for the evaluation mode
-    parser_test = subparsers.add_parser("test", help="Use a trained model to test similarity")
-    parser_test.add_argument('--model', type=str, choices=['custom', 'vgg16'],
-                             help='Type of model architecture to use (custom or VGG16-based).', required=True)
-    parser_test.add_argument("--filename", type=str, required=True, help="Model name in ./models, e.g vgg16.pth")
-    parser_test.add_argument("--threshold", type=float, default=9, help="Threshold for deciding similarity")
+    # # Create a subparser for the evaluation mode
+    # parser_test = subparsers.add_parser("test", help="Use a trained model to test similarity")
+    # parser_test.add_argument('--model', type=str, choices=['custom', 'vgg16'],
+    #                          help='Type of model architecture to use (custom or VGG16-based).', required=True)
+    # parser_test.add_argument("--filename", type=str, required=True, help="Model name in ./models, e.g vgg16.pth")
+    # parser_test.add_argument("--threshold", type=float, default=9, help="Threshold for deciding similarity")
     
     # Parse arguments
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
-
+    save_dir = f'./models/{args.model}'
+    loo = LeaveOneOut()
+    subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
+    subjects = transform_subjects(subjects_raw)
     if args.model == 'custom':
         model_type = SiameseThreeDim()
     elif args.model == 'vgg16':
         model_type = SiameseVGG3D()
-    save_dir = f'./models/{args.model}'
-
-    subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
-    subjects = transform_subjects(subjects_raw)
-    train_loader_t1, val_loader_t1, test_loader_t1 = create_loaders(subjects, split=(0.6, 0.2, 0.2), generator=torch.Generator().manual_seed(42))
-
-    if args.mode == 'train':
-        criterion = ConstractiveLoss(margin=args.margin)
-        optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
-        # Train the network
-        train(model_type, optimizer, criterion, train_loader=train_loader_t1, val_loader=val_loader_t1,
-            epochs=args.epochs, patience=args.patience, save_dir=save_dir, model_name=f'{args.model}.pth', device=device)
-    
-    elif args.mode == 'test':
-        print(f"Attempting to load {args.filename}")
-        if os.path.exists(os.path.join(save_dir, f'{args.filename}')):
-            try:
-                model_type.load_state_dict(torch.load(os.path.join(save_dir, args.filename)))
-            except Exception as ex:
-                print(f"{ex} : Something went wrong loading hte model")
-            print('Loaded ')
-        else:
-            print(f"File does not exist: {args.filename}")
+    criterion = ConstractiveLoss(margin=args.patience, dist_flag=args.dist_flag)
+    optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
+                # Train the network
+    for i, (train_index, test_index) in enumerate(loo.split(subjects)):
+        train_loader, test_loader = create_loaders(subjects, 
+                                                                        train_index, test_index)
+        train(model_type, optimizer, criterion, train_loader=train_loader, 
+            epochs=args.epochs, patience=args.patience, 
+            save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
+            'lr-{args.lr}_marg-{args.margin}.pth', device=device)
         
-        distances, labels = predict(model_type, test_loader_t1, args.threshold)
+        distances, labels = predict(model_type, test_loader, 7)
         thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
         print(thresholds)
+
+

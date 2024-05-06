@@ -1,0 +1,1 @@
+python src/main.py --model custom --lr 0.001 --epochs 200 --dist_flag l2
