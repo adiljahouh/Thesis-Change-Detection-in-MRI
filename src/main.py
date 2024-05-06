@@ -100,11 +100,7 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
-    # subparsers = parser.add_subparsers(title="modes", description="Valid operation modes", 
-    #                                    help="Sub-command help", dest="mode", required=True)
-    
-    # # Create a subparser for the training mode
-    # parser_train = subparsers.add_parser("train", help="Train the network")
+
     parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
@@ -115,14 +111,6 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
     parser.add_argument("--margin", type=float, default=0.2, help="Margin of the constractive loss")
     
-    # # Create a subparser for the evaluation mode
-    # parser_test = subparsers.add_parser("test", help="Use a trained model to test similarity")
-    # parser_test.add_argument('--model', type=str, choices=['custom', 'vgg16'],
-    #                          help='Type of model architecture to use (custom or VGG16-based).', required=True)
-    # parser_test.add_argument("--filename", type=str, required=True, help="Model name in ./models, e.g vgg16.pth")
-    # parser_test.add_argument("--threshold", type=float, default=9, help="Threshold for deciding similarity")
-    
-    # Parse arguments
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -139,8 +127,8 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
                 # Train the network
     for i, (train_index, test_index) in enumerate(loo.split(subjects)):
-        train_loader, test_loader = create_loaders(subjects, 
-                                                                        train_index, test_index)
+        train_val_loader, test_loader = create_loaders(subjects, train_index, test_index)
+        train_loader, val_loader = create_loaders(train_val_loader.dataset, split=(0.8, 0.2), generator=None)
         train(model_type, optimizer, criterion, train_loader=train_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
