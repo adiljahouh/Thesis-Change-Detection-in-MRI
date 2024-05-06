@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
-    train_loader_t1, val_loader_t1, test_loader_t1 = create_loaders(subjects, split=(0.6, 0.2, 0.2))
+    train_loader_t1, val_loader_t1, test_loader_t1 = create_loaders(subjects, split=(0.6, 0.2, 0.2), generator=torch.Generator().manual_seed(42))
 
     if args.mode == 'train':
         criterion = ConstractiveLoss(margin=args.margin)

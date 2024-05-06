@@ -47,16 +47,24 @@ def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
 ## TODO: compute request kirsten
 ## TODO: nifti output? pass header and affine
 ## TODO:  https://medium.com/@rehman.aimal/implement-3d-unet-for-cardiac-volumetric-mri-scans-in-pytorch-79f8cca7dc68
-## TODO: ROC CURVE DECCISION BOUNDARY!
 
-## DONE: Try slicer, models seem to all not work (glioma and meninglomas)
+## DONE: Try slicer, models seem to all not work (glioma and meninglomas) on pat 11 and 23 which are obvious
 ## switched to padding but need compute cuz the images are just too much data if pad them all (reserves affine) 
 ## requested compute
-## Pretrained model worked for them ebcause they just want to segment the object, we want to find
-## dissimalarities between two images even them not being the tumor itself
-## imported vgg16 and trying it as its a better architecture for similarity learning
+## imported vgg16 and trying it as its a better architecture for similarity learning - need compute
+## Using roc curves now but running into issue of decision line with low test numbers
 ## read (https://pure.tue.nl/ws/portalfiles/portal/292941365/Trinh_P.pdf)
+## thinking about adding pre and pre and post post but there would be a class mismatch
+## Tried Monai, segmentation
 
+## Ask maxime if the data went through the ethical review board or data steward was informed (floor lup)
+## problem: low data,    need to find a way to increase data
+## best way: voxel level with labels (Slicer, ITK-snap, MITK, MRIcon)
+## maybe already train with dissimilarities from other diseases if we have more data there?
+
+    
+## unet and other link
+#cross validation
 def multiple_layer_similar_heatmap_visiual(output_t0, output_t1, dist_flag):
     # Assuming output_t0 and output_t1 are torch tensors of shape (n, c, d, h, w)
     interp = nn.Upsample(size=[164,164, 164], mode='trilinear')   
