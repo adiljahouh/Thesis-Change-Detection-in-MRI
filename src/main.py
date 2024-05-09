@@ -4,15 +4,17 @@ from network import SiameseThreeDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
 from loader import create_subject_pairs, transform_subjects, create_loaders_with_index
 import os
-from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
+from visualizations import multiple_layer_similar_heatmap_visiual 
 import argparse
 import cv2
-from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import random_split, DataLoader
 ## using leave-one-out cross validation because our data is small
 ## using stratified kfold for cross validation because LOO will overfit and 
-## 
+## Requested server, and data storage
+## installed python, conda and setup pytorch on server
 ## change loss function to incorporate multiple layer losses
+
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -120,7 +122,6 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     save_dir = f'./models/{args.model}'
-    loo = LeaveOneOut()
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', 
                                        id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
@@ -152,7 +153,7 @@ if __name__ == "__main__":
             f'lr-{args.lr}_marg-{args.margin}_fold-{i}.pth', device=device)
         validation_accuracy.append(best_loss)
         print(f"Appending validation accuracy for fold {i}: {best_loss}")
-        
+
     print(f"Average validation accuracy for all folds: {sum(validation_accuracy)/len(validation_accuracy)}")
     # Test the model on the test set
     index_best_model = validation_accuracy.index(min(validation_accuracy))
