@@ -7,8 +7,9 @@ import os
 from visualizations import multiple_layer_similar_heatmap_visiual 
 import argparse
 import cv2
-from sklearn.model_selection import StratifiedKFold
-from torch.utils.data import random_split, DataLoader
+from sklearn.model_selection import StratifiedKFold, train_test_split
+from torch.utils.data import random_split, DataLoader, Subset
+import torch.nn.functional as F
 ## using leave-one-out cross validation because our data is small
 ## using stratified kfold for cross validation because LOO will overfit and 
 ## Requested server, and data storage
@@ -26,7 +27,8 @@ def predict(siamese_net, test_loader, threshold=0.3):
             input2 = subject['t2']['data'].float().to(device)
             label = subject['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
-            distance = ConstractiveLoss(output1, output2, p=2)
+            distance = F.pairwise_distance(output1,output2,p=2)
+            #distance = torch.dist(output1, output2, p=2)
             distances.append(distance)
             labels.append(label)
             # print(f"Distance: {distance}")
@@ -126,15 +128,25 @@ if __name__ == "__main__":
                                        id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
     
-    subjects_train, subjects_test = random_split(dataset=subjects, lengths=(0.8, 0.2), generator=torch.random.manual_seed(42))
-    print(f"Number of train/val subjects: {len(subjects_train)}")
-    print(f"Number of test subjects: {len(subjects_test)}")
+    # subjects_train, subjects_test = random_split(dataset=subjects, lengths=(0.8, 0.2), generator=torch.random.manual_seed(42))
+    # print(f"Number of train/val subjects: {len(subjects_train)}")
+    # print(f"Number of test subjects: {len(subjects_test)}")
     
     # Train the network using leave-one-out cross validation
     validation_accuracy = []
+    fold_data = {}
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    for i, (train_index, test_index) in enumerate(skf.split(subjects_train, 
-                                                            [subject.label for subject in subjects_train])):
+    for i, (train_index, test_index) in enumerate(skf.split(subjects, 
+                                                            [subject.label for subject in subjects])):
+        subjects_train = Subset(subjects, train_index)
+        subjects_val_test = Subset(subjects, test_index)
+        subjects_val, subjects_test = train_test_split(subjects_val_test, test_size=0.5, random_state=42, stratify=[subject.label for subject in subjects_val_test])
+        print(f"Number of train subjects: {len(subjects_train)}")
+        print(f"Number of validation subjects: {len(subjects_val)}")
+        print(f"Number of test subjects: {len(subjects_test)}")
+
+        # we are remembering the test set which we split off for later cv
+        fold_data[i] = (subjects_train, subjects_val, subjects_test)
         if args.model == 'custom':
             model_type = SiameseThreeDim()
         elif args.model == 'vgg16':
@@ -142,11 +154,11 @@ if __name__ == "__main__":
         criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
         optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
-        train_loader, val_loader = create_loaders_with_index(subjects_train, train_index, test_index)
+        ## using validation split to avoid overfitting
+        train_loader = DataLoader(subjects_train, batch_size=1, shuffle=False)
+        val_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
+
         print(f"Splitting the training set into {len(train_loader)} training samples and {len(val_loader)} validation samples")
-        # train_loader, val_loader = create_loaders_with_split(train_val_loader.dataset, 
-        #                                                      split=(0.8, 0.2), generator=
-        #                                                      torch.random.manual_seed(42))
         best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
