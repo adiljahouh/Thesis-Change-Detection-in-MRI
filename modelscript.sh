@@ -1,1 +1,1 @@
-python src/main.py --model custom --lr 0.001 --epochs 2 --dist_flag l2 --margin 0.0
+python src/main.py --model custom --lr 0.001 --epochs 1 --dist_flag l2 --margin 0.0

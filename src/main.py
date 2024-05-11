@@ -2,9 +2,9 @@ import torch
 import torch.optim as optim
 from network import SiameseThreeDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
-from loader import create_subject_pairs, transform_subjects, create_loaders_with_index
+from loader import create_subject_pairs, transform_subjects
 import os
-from visualizations import multiple_layer_similar_heatmap_visiual 
+from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
 import argparse
 import cv2
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -15,7 +15,6 @@ import torch.nn.functional as F
 ## Requested server, and data storage
 ## installed python, conda and setup pytorch on server
 ## change loss function to incorporate multiple layer losses
-
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -27,7 +26,7 @@ def predict(siamese_net, test_loader, threshold=0.3):
             input2 = subject['t2']['data'].float().to(device)
             label = subject['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
-            distance = F.pairwise_distance(output1,output2,p=2)
+            distance = torch.dist(output1,output2,p=2)
             #distance = torch.dist(output1, output2, p=2)
             distances.append(distance)
             labels.append(label)
@@ -40,13 +39,13 @@ def predict(siamese_net, test_loader, threshold=0.3):
                 print("The pair is dissimilar with a distance of:", distance.item(), " label:", label.item())
 
             # Visualize the similarity heatmap
-            heatmap = multiple_layer_similar_heatmap_visiual(output1, output2, 'l2')
-            # Save the heatmap
-            save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/threedim/{subject["name"][0]}')
-            os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-            for i, img in enumerate(heatmap):
-                save_path = f'./data/heatmaps/threedim/{subject["name"][0]}/{i}.jpg'
-                cv2.imwrite(os.path.join(os.getcwd(), save_path), img)
+            # heatmap = multiple_layer_similar_heatmap_visiual(output1, output2, 'l2')
+            # # Save the heatmap
+            # save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/threedim/{subject["name"][0]}')
+            # os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
+            # for i, img in enumerate(heatmap):
+            #     save_path = f'./data/heatmaps/threedim/{subject["name"][0]}/{i}.jpg'
+            #     cv2.imwrite(os.path.join(os.getcwd(), save_path), img)
     return distances, labels
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
@@ -128,21 +127,15 @@ if __name__ == "__main__":
                                        id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
     
-    # subjects_train, subjects_test = random_split(dataset=subjects, lengths=(0.8, 0.2), generator=torch.random.manual_seed(42))
-    # print(f"Number of train/val subjects: {len(subjects_train)}")
-    # print(f"Number of test subjects: {len(subjects_test)}")
-    
-    # Train the network using leave-one-out cross validation
+    # Train the network using kFold cross validation
     validation_accuracy = []
     fold_data = {}
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    for i, (train_index, test_index) in enumerate(skf.split(subjects, 
+    skf = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    for i, (train_index, test_val_index) in enumerate(skf.split(subjects, 
                                                             [subject.label for subject in subjects])):
         subjects_train = Subset(subjects, train_index)
-        subjects_val_test = Subset(subjects, test_index)
+        subjects_val_test = Subset(subjects, test_val_index)
         subjects_val, subjects_test = train_test_split(subjects_val_test, test_size=0.5, random_state=42, stratify=[subject.label for subject in subjects_val_test])
-        print(f"Number of train subjects: {len(subjects_train)}")
-        print(f"Number of validation subjects: {len(subjects_val)}")
         print(f"Number of test subjects: {len(subjects_test)}")
 
         # we are remembering the test set which we split off for later cv
@@ -157,8 +150,6 @@ if __name__ == "__main__":
         ## using validation split to avoid overfitting
         train_loader = DataLoader(subjects_train, batch_size=1, shuffle=False)
         val_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
-
-        print(f"Splitting the training set into {len(train_loader)} training samples and {len(val_loader)} validation samples")
         best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
@@ -174,9 +165,14 @@ if __name__ == "__main__":
     model_path = os.path.join(save_dir, best_model)
 
     model_type.load_state_dict(torch.load(model_path))
+    merged_distances, merged_labels = [], []
+    for i in range(4):
+        subjects_train, subjects_val, subjects_test = fold_data[i]
+        test_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
+        distances, labels = predict(model_type, test_loader, 7)
+        merged_distances.extend(distances)
+        merged_labels.extend(labels)
+    thresholds = generate_roc_curve(merged_distances, merged_labels, f"./models/{args.model}")
 
-    test_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
-    distances, labels = predict(model_type, test_loader, 7)
-        #thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
 
 
