@@ -15,6 +15,8 @@ import torch.nn.functional as F
 ## Requested server, and data storage
 ## installed python, conda and setup pytorch on server
 ## change loss function to incorporate multiple layer losses
+## skipping heatmap, it works for now but reducing the accuracy is more of an issue right now
+
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -123,6 +125,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     save_dir = f'./models/{args.model}'
+    ##TODO: add root path to args.pars because this wont run on server
     subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', 
                                        id=['t1_ants_aligned.nii.gz'])
     subjects = transform_subjects(subjects_raw)
@@ -130,7 +133,7 @@ if __name__ == "__main__":
     # Train the network using kFold cross validation
     validation_accuracy = []
     fold_data = {}
-    skf = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
     for i, (train_index, test_val_index) in enumerate(skf.split(subjects, 
                                                             [subject.label for subject in subjects])):
         subjects_train = Subset(subjects, train_index)
@@ -166,7 +169,7 @@ if __name__ == "__main__":
 
     model_type.load_state_dict(torch.load(model_path))
     merged_distances, merged_labels = [], []
-    for i in range(4):
+    for i in range(3):
         subjects_train, subjects_val, subjects_test = fold_data[i]
         test_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
         distances, labels = predict(model_type, test_loader, 7)
