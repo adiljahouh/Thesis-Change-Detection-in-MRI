@@ -10,13 +10,24 @@ import cv2
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import random_split, DataLoader, Subset
 import torch.nn.functional as F
-## using leave-one-out cross validation because our data is small
-## using stratified kfold for cross validation because LOO will overfit and 
-## Requested server, and data storage
-## installed python, conda and setup pytorch on server
-## change loss function to incorporate multiple layer losses
-## skipping heatmap, it works for now but reducing the accuracy is more of an issue right now
+## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
+## warp ants on raw/ses-preop skull data
+## this turns it into processed/ants
+
+## ants script ants/registrationSynQuick used rigid and affine
+## ants apply transform
+
+## check fsl and if we brought post to pre we can just load tumor and mannually check
+## ELSE
+## if it doesnt work just use t1.mif use mrconvert to save as nii.gz
+
+
+### Post t1_ants is aligned to preop t1_ants
+### fact checked all patients 1-11
+### its not all aligned to the tumor correctly
+
+## TODO: fsl align the postop to preop for the raw t1w data DONOT REMOVE SKULL
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode

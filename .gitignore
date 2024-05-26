@@ -4,3 +4,7 @@
 *.csv
 *.tsv
 /data/* 
+/models/*
+*.pth
+*.pt
+*.png
