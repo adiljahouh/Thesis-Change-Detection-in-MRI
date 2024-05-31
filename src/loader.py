@@ -1,7 +1,70 @@
 import torchio as tio
 import os
+import nibabel as nib
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
+from nilearn.image import resample_to_img
+import numpy as np
+def make_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list):
+    """
+        Proc_preop:  should be the preoperative directory with all patients dirs
+        e.g ./data/processed/preop/BTC-preop
+        
+        raw_tumor_dir: should be the raw tumor directory with all patients dirs
+        e.g ./data/raw/preop/BTC-preop/derivatives/tumor_masks
 
+        image_id: list of the image id to match the preop and postop images e.g. t1_ants_aligned.nii.gz
+
+    """
+    voxel_data: list[tuple] = []
+    for root, dirs, files in os.walk(proc_preop):
+        for filename in files:
+            for image_id in image_ids:
+                if filename.endswith(image_id):
+                    try:
+                        pat_id = root.split("/")[-1]
+                        preop_nifti = nib.load(os.path.join(root, filename))
+                        postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
+                                                         filename.replace("preop", "postop")))
+                        # load the tumor from the tumor directory matching the patient id
+                        if "PAT" in pat_id:
+                            try:
+                                tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
+                                tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
+                                tumor_voxels = tumor_resampled.get_fdata()
+                                tumor_voxels_norm = tumor_voxels - np.min(tumor_voxels) / (np.max(tumor_voxels) - np.min(tumor_voxels))
+                            except FileNotFoundError as e:
+                                print(f"Tumor not found for {pat_id}, {e}")
+                            except Exception as e:
+                                print(f"Uncaught error, {e}")
+                        
+                        # resample the postop nifti to the preop nifti
+                        preop_nifti_norm = preop_nifti.get_fdata() - np.min(preop_nifti.get_fdata()) / (np.max(preop_nifti.get_fdata()) - np.min(preop_nifti.get_fdata()))
+                        postop_nifti_norm = postop_nifti.get_fdata() - np.min(postop_nifti.get_fdata()) / (np.max(postop_nifti.get_fdata()) - np.min(postop_nifti.get_fdata()))
+
+                        ## first check if skipping zero and lower voxels is smart by visualizing it
+                        
+                        if "CON" in pat_id:
+                            voxel_data.append(
+                                (nifti_1, 1)
+                            )
+                        elif "-PAT" in filename or "-PAT" in os.path.join(root, filename):
+                                voxel_data.append(
+
+                                    )
+                    except FileNotFoundError as e:
+                        print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
+
+                    except Exception as e:
+                        print(f"Uncaught error, {e}")
+                else:
+                    pass
+    return data
+
+
+make_voxel_pairs(proc_preop= './data/processed/preop/BTC-preop', 
+                 raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks', 
+                 image_ids=['t1_ants_aligned.nii.gz'])
+                                    
 def create_subject_pairs(root, id):
     data = []
     for root, dirs, files in os.walk(root):

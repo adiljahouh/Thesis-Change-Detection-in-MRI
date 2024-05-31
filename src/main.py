@@ -28,6 +28,9 @@ import torch.nn.functional as F
 ### its not all aligned to the tumor correctly
 
 ## TODO: fsl align the postop to preop for the raw t1w data DONOT REMOVE SKULL
+## aligned them but skull is different which can cause issues
+## write in docu we registered tumors using antsApplyTransforms
+
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
