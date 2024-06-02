@@ -3,48 +3,108 @@ import os
 import nibabel as nib
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from nilearn.image import resample_to_img
+from numpy import ndarray
+from typing import Tuple
 import numpy as np
+def normalize_nifti(nifti_image: nib.Nifti1Image) -> ndarray:
+    return (nifti_image.get_fdata() - np.min(nifti_image.get_fdata())) / (np.max(
+        nifti_image.get_fdata()) - np.min(nifti_image.get_fdata()))
 
+def pad_slice(slice_2d, output_size=(256, 256)):
+    """
+    Pad a 2D slice to the desired output size with zeros.
+    """
+    pad_height = (output_size[0] - slice_2d.shape[0])
+    pad_width = (output_size[1] - slice_2d.shape[1])
+    
+    padded_slice = np.pad(slice_2d, 
+                          ((0, pad_height), (0, pad_width)), 
+                          mode='constant', 
+                          constant_values=0)
+    return padded_slice
 
+def convert_3d_into_2d(nifti_image: np.ndarray, output_size=(256, 256)) -> list[ndarray]:
+    slices = []
+    
+    # Extract and pad slices along the first dimension (axial)
+    for i in range(nifti_image.shape[0]):
+        slices.append(nifti_image[i, :, :])
+    
+    # Extract and pad slices along the second dimension (coronal)
+    for i in range(nifti_image.shape[1]):
+        slices.append(nifti_image[:, i, :])
+    
+    # Extract and pad slices along the third dimension (sagittal)
+    for i in range(nifti_image.shape[2]):
+        slices.append(nifti_image[:, :, i])
+    
+    return slices
 
-def create_image_pairs(root, id):
-    data = []
-    for root, dirs, files in os.walk(root):
-        for filename in files:
-            for image_id in id:
-                if filename.endswith(image_id):
-                    nifti_1 = tio.ScalarImage(os.path.join(root, filename))
-                    try:
-                        if "preop" in root:
-                            nifti_2 = tio.ScalarImage(os.path.join(root.replace("preop", "postop"), filename.replace("preop", "postop")))
-                        else:
-                            nifti_2 = tio.ScalarImage(os.path.join(root.replace("postop", "preop"), filename.replace("postop", "preop")))
-                        if "-CON" in filename or "-CON" in os.path.join(root, filename):
-                            # print("control for ", filename)
-                            data.append(
-                                tio.Subject(
-                                    t1=nifti_1,
-                                    t2=nifti_2,
-                                    label=1,
-                                    name= root.split("/")[-1],
-                                    path= os.path.join(root, filename)
-                                            )
-                                    )
-                        elif "-PAT" in filename or "-PAT" in os.path.join(root, filename):
-                                data.append(
-                                tio.Subject(
-                                    t1=nifti_1,
-                                    t2=nifti_2,
-                                    label=0,
-                                    name= root.split("/")[-1],
-                                    path= os.path.join(root, filename)
-                                            )
-                                    )
-                        else:
-                            print(f"Invalid filename: {os.path.join(root, filename)}")
-                    except FileNotFoundError:
-                        print(f"Matching subject (pre and post) not found for {os.path.join(root, filename)}")
-    return data
+class imagePairs(Dataset):
+    """
+    Image dataset for each subject in the dataset
+    creating only 'correct' and 'incorrect' pairs for now
+
+    Works by passing preop or postop directory to the class
+    and finds the corresponding image in the other dir and labels
+    """
+    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None):
+        self.root = root
+        self.transform = transform
+        self.data = []
+        self.image_ids = image_ids
+        for root, dirs, files in os.walk(proc_preop):
+            for filename in files:
+                for image_id in image_ids:
+                    if filename.endswith(image_id):
+                        try:
+                            pat_id = root.split("/")[-1]
+                            print(f"Processing {pat_id}")
+                            preop_nifti = nib.load(os.path.join(root, filename))
+                            postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
+                                                                filename.replace("preop", "postop")))
+                            # load the tumor from the tumor directory matching the patient id
+                            if "PAT" in pat_id:
+                                try:
+                                    tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
+                                    tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
+                                    tumor_norm = normalize_nifti(tumor_resampled)
+                                except FileNotFoundError as e:
+                                    print(f"Tumor not found for {pat_id}, {e}")
+                                except Exception as e:
+                                    print(f"Uncaught error, {e}")
+                            
+                            # resample the postop nifti to the preop nifti
+                            preop_nifti_norm = normalize_nifti(preop_nifti)
+                            postop_nifti_norm = normalize_nifti(postop_nifti)
+
+                            if "-CON" in pat_id:
+                                images_pre: list = convert_3d_into_2d(preop_nifti_norm)
+                                images_post: list = convert_3d_into_2d(postop_nifti_norm)
+
+                                images_pre_pad = [(pad_slice(image), 1) for image in images_pre]
+                                images_post_pad = [(pad_slice(image), 1) for image in images_post]
+
+                            elif "-PAT" in pat_id:
+                                images_pre: list = convert_3d_into_2d(preop_nifti_norm)
+                                images_post: list = convert_3d_into_2d(postop_nifti_norm)
+                                # maybe output index and check if the tumor is in the slice by index?
+                                images_pre_pad = [(pad_slice(image), 0) for image in images_pre if ]
+                                images_post_pad = [(pad_slice(image), 0) for image in images_post]
+                        except FileNotFoundError as e:
+                            print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
+
+                        except Exception as e:
+                            print(f"Uncaught error, {e}")
+                    else:
+                        pass
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        if self.transform:
+            img1_file = self.transform(self.data[idx][0])
+            img2_file = self.transform(self.data[idx][1])
+        return (img1_file, img2_file, self.data[idx][2], self.data[idx][3])
 
 def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
     """
@@ -115,11 +175,6 @@ def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> 
                     pass
     return voxel_data
 
-# ## temp
-# voxel_data = create_voxel_pairs(proc_preop= './data/processed/preop/BTC-preop', 
-#                  raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks', 
-#                  image_ids=['t1_ants_aligned.nii.gz'])
-# print(voxel_data[0])
                                     
 def create_subject_pairs(root, id):
     data = []
