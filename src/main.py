@@ -31,6 +31,11 @@ import torch.nn.functional as F
 ## aligned them but skull is different which can cause issues
 ## write in docu we registered tumors using antsApplyTransforms
 
+## Aligned and normalized the tumor using nilearn transformations
+## One voxel input is too little information so im looking into patches
+
+
+## work in patches, but that would mean a lot of labels. Maybe aggregate them to have some sort of probability?
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode

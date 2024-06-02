@@ -4,7 +4,49 @@ import nibabel as nib
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from nilearn.image import resample_to_img
 import numpy as np
-def make_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list):
+
+
+
+def create_image_pairs(root, id):
+    data = []
+    for root, dirs, files in os.walk(root):
+        for filename in files:
+            for image_id in id:
+                if filename.endswith(image_id):
+                    nifti_1 = tio.ScalarImage(os.path.join(root, filename))
+                    try:
+                        if "preop" in root:
+                            nifti_2 = tio.ScalarImage(os.path.join(root.replace("preop", "postop"), filename.replace("preop", "postop")))
+                        else:
+                            nifti_2 = tio.ScalarImage(os.path.join(root.replace("postop", "preop"), filename.replace("postop", "preop")))
+                        if "-CON" in filename or "-CON" in os.path.join(root, filename):
+                            # print("control for ", filename)
+                            data.append(
+                                tio.Subject(
+                                    t1=nifti_1,
+                                    t2=nifti_2,
+                                    label=1,
+                                    name= root.split("/")[-1],
+                                    path= os.path.join(root, filename)
+                                            )
+                                    )
+                        elif "-PAT" in filename or "-PAT" in os.path.join(root, filename):
+                                data.append(
+                                tio.Subject(
+                                    t1=nifti_1,
+                                    t2=nifti_2,
+                                    label=0,
+                                    name= root.split("/")[-1],
+                                    path= os.path.join(root, filename)
+                                            )
+                                    )
+                        else:
+                            print(f"Invalid filename: {os.path.join(root, filename)}")
+                    except FileNotFoundError:
+                        print(f"Matching subject (pre and post) not found for {os.path.join(root, filename)}")
+    return data
+
+def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
     """
         Proc_preop:  should be the preoperative directory with all patients dirs
         e.g ./data/processed/preop/BTC-preop
@@ -15,6 +57,7 @@ def make_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list):
         image_id: list of the image id to match the preop and postop images e.g. t1_ants_aligned.nii.gz
 
     """
+
     voxel_data: list[tuple] = []
     for root, dirs, files in os.walk(proc_preop):
         for filename in files:
@@ -22,6 +65,7 @@ def make_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list):
                 if filename.endswith(image_id):
                     try:
                         pat_id = root.split("/")[-1]
+                        print(f"Processing {pat_id}")
                         preop_nifti = nib.load(os.path.join(root, filename))
                         postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                          filename.replace("preop", "postop")))
@@ -42,15 +86,26 @@ def make_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list):
                         postop_nifti_norm = postop_nifti.get_fdata() - np.min(postop_nifti.get_fdata()) / (np.max(postop_nifti.get_fdata()) - np.min(postop_nifti.get_fdata()))
 
                         ## first check if skipping zero and lower voxels is smart by visualizing it
-                        
-                        if "CON" in pat_id:
-                            voxel_data.append(
-                                (nifti_1, 1)
-                            )
-                        elif "-PAT" in filename or "-PAT" in os.path.join(root, filename):
-                                voxel_data.append(
 
-                                    )
+                        if "-CON" in pat_id:
+                            for i in range(preop_nifti_norm.shape[0]):
+                                for j in range(preop_nifti_norm.shape[1]):
+                                    for k in range(preop_nifti_norm.shape[2]):
+                                        voxel_data.append(
+                                            (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 1)
+                                        )
+                        elif "-PAT" in pat_id:
+                                for i in range(preop_nifti_norm.shape[0]):
+                                    for j in range(preop_nifti_norm.shape[1]):
+                                        for k in range(preop_nifti_norm.shape[2]):
+                                            if tumor_voxels_norm[i, j, k] > 0.2:
+                                                voxel_data.append(
+                                                    (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 0)
+                                                )
+                                            else:
+                                                voxel_data.append(
+                                                    (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 1)
+                                                )   
                     except FileNotFoundError as e:
                         print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
 
@@ -58,12 +113,13 @@ def make_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list):
                         print(f"Uncaught error, {e}")
                 else:
                     pass
-    return data
+    return voxel_data
 
-
-make_voxel_pairs(proc_preop= './data/processed/preop/BTC-preop', 
-                 raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks', 
-                 image_ids=['t1_ants_aligned.nii.gz'])
+# ## temp
+# voxel_data = create_voxel_pairs(proc_preop= './data/processed/preop/BTC-preop', 
+#                  raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks', 
+#                  image_ids=['t1_ants_aligned.nii.gz'])
+# print(voxel_data[0])
                                     
 def create_subject_pairs(root, id):
     data = []
