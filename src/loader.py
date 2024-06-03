@@ -23,18 +23,22 @@ def pad_slice(slice_2d, output_size=(256, 256)):
                           constant_values=0)
     return padded_slice
 
-def convert_3d_into_2d(nifti_image: ndarray, output_size=(256, 256)) -> list[ndarray]:
+def convert_3d_into_2d(nifti_image: ndarray) -> list[ndarray]:
     slices = []
    
     # (axial)
+    ## TODO: Use all slices for now only using every 4th slice
     for i in range(nifti_image.shape[0]):
-        slices.append(nifti_image[i, :, :]) 
+        if i % 4 == 0:
+            slices.append(nifti_image[i, :, :]) 
     #  (coronal)
     for i in range(nifti_image.shape[1]):
-        slices.append(nifti_image[:, i, :])  
+        if i % 4 == 0:
+            slices.append(nifti_image[:, i, :])  
     # (sagittal)
     for i in range(nifti_image.shape[2]):
-        slices.append(nifti_image[:, :, i])
+        if i % 4 == 0:
+            slices.append(nifti_image[:, :, i])
     
     return slices
 
@@ -50,13 +54,13 @@ class imagePairs(Dataset):
     and finds the corresponding image in the other dir and labels
     """
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None):
-        self.root = root
+        self.root = proc_preop
         self.transform = transform
         self.data = []
         self.image_ids = image_ids
-        for root, dirs, files in os.walk(proc_preop):
+        for root, dirs, files in os.walk(self.root):
             for filename in files:
-                for image_id in image_ids:
+                for image_id in self.image_ids:
                     if filename.endswith(image_id):
                         try:
                             pat_id = root.split("/")[-1]
@@ -115,6 +119,10 @@ class imagePairs(Dataset):
             # img2_file = self.transform(self.data[idx][1])
         return self.data[idx]
 
+test = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
+                  raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
+                  image_ids=['t1_ants_aligned.nii.gz'])
+print(test.__len__())
 def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
     """
         Proc_preop:  should be the preoperative directory with all patients dirs
