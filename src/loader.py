@@ -86,7 +86,7 @@ class imagePairs(Dataset):
                                 images_pre_pad = [(pad_slice(image), 1) for image in images_pre]
                                 images_post_pad = [(pad_slice(image), 1) for image in images_post]
                                 triplets_con = [(pre, post, label) for (pre, _), (post, label) in zip(images_pre_pad, images_post_pad)]
-
+                                self.data.extend(triplets_con)
                             elif "-PAT" in pat_id:
                                 images_pre: list = convert_3d_into_2d(preop_nifti_norm)
                                 images_post: list = convert_3d_into_2d(postop_nifti_norm)
@@ -97,7 +97,8 @@ class imagePairs(Dataset):
                                 images_post_pad = [(pad_slice(image), check_tumor_presence(mask_slice)) for image, mask_slice in zip(images_post, mask_slices)]
 
                                 # Create triplets (pre_slice, post_slice, label)
-                                triplets_pat = [(pre, post, label) for (pre, label), (post, _) in zip(images_pre_pad, images_post_pad)]     
+                                triplets_pat = [(pre, post, label) for (pre, label), (post, _) in zip(images_pre_pad, images_post_pad)]  
+                                self.data.extend(triplets_pat)   
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
 
@@ -109,9 +110,10 @@ class imagePairs(Dataset):
         return len(self.data)
     def __getitem__(self, idx):
         if self.transform:
-            img1_file = self.transform(self.data[idx][0])
-            img2_file = self.transform(self.data[idx][1])
-        return (img1_file, img2_file, self.data[idx][2], self.data[idx][3])
+            pass
+            # img1_file = self.transform(self.data[idx][0])
+            # img2_file = self.transform(self.data[idx][1])
+        return self.data[idx]
 
 def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
     """
