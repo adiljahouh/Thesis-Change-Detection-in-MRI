@@ -6,6 +6,13 @@ from nilearn.image import resample_to_img
 from numpy import ndarray
 from typing import Tuple
 import numpy as np
+from sklearn.model_selection import StratifiedKFold
+
+def stratified_kfold_split(dataset, n_splits=5):
+    skf = StratifiedKFold(n_splits=n_splits)
+    splits = list(skf.split(range(len(dataset)), dataset.labels))
+    return splits
+
 def normalize_nifti(nifti_image: nib.Nifti1Image) -> ndarray:
     return (nifti_image.get_fdata() - np.min(nifti_image.get_fdata())) / (np.max(
         nifti_image.get_fdata()) - np.min(nifti_image.get_fdata()))

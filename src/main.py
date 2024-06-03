@@ -1,8 +1,8 @@
 import torch
 import torch.optim as optim
-from network import SiameseThreeDim, SiameseVGG3D
+from network import SaimeseTwoDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
-from loader import create_subject_pairs, transform_subjects, imagePairs
+from loader import imagePairs, stratified_kfold_split
 import os
 from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
 import argparse
@@ -151,49 +151,24 @@ if __name__ == "__main__":
     subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
                   raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
                   image_ids=['t1_ants_aligned.nii.gz'])
-    print(f"Number of test subjects: {len(subject_images)}")
+    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
+    print(f"Total number of images: {len(subject_images)}")
+    if args.model == 'custom':
+        model_type = SaimeseTwoDim()
+    elif args.model == 'vgg16':
+        model_type = SiameseVGG3D()
+    criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+    optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
-    # Train the network using kFold cross validation
-    validation_accuracy = []
-    fold_data = {}
-    skf = StratifiedKFold(n_splits=1, shuffle=True, random_state=42)
-    for i, (train_index, test_val_index) in enumerate(skf.split(subject_images, 
-                                                            [subject.label for subject in subjects])):
-        subjects_train = Subset(subjects, train_index)
-        subjects_val_test = Subset(subjects, test_val_index)
-        subjects_val, subjects_test = train_test_split(subjects_val_test, test_size=0.5, random_state=42, stratify=[subject.label for subject in subjects_val_test])
-        # we are remembering the test set which we split off for later cv
-        fold_data[i] = (subjects_train, subjects_val, subjects_test)
-        if args.model == 'custom':
-            model_type = SiameseThreeDim()
-        elif args.model == 'vgg16':
-            model_type = SiameseVGG3D()
-        criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
-        optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
+    ## using validation split to avoid overfitting
+    train_loader = DataLoader(train_subject_images, batch_size=1, shuffle=False)
+    val_loader = DataLoader(val_subject_images, batch_size=1, shuffle=False)
+    test_loader = DataLoader(test_subject_images, batch_size=1, shuffle=False)
 
-        ## using validation split to avoid overfitting
-        train_loader = DataLoader(subjects_train, batch_size=1, shuffle=False)
-        val_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
-        best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
-            epochs=args.epochs, patience=args.patience, 
-            save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
-            f'lr-{args.lr}_marg-{args.margin}_fold-{i}.pth', device=device)
-        validation_accuracy.append(best_loss)
-        print(f"Appending validation accuracy for fold {i}: {best_loss}")
+    best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
+        epochs=args.epochs, patience=args.patience, 
+        save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
+        f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
 
-    print(f"Average validation accuracy for all folds: {sum(validation_accuracy)/len(validation_accuracy)}")
-    # Test the model on the test set
-    index_best_model = validation_accuracy.index(min(validation_accuracy))
-    best_model = f'{args.model}_{args.dist_flag}_lr-{args.lr}_marg-{args.margin}_fold-{index_best_model}.pth'
-    print(f"Using the best model: {best_model}")
-    model_path = os.path.join(save_dir, best_model)
 
-    model_type.load_state_dict(torch.load(model_path))
-    merged_distances, merged_labels = [], []
-    for i in range(3):
-        subjects_train, subjects_val, subjects_test = fold_data[i]
-        test_loader = DataLoader(subjects_test, batch_size=1, shuffle=False)
-        distances, labels = predict(model_type, test_loader, 7)
-        merged_distances.extend(distances)
-        merged_labels.extend(labels)
     thresholds = generate_roc_curve(merged_distances, merged_labels, f"./models/{args.model}")
