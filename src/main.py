@@ -157,7 +157,7 @@ if __name__ == "__main__":
     validation_accuracy = []
     fold_data = {}
     skf = StratifiedKFold(n_splits=1, shuffle=True, random_state=42)
-    for i, (train_index, test_val_index) in enumerate(skf.split(subjects, 
+    for i, (train_index, test_val_index) in enumerate(skf.split(subject_images, 
                                                             [subject.label for subject in subjects])):
         subjects_train = Subset(subjects, train_index)
         subjects_val_test = Subset(subjects, test_val_index)
