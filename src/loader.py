@@ -23,22 +23,23 @@ def pad_slice(slice_2d, output_size=(256, 256)):
                           constant_values=0)
     return padded_slice
 
-def convert_3d_into_2d(nifti_image: np.ndarray, output_size=(256, 256)) -> list[ndarray]:
+def convert_3d_into_2d(nifti_image: ndarray, output_size=(256, 256)) -> list[ndarray]:
     slices = []
-    
-    # Extract and pad slices along the first dimension (axial)
+   
+    # (axial)
     for i in range(nifti_image.shape[0]):
-        slices.append(nifti_image[i, :, :])
-    
-    # Extract and pad slices along the second dimension (coronal)
+        slices.append(nifti_image[i, :, :]) 
+    #  (coronal)
     for i in range(nifti_image.shape[1]):
-        slices.append(nifti_image[:, i, :])
-    
-    # Extract and pad slices along the third dimension (sagittal)
+        slices.append(nifti_image[:, i, :])  
+    # (sagittal)
     for i in range(nifti_image.shape[2]):
         slices.append(nifti_image[:, :, i])
     
     return slices
+
+def check_tumor_presence(slice_2d: ndarray, threshold=1):
+    return np.any(slice_2d > threshold)
 
 class imagePairs(Dataset):
     """
@@ -84,13 +85,19 @@ class imagePairs(Dataset):
 
                                 images_pre_pad = [(pad_slice(image), 1) for image in images_pre]
                                 images_post_pad = [(pad_slice(image), 1) for image in images_post]
+                                triplets_con = [(pre, post, label) for (pre, _), (post, label) in zip(images_pre_pad, images_post_pad)]
 
                             elif "-PAT" in pat_id:
                                 images_pre: list = convert_3d_into_2d(preop_nifti_norm)
                                 images_post: list = convert_3d_into_2d(postop_nifti_norm)
-                                # maybe output index and check if the tumor is in the slice by index?
-                                images_pre_pad = [(pad_slice(image), 0) for image in images_pre if ]
-                                images_post_pad = [(pad_slice(image), 0) for image in images_post]
+                                mask_slices = convert_3d_into_2d(tumor_norm)
+
+                                # Create triplets with label 0 if the slice contains a tumor
+                                images_pre_pad = [(pad_slice(image), check_tumor_presence(mask_slice)) for image, mask_slice in zip(images_pre, mask_slices)]
+                                images_post_pad = [(pad_slice(image), check_tumor_presence(mask_slice)) for image, mask_slice in zip(images_post, mask_slices)]
+
+                                # Create triplets (pre_slice, post_slice, label)
+                                triplets_pat = [(pre, post, label) for (pre, label), (post, _) in zip(images_pre_pad, images_post_pad)]     
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
 
