@@ -42,8 +42,8 @@ def convert_3d_into_2d(nifti_image: ndarray) -> list[ndarray]:
     
     return slices
 
-def check_tumor_presence(slice_2d: ndarray, threshold=1):
-    return np.any(slice_2d > threshold)
+def check_tumor_presence(slice_2d: ndarray, threshold=0.1):
+    return np.any(slice_2d >= threshold)
 
 class imagePairs(Dataset):
     """
