@@ -36,15 +36,15 @@ def convert_3d_into_2d(nifti_image: ndarray) -> list[ndarray]:
     # (axial)
     ## TODO: Use all slices for now only using every 4th slice
     for i in range(nifti_image.shape[0]):
-        if i % 4 == 0:
+        if i % 200 == 0:
             slices.append(nifti_image[i, :, :]) 
     #  (coronal)
     for i in range(nifti_image.shape[1]):
-        if i % 4 == 0:
+        if i % 200 == 0:
             slices.append(nifti_image[:, i, :])  
     # (sagittal)
     for i in range(nifti_image.shape[2]):
-        if i % 4 == 0:
+        if i % 200 == 0:
             slices.append(nifti_image[:, :, i])
     
     return slices
@@ -99,7 +99,7 @@ class imagePairs(Dataset):
                                 images_pre_pad = [(pad_slice(image), 1) for image in images_pre]
                                 images_post_pad = [(pad_slice(image), 1) for image in images_post]
                                 # Create triplets (pre_slice, post_slice, label, tumor=None)
-                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": None, "pat_id": pat_id} 
+                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": np.zeros_like(pre), "pat_id": pat_id} 
                                                 for (pre, _), (post, label) in zip(images_pre_pad, images_post_pad)]
                                 self.data.extend(triplets_con)
                                 self.labels.extend([label for (_, label) in images_post_pad])
@@ -126,6 +126,7 @@ class imagePairs(Dataset):
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
+
         if self.transform:
             pass
             # img1_file = self.transform(self.data[idx][0])

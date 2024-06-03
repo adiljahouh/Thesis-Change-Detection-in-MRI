@@ -46,8 +46,13 @@ def predict(siamese_net, test_loader, threshold=0.3):
     labels = []
     with torch.no_grad():
         for index, subject in enumerate(test_loader):
-            input1 = subject['t1']['data'].float().to(device)
-            input2 = subject['t2']['data'].float().to(device)
+            input1 = subject['pre'].float().to(device)
+            input2 = subject['post'].float().to(device)
+            
+            # Add channel dimension (greyscale image)
+            input1 = input1.unsqueeze(1)
+            input2 = input2.unsqueeze(1)
+
             label = subject['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
             distance = torch.dist(output1,output2,p=2)
@@ -85,9 +90,16 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
     for epoch in range(epochs):
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
+        print("len train_loader", len(train_loader))
         for index, subject in enumerate(train_loader):
-            input1 = subject['t1']['data'].float().to(device)
-            input2 = subject['t2']['data'].float().to(device)
+
+            input1 = subject['pre'].float().to(device)
+            input2 = subject['post'].float().to(device)
+            ##TODO: FIX SOME SLICES WITH NO DATA!
+            # Add channel dimension (greyscale image)
+            input1 = input1.unsqueeze(1)
+            input2 = input2.unsqueeze(1)
+
             siamese_net.train()  # switch to training mode
             label = subject['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
@@ -101,8 +113,12 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         siamese_net.eval()  # switch to evaluation mode
         with torch.no_grad():
             for index, subject in enumerate(val_loader):
-                input1 = subject['t1']['data'].float().to(device)
-                input2 = subject['t2']['data'].float().to(device)
+                input1 = subject['pre'].float().to(device)
+                input2 = subject['post'].float().to(device)
+
+                input1 = input1.unsqueeze(1)
+                input2 = input2.unsqueeze(1)
+
                 output1, output2 = siamese_net(input1, input2)
                 label = subject['label'].to(device)
                 loss = criterion(output1, output2, label)
@@ -169,6 +185,7 @@ if __name__ == "__main__":
         epochs=args.epochs, patience=args.patience, 
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
         f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
+    
+    distances, labels = predict(model_type, test_loader, 7)
 
-
-    thresholds = generate_roc_curve(merged_distances, merged_labels, f"./models/{args.model}")
+    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
