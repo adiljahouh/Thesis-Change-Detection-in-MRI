@@ -6,6 +6,25 @@ import os
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from distance_measures import various_distance
+def merge_images(image1, image2, image3, output_path):
+    # Create a new figure
+    fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+
+    # Display each image on a separate subplot
+    axs[0].imshow(image1, cmap="gray")
+    axs[0].axis('off')
+    axs[1].imshow(image2, cmap="gray")
+    axs[1].axis('off')
+    axs[2].imshow(image3)
+    axs[2].axis('off')
+
+    # Adjust spacing between subplots
+    plt.tight_layout()
+
+    # Save the merged image
+    plt.savefig(output_path)
+    plt.close(fig)
+    
 def generate_roc_curve(distances, labels, save_dir):
     # # Invert distances because lower distance indicates more similarity
     distances = [d.cpu().item() for d in distances]

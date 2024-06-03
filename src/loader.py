@@ -42,8 +42,9 @@ def convert_3d_into_2d(nifti_image: ndarray) -> list[ndarray]:
     
     return slices
 
-def check_tumor_presence(slice_2d: ndarray, threshold=0.1):
+def has_tumor_cells(slice_2d: ndarray, threshold=0.1):
     return np.any(slice_2d >= threshold)
+
 
 class imagePairs(Dataset):
     """
@@ -57,6 +58,7 @@ class imagePairs(Dataset):
         self.root = proc_preop
         self.transform = transform
         self.data = []
+        self.labels = []
         self.image_ids = image_ids
         for root, dirs, files in os.walk(self.root):
             for filename in files:
@@ -89,23 +91,27 @@ class imagePairs(Dataset):
 
                                 images_pre_pad = [(pad_slice(image), 1) for image in images_pre]
                                 images_post_pad = [(pad_slice(image), 1) for image in images_post]
-                                triplets_con = [(pre, post, label) for (pre, _), (post, label) in zip(images_pre_pad, images_post_pad)]
+                                # Create triplets (pre_slice, post_slice, label, tumor=None)
+                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": None, "pat_id": pat_id} 
+                                                for (pre, _), (post, label) in zip(images_pre_pad, images_post_pad)]
                                 self.data.extend(triplets_con)
+                                self.labels.extend([label for (_, label) in images_post_pad])
                             elif "-PAT" in pat_id:
                                 images_pre: list = convert_3d_into_2d(preop_nifti_norm)
                                 images_post: list = convert_3d_into_2d(postop_nifti_norm)
                                 mask_slices = convert_3d_into_2d(tumor_norm)
 
                                 # Create triplets with label 0 if the slice contains a tumor
-                                images_pre_pad = [(pad_slice(image), check_tumor_presence(mask_slice)) for image, mask_slice in zip(images_pre, mask_slices)]
-                                images_post_pad = [(pad_slice(image), check_tumor_presence(mask_slice)) for image, mask_slice in zip(images_post, mask_slices)]
+                                images_pre_pad = [(pad_slice(image), 0 if has_tumor_cells(mask_slice) else 1) for image, mask_slice in zip(images_pre, mask_slices)]
+                                images_post_pad = [(pad_slice(image), 0 if has_tumor_cells(mask_slice) else 1) for image, mask_slice in zip(images_post, mask_slices)]
 
-                                # Create triplets (pre_slice, post_slice, label)
-                                triplets_pat = [(pre, post, label) for (pre, label), (post, _) in zip(images_pre_pad, images_post_pad)]  
-                                self.data.extend(triplets_pat)   
+                                # Create triplets (pre_slice, post_slice, label, tumor)
+                                triplets_pat = [{"pre": pre, "post": post, "label": label, "tumor": mask_slice, "pat_id": pat_id} 
+                                                for (pre, label), (post, _), mask_slice in zip(images_pre_pad, images_post_pad, mask_slices)]
+                                self.data.extend(triplets_pat)
+                                self.labels.extend([label for (_, label) in images_post_pad])
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
-
                         except Exception as e:
                             print(f"Uncaught error, {e}")
                     else:
@@ -119,10 +125,6 @@ class imagePairs(Dataset):
             # img2_file = self.transform(self.data[idx][1])
         return self.data[idx]
 
-test = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
-                  raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
-                  image_ids=['t1_ants_aligned.nii.gz'])
-print(test.__len__())
 def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
     """
         Proc_preop:  should be the preoperative directory with all patients dirs

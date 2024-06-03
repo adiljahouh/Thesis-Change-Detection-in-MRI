@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SiameseThreeDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
-from loader import create_subject_pairs, transform_subjects
+from loader import create_subject_pairs, transform_subjects, imagePairs
 import os
 from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
 import argparse
@@ -36,6 +36,9 @@ import torch.nn.functional as F
 
 
 ## work in patches, but that would mean a lot of labels. Maybe aggregate them to have some sort of probability?
+## or can we just go back to images? 
+
+## using images and tumor mask but ratio is not 1:1
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -145,21 +148,20 @@ if __name__ == "__main__":
     print("Using device:", device)
     save_dir = f'./models/{args.model}'
     ##TODO: add root path to args.pars because this wont run on server
-    subjects_raw= create_subject_pairs(root= './data/processed/preop/BTC-preop', 
-                                       id=['t1_ants_aligned.nii.gz'])
-    subjects = transform_subjects(subjects_raw)
-    
+    subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
+                  raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
+                  image_ids=['t1_ants_aligned.nii.gz'])
+    print(f"Number of test subjects: {len(subject_images)}")
+
     # Train the network using kFold cross validation
     validation_accuracy = []
     fold_data = {}
-    skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    skf = StratifiedKFold(n_splits=1, shuffle=True, random_state=42)
     for i, (train_index, test_val_index) in enumerate(skf.split(subjects, 
                                                             [subject.label for subject in subjects])):
         subjects_train = Subset(subjects, train_index)
         subjects_val_test = Subset(subjects, test_val_index)
         subjects_val, subjects_test = train_test_split(subjects_val_test, test_size=0.5, random_state=42, stratify=[subject.label for subject in subjects_val_test])
-        print(f"Number of test subjects: {len(subjects_test)}")
-
         # we are remembering the test set which we split off for later cv
         fold_data[i] = (subjects_train, subjects_val, subjects_test)
         if args.model == 'custom':
@@ -195,6 +197,3 @@ if __name__ == "__main__":
         merged_distances.extend(distances)
         merged_labels.extend(labels)
     thresholds = generate_roc_curve(merged_distances, merged_labels, f"./models/{args.model}")
-
-
-
