@@ -47,15 +47,15 @@ def convert_3d_into_2d(nifti_image: ndarray, skip: int =1) -> list[Tuple[ndarray
     ## TODO: Use all slices for now only using every 4th slices
     for i in range(nifti_image.shape[0]):
         if i % skip == 0:
-            slices.append((nifti_image[i, :, :], (i, None , None)))
+            slices.append((nifti_image[i, :, :], (i, -1 , -1)))
     #  (coronal)
     for i in range(nifti_image.shape[1]):
         if i % skip == 0:
-            slices.append((nifti_image[:, i, :], (None, i, None)))  
+            slices.append((nifti_image[:, i, :], (-1, i, -1)))  
     # (sagittal)
     for i in range(nifti_image.shape[2]):
         if i % skip == 0:
-            slices.append((nifti_image[:, :, i], (None, None, i)))
+            slices.append((nifti_image[:, :, i], (-1, -1, i)))
     return slices
 
 def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
@@ -78,7 +78,7 @@ class imagePairs(Dataset):
         self.root = proc_preop
         self.transform = transform
         self.data = []
-        self.labels = []
+        self.labels = [] # used for kfold later on
         self.image_ids = image_ids
         for root, dirs, files in os.walk(self.root):
             for filename in files:
@@ -145,6 +145,7 @@ class imagePairs(Dataset):
                                                 for (pre, index_pre, label), (post, index_post, _), (mask_slice, _) in 
                                                 zip(images_pre_pad, images_post_pad, mask_slices_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
+                                 
                                 self.data.extend(triplets_pat)
                                 self.labels.extend([label for (_, label, _) in images_post_pad])
                         except FileNotFoundError as e:

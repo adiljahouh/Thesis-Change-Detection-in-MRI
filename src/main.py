@@ -8,7 +8,7 @@ from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_
 import argparse
 import cv2
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from torch.utils.data import random_split, DataLoader, Subset
+from torch.utils.data import random_split, DataLoader, Subset, WeightedRandomSampler
 import torch.nn.functional as F
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -97,7 +97,6 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_val_loss = 0.0
         print("len train_loader", len(train_loader))
         for index, subject in enumerate(train_loader):
-
             input1 = subject['pre'].float().to(device)
             input2 = subject['post'].float().to(device)
             ##TODO: FIX SOME SLICES WITH NO DATA!
@@ -172,17 +171,20 @@ if __name__ == "__main__":
     ##TODO: add root path to args.pars because this wont run on server
     subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
                   raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=10, tumor_sensitivity=0.10)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=4, tumor_sensitivity=0.10)
+    # balance subject_images based on label
+    subject_images 
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     print(f"Total number of images: {len(subject_images)}")
-    for image in subject_images:
-        assert image['pre'].shape == image['post'].shape
-        assert image['index_post'] == image['index_pre']
-        assert image['tumor'].shape == image['pre'].shape
-        assert image['tumor'].shape == image['post'].shape
-        filename = f"slice_{image['pat_id']}_{'axial' if image['index_post'][0] is not None else ''}_{image['index_post'][0] if image['index_post'][0] is not None else ''}{'coronal' if image['index_post'][1] is not None else ''}_{image['index_post'][1] if image['index_post'][1] is not None else ''}{'sagittal' if image['index_post'][2] is not None else ''}_{image['index_post'][2] if image['index_post'][2] is not None else ''}.jpg"    # filename = f"{image['pat_id']}_{image['index_pre'][0]}_{image['index_pre'][1]}_{image['index_pre'][2]}"
+    # for image in subject_images:
+    #     assert image['pre'].shape == image['post'].shape
+    #     assert image['index_post'] == image['index_pre']
+    #     assert image['tumor'].shape == image['pre'].shape
+    #     assert image['tumor'].shape == image['post'].shape
+    #     filename = f"slice_{image['pat_id']}_{'axial' if image['index_post'][0] is not None else ''}_{image['index_post'][0] if image['index_post'][0] is not None else ''}{'coronal' if image['index_post'][1] is not None else ''}_{image['index_post'][1] if image['index_post'][1] is not None else ''}{'sagittal' if image['index_post'][2] is not None else ''}_{image['index_post'][2] if image['index_post'][2] is not None else ''}.jpg"    # filename = f"{image['pat_id']}_{image['index_pre'][0]}_{image['index_pre'][1]}_{image['index_pre'][2]}"
 
-        plot_and_save_ndarray(image['pre'], './data/test', filename=filename)
+    #     plot_and_save_ndarray(image['pre'], './data/test', filename=filename)
+
     # count the number of each label in the dataset
     # 7:1 ratio
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
@@ -200,11 +202,11 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subject_images, batch_size=1, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=1, shuffle=False)
 
-    # best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
-    #     epochs=args.epochs, patience=args.patience, 
-    #     save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
-    #     f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
+    best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
+        epochs=args.epochs, patience=args.patience, 
+        save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
+        f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    # distances, labels = predict(model_type, test_loader, 7)
+    distances, labels = predict(model_type, test_loader, 7)
 
-    # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
+    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
