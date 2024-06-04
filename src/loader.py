@@ -17,7 +17,7 @@ def normalize_nifti(nifti_image: nib.Nifti1Image) -> ndarray:
     return (nifti_image.get_fdata() - np.min(nifti_image.get_fdata())) / (np.max(
         nifti_image.get_fdata()) - np.min(nifti_image.get_fdata()))
 
-def pad_slice(slice_2d, output_size=(256, 256)):
+def pad_slice(slice_2d: ndarray, output_size=(256, 256)) -> ndarray:
     """
     Pad a 2D slice to the desired output size with zeros.
     """
@@ -30,27 +30,39 @@ def pad_slice(slice_2d, output_size=(256, 256)):
                           constant_values=0)
     return padded_slice
 
-def convert_3d_into_2d(nifti_image: ndarray) -> list[ndarray]:
+def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_minimum=0.05):
+    ## checks if the slice has high information by a certain value threshold and percentage of cells
+    total_cells = slice_2d.size
+    num_high_info_cells = np.count_nonzero(slice_2d >= value_minimum)
+    percentage_high_info = num_high_info_cells / total_cells
+    return percentage_high_info > percentage_minimum
+
+def balance_classes_slices():
+    return
+
+def convert_3d_into_2d(nifti_image: ndarray, skip: int =1) -> list[Tuple[ndarray, Tuple[int, int, int]]]:
     slices = []
    
     # (axial)
-    ## TODO: Use all slices for now only using every 4th slice
+    ## TODO: Use all slices for now only using every 4th slices
     for i in range(nifti_image.shape[0]):
-        if i % 200 == 0:
-            slices.append(nifti_image[i, :, :]) 
+        if i % skip == 0:
+            slices.append((nifti_image[i, :, :], (i, None , None)))
     #  (coronal)
     for i in range(nifti_image.shape[1]):
-        if i % 200 == 0:
-            slices.append(nifti_image[:, i, :])  
+        if i % skip == 0:
+            slices.append((nifti_image[:, i, :], (None, i, None)))  
     # (sagittal)
     for i in range(nifti_image.shape[2]):
-        if i % 200 == 0:
-            slices.append(nifti_image[:, :, i])
-    
+        if i % skip == 0:
+            slices.append((nifti_image[:, :, i], (None, None, i)))
     return slices
 
-def has_tumor_cells(slice_2d: ndarray, threshold=0.1):
+def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
+    ## checks if the slice has tumor cells by a certain value threshold
     return np.any(slice_2d >= threshold)
+
+
 
 
 class imagePairs(Dataset):
@@ -61,7 +73,8 @@ class imagePairs(Dataset):
     Works by passing preop or postop directory to the class
     and finds the corresponding image in the other dir and labels
     """
-    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None):
+    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None, skip:int=1,
+                 tumor_sensitivity = 0.10):
         self.root = proc_preop
         self.transform = transform
         self.data = []
@@ -93,30 +106,47 @@ class imagePairs(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
 
                             if "-CON" in pat_id:
-                                images_pre: list = convert_3d_into_2d(preop_nifti_norm)
-                                images_post: list = convert_3d_into_2d(postop_nifti_norm)
+                                assert preop_nifti_norm.shape == postop_nifti_norm.shape
+                                
+                                images_pre = convert_3d_into_2d(preop_nifti_norm, skip=skip)
+                                images_post = convert_3d_into_2d(postop_nifti_norm, skip = skip)
 
-                                images_pre_pad = [(pad_slice(image), 1) for image in images_pre]
-                                images_post_pad = [(pad_slice(image), 1) for image in images_post]
+                                # Create triplets with label 1 (similar slices)
+                                images_pre_pad = [(pad_slice(image[0]), image[1], 1) for image in images_pre]
+                                images_post_pad = [(pad_slice(image[0]), image[1], 1) for image in images_post]
+                                
+                                assert len(images_pre_pad) == len(images_post_pad)
+                                
                                 # Create triplets (pre_slice, post_slice, label, tumor=None)
-                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": np.zeros_like(pre), "pat_id": pat_id} 
-                                                for (pre, _), (post, label) in zip(images_pre_pad, images_post_pad)]
+                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": np.zeros_like(pre), 
+                                                 "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
+                                                for (pre, index_pre, label), 
+                                                (post, index_post, _) in 
+                                                zip(images_pre_pad, images_post_pad) if 
+                                                slice_has_high_info(pre) and slice_has_high_info(post)]
                                 self.data.extend(triplets_con)
-                                self.labels.extend([label for (_, label) in images_post_pad])
+                                self.labels.extend([label for (_, label, _) in images_post_pad])
                             elif "-PAT" in pat_id:
-                                images_pre: list = convert_3d_into_2d(preop_nifti_norm)
-                                images_post: list = convert_3d_into_2d(postop_nifti_norm)
-                                mask_slices = convert_3d_into_2d(tumor_norm)
+                                assert preop_nifti_norm.shape == postop_nifti_norm.shape == tumor_norm.shape
 
+                                images_pre = convert_3d_into_2d(preop_nifti_norm, skip=skip)
+                                images_post = convert_3d_into_2d(postop_nifti_norm, skip=skip)
+                                mask_slices = convert_3d_into_2d(tumor_norm, skip=skip)
                                 # Create triplets with label 0 if the slice contains a tumor
-                                images_pre_pad = [(pad_slice(image), 0 if has_tumor_cells(mask_slice) else 1) for image, mask_slice in zip(images_pre, mask_slices)]
-                                images_post_pad = [(pad_slice(image), 0 if has_tumor_cells(mask_slice) else 1) for image, mask_slice in zip(images_post, mask_slices)]
-
+                                images_pre_pad = [(pad_slice(image[0]), image[1], 0 if has_tumor_cells(mask_slice[0], threshold=tumor_sensitivity) else 1) for image, mask_slice in zip(images_pre, mask_slices)]
+                                images_post_pad = [(pad_slice(image[0]), image[1], 0 if has_tumor_cells(mask_slice[0], threshold=tumor_sensitivity) else 1) for image, mask_slice in zip(images_post, mask_slices)]
+                                # pad the tumor mask as well
+                                mask_slices_pad = [(pad_slice(mask_slice[0]), mask_slice[1]) for mask_slice in mask_slices]
+                                assert len(images_pre_pad) == len(images_post_pad) == len(mask_slices_pad)
+                                
                                 # Create triplets (pre_slice, post_slice, label, tumor)
-                                triplets_pat = [{"pre": pre, "post": post, "label": label, "tumor": mask_slice, "pat_id": pat_id} 
-                                                for (pre, label), (post, _), mask_slice in zip(images_pre_pad, images_post_pad, mask_slices)]
+                                triplets_pat = [{"pre": pre, "post": post, "label": label, "tumor": mask_slice, 
+                                                 "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
+                                                for (pre, index_pre, label), (post, index_post, _), (mask_slice, _) in 
+                                                zip(images_pre_pad, images_post_pad, mask_slices_pad) if 
+                                                slice_has_high_info(pre) and slice_has_high_info(post)]
                                 self.data.extend(triplets_pat)
-                                self.labels.extend([label for (_, label) in images_post_pad])
+                                self.labels.extend([label for (_, label, _) in images_post_pad])
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
@@ -132,7 +162,8 @@ class imagePairs(Dataset):
             # img1_file = self.transform(self.data[idx][0])
             # img2_file = self.transform(self.data[idx][1])
         return self.data[idx]
-
+                
+    
 def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
     """
         Proc_preop:  should be the preoperative directory with all patients dirs

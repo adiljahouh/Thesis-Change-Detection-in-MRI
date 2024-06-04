@@ -63,6 +63,20 @@ def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return similar_dis_map_colorize
 
+def plot_and_save_ndarray(data, save_dir, filename):
+    # Create a new figure
+    plt.figure()
+
+    # Display the data as an image
+    plt.imshow(data, cmap='gray')
+
+    # Remove axes
+    plt.axis('off')
+
+    # Save the plot to the specified directory
+    plt.savefig(os.path.join(save_dir, filename))
+    plt.close()  # Close the plot to free up memory
+    
 ## TODO: compute request kirsten
 ## TODO: nifti output? pass header and affine
 ## TODO:  https://medium.com/@rehman.aimal/implement-3d-unet-for-cardiac-volumetric-mri-scans-in-pytorch-79f8cca7dc68

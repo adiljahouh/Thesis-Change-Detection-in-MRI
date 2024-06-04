@@ -4,7 +4,7 @@ from network import SaimeseTwoDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
 from loader import imagePairs, stratified_kfold_split
 import os
-from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve
+from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve, plot_and_save_ndarray
 import argparse
 import cv2
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -24,21 +24,26 @@ import torch.nn.functional as F
 
 
 ### Post t1_ants is aligned to preop t1_ants
-### fact checked all patients 1-11
-### its not all aligned to the tumor correctly
+### fact checked all patients, 
+### its not all aligned to the tumor correctly but my alignment was worse
 
-## TODO: fsl align the postop to preop for the raw t1w data DONOT REMOVE SKULL
 ## aligned them but skull is different which can cause issues
 ## write in docu we registered tumors using antsApplyTransforms
 
-## Aligned and normalized the tumor using nilearn transformations
-## One voxel input is too little information so im looking into patches
 
+## using non-aligned since theyre almost fully aligned bythemselves, did align postop to preop though
+## Aligned and normalized the tumor using nilearn transformations such that python handles it properly
+## One voxel input is too little information so im looking into patches, tried voxel based but didnt make sense
+## padded them
 
 ## work in patches, but that would mean a lot of labels. Maybe aggregate them to have some sort of probability?
 ## or can we just go back to images? 
 
 ## using images and tumor mask but ratio is not 1:1
+## filtering low info slices
+## balancing classes
+## skipped CV can reintroduce it later
+
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -96,6 +101,7 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
             input1 = subject['pre'].float().to(device)
             input2 = subject['post'].float().to(device)
             ##TODO: FIX SOME SLICES WITH NO DATA!
+            ## TODO:check ratio!
             # Add channel dimension (greyscale image)
             input1 = input1.unsqueeze(1)
             input2 = input2.unsqueeze(1)
@@ -166,9 +172,22 @@ if __name__ == "__main__":
     ##TODO: add root path to args.pars because this wont run on server
     subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
                   raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
-                  image_ids=['t1_ants_aligned.nii.gz'])
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=10, tumor_sensitivity=0.10)
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     print(f"Total number of images: {len(subject_images)}")
+    for image in subject_images:
+        assert image['pre'].shape == image['post'].shape
+        assert image['index_post'] == image['index_pre']
+        assert image['tumor'].shape == image['pre'].shape
+        assert image['tumor'].shape == image['post'].shape
+        filename = f"slice_{image['pat_id']}_{'axial' if image['index_post'][0] is not None else ''}_{image['index_post'][0] if image['index_post'][0] is not None else ''}{'coronal' if image['index_post'][1] is not None else ''}_{image['index_post'][1] if image['index_post'][1] is not None else ''}{'sagittal' if image['index_post'][2] is not None else ''}_{image['index_post'][2] if image['index_post'][2] is not None else ''}.jpg"    # filename = f"{image['pat_id']}_{image['index_pre'][0]}_{image['index_pre'][1]}_{image['index_pre'][2]}"
+
+        plot_and_save_ndarray(image['pre'], './data/test', filename=filename)
+    # count the number of each label in the dataset
+    # 7:1 ratio
+    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
+    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
+    
     if args.model == 'custom':
         model_type = SaimeseTwoDim()
     elif args.model == 'vgg16':
@@ -181,11 +200,11 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subject_images, batch_size=1, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=1, shuffle=False)
 
-    best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
-        epochs=args.epochs, patience=args.patience, 
-        save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
-        f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
+    # best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
+    #     epochs=args.epochs, patience=args.patience, 
+    #     save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
+    #     f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    distances, labels = predict(model_type, test_loader, 7)
+    # distances, labels = predict(model_type, test_loader, 7)
 
-    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
+    # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
