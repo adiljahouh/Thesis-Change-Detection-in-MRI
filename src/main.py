@@ -2,13 +2,13 @@ import torch
 import torch.optim as optim
 from network import SaimeseTwoDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
-from loader import imagePairs, stratified_kfold_split
+from loader import imagePairs, stratified_kfold_split, balance_dataset
 import os
-from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve, plot_and_save_ndarray
+from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve, plot_and_save_ndarray, single_layer_similar_heatmap_visual
 import argparse
 import cv2
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from torch.utils.data import random_split, DataLoader, Subset, WeightedRandomSampler
+from torch.utils.data import random_split, DataLoader, Subset
 import torch.nn.functional as F
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -73,13 +73,13 @@ def predict(siamese_net, test_loader, threshold=0.3):
                 print("The pair is dissimilar with a distance of:", distance.item(), " label:", label.item())
 
             # Visualize the similarity heatmap
-            # heatmap = multiple_layer_similar_heatmap_visiual(output1, output2, 'l2')
-            # # Save the heatmap
-            # save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/threedim/{subject["name"][0]}')
-            # os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-            # for i, img in enumerate(heatmap):
-            #     save_path = f'./data/heatmaps/threedim/{subject["name"][0]}/{i}.jpg'
-            #     cv2.imwrite(os.path.join(os.getcwd(), save_path), img)
+            filename = f"slice_{subject['pat_id'][0]}_{'axial' if subject['index_post'][0] != -1 else ''}_{subject['index_post'][0].item() if subject['index_post'][0] != -1 else ''}{'coronal' if subject['index_post'][1] != -1 else ''}_{subject['index_post'][1].item() if subject['index_post'][1] != -1 else ''}{'sagittal' if subject['index_post'][2] != -1 else ''}_{subject['index_post'][2].item() if subject['index_post'][2] != -1 else ''}.jpg" 
+            heatmap = single_layer_similar_heatmap_visual(output1, output2, 'l2')
+            # Save the heatmap
+            save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
+            os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
+            save_path = f'{save_dir}/{filename}'
+            cv2.imwrite(save_path, heatmap)
     return distances, labels
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
@@ -95,7 +95,6 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
     for epoch in range(epochs):
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
-        print("len train_loader", len(train_loader))
         for index, subject in enumerate(train_loader):
             input1 = subject['pre'].float().to(device)
             input2 = subject['post'].float().to(device)
@@ -171,11 +170,15 @@ if __name__ == "__main__":
     ##TODO: add root path to args.pars because this wont run on server
     subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
                   raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=4, tumor_sensitivity=0.10)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=10, tumor_sensitivity=0.10)
     # balance subject_images based on label
-    subject_images 
-    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     print(f"Total number of images: {len(subject_images)}")
+    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
+    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
+
+    subject_images = balance_dataset(subject_images)
+    print(f"Total number of images after balancing: {len(subject_images)}")
+    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     # for image in subject_images:
     #     assert image['pre'].shape == image['post'].shape
     #     assert image['index_post'] == image['index_pre']
@@ -185,8 +188,6 @@ if __name__ == "__main__":
 
     #     plot_and_save_ndarray(image['pre'], './data/test', filename=filename)
 
-    # count the number of each label in the dataset
-    # 7:1 ratio
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
     

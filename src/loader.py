@@ -8,6 +8,33 @@ from typing import Tuple
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
+import random
+
+def balance_dataset(subject_images, label_key='label'):
+    """
+    Balances the dataset by undersampling the majority class to match the size of the minority class.
+    
+    Parameters:
+    subject_images (list): List of dictionaries containing images and labels.
+    label_key (str): Key used to access the label in the dictionaries.
+    
+    Returns:
+    list: Balanced list of dictionaries.
+    """
+
+    similar_pairs = [x for x in subject_images if x[label_key] == 1]
+    dissimilar_pairs = [x for x in subject_images if x[label_key] == 0]
+    num_similar_pairs = len(similar_pairs)
+    num_dissimilar_pairs = len(dissimilar_pairs)
+
+    if num_similar_pairs > num_dissimilar_pairs:
+        similar_pairs = random.sample(similar_pairs, num_dissimilar_pairs)
+    else:
+        dissimilar_pairs = random.sample(dissimilar_pairs, num_similar_pairs)
+    balanced_subject_images = similar_pairs + dissimilar_pairs
+    random.shuffle(balanced_subject_images)  # Shuffle to mix the pairs
+    return balanced_subject_images
+
 def stratified_kfold_split(dataset, n_splits=5):
     skf = StratifiedKFold(n_splits=n_splits)
     splits = list(skf.split(range(len(dataset)), dataset.labels))
