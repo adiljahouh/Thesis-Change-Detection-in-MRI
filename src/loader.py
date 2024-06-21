@@ -117,6 +117,8 @@ class imagePairs(Dataset):
                             preop_nifti = nib.load(os.path.join(root, filename))
                             postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                                 filename.replace("preop", "postop")))
+                            # print(preop_nifti.shape)
+                            # print(postop_nifti.shape)
                             # load the tumor from the tumor directory matching the patient id
                             if "PAT" in pat_id:
                                 try:

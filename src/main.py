@@ -44,6 +44,7 @@ import torch.nn.functional as F
 ## balancing classes
 ## skipped CV can reintroduce it later
 
+## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
@@ -98,8 +99,6 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         for index, subject in enumerate(train_loader):
             input1 = subject['pre'].float().to(device)
             input2 = subject['post'].float().to(device)
-            ##TODO: FIX SOME SLICES WITH NO DATA!
-            ## TODO:check ratio!
             # Add channel dimension (greyscale image)
             input1 = input1.unsqueeze(1)
             input2 = input2.unsqueeze(1)
@@ -170,7 +169,7 @@ if __name__ == "__main__":
     ##TODO: add root path to args.pars because this wont run on server
     subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
                   raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=10, tumor_sensitivity=0.10)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=2, tumor_sensitivity=0.15)
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
@@ -202,7 +201,23 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_subject_images, batch_size=1, shuffle=False)
     val_loader = DataLoader(val_subject_images, batch_size=1, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=1, shuffle=False)
+    #TODO: Add betters samples by tuning tumor sensitivity
+    #TODO: validate images BY PLOTTING THEM NEXT TO HEATMAP
+    #TODO: FIX RIM ISSUE IN HEATMAPS
+    #TODO: MASKS HAVE INTENSITY AT POINTS THEY SHOULDNT!
+    #TODO: WE CANT JUST LABEL 0 or 1 in PAT based on tumor, there could be changes in the brain that arent tumor related
 
+    #TODO: mtrix calc for evaluation
+
+
+
+
+
+
+
+
+
+    
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
         epochs=args.epochs, patience=args.patience, 
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
