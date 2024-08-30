@@ -4,12 +4,13 @@ from network import SaimeseTwoDim, SiameseVGG3D
 from loss_functions import ConstractiveLoss
 from loader import imagePairs, stratified_kfold_split, balance_dataset
 import os
-from visualizations import multiple_layer_similar_heatmap_visiual, generate_roc_curve, plot_and_save_ndarray, single_layer_similar_heatmap_visual
+from visualizations import merge_images, generate_roc_curve, single_layer_similar_heatmap_visual
 import argparse
 import cv2
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import random_split, DataLoader, Subset
 import torch.nn.functional as F
+import numpy as np
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
 ## warp ants on raw/ses-preop skull data
@@ -80,7 +81,10 @@ def predict(siamese_net, test_loader, threshold=0.3):
             save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
             os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
             save_path = f'{save_dir}/{filename}'
-            cv2.imwrite(save_path, heatmap)
+            pre_image = np.rot90(np.squeeze(subject['pre']))
+            post_image = np.rot90(np.squeeze(subject['post']))
+            merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
+            # cv2.imwrite(save_path, heatmap)
     return distances, labels
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
