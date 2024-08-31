@@ -53,8 +53,7 @@ def pad_slice(slice_2d: ndarray, output_size=(256, 256)) -> ndarray:
     
     padded_slice = np.pad(slice_2d, 
                           ((0, pad_height), (0, pad_width)), 
-                          mode='constant', 
-                          constant_values=0)
+                          mode='edge')
     return padded_slice
 
 def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_minimum=0.05):
@@ -194,74 +193,74 @@ class imagePairs(Dataset):
         return self.data[idx]
                 
     
-def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
-    """
-        Proc_preop:  should be the preoperative directory with all patients dirs
-        e.g ./data/processed/preop/BTC-preop
+# def create_voxel_pairs(proc_preop: str, raw_tumor_dir: str, image_ids: list) -> list[tuple]:
+#     """
+#         Proc_preop:  should be the preoperative directory with all patients dirs
+#         e.g ./data/processed/preop/BTC-preop
         
-        raw_tumor_dir: should be the raw tumor directory with all patients dirs
-        e.g ./data/raw/preop/BTC-preop/derivatives/tumor_masks
+#         raw_tumor_dir: should be the raw tumor directory with all patients dirs
+#         e.g ./data/raw/preop/BTC-preop/derivatives/tumor_masks
 
-        image_id: list of the image id to match the preop and postop images e.g. t1_ants_aligned.nii.gz
+#         image_id: list of the image id to match the preop and postop images e.g. t1_ants_aligned.nii.gz
 
-    """
+#     """
 
-    voxel_data: list[tuple] = []
-    for root, dirs, files in os.walk(proc_preop):
-        for filename in files:
-            for image_id in image_ids:
-                if filename.endswith(image_id):
-                    try:
-                        pat_id = root.split("/")[-1]
-                        print(f"Processing {pat_id}")
-                        preop_nifti = nib.load(os.path.join(root, filename))
-                        postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
-                                                         filename.replace("preop", "postop")))
-                        # load the tumor from the tumor directory matching the patient id
-                        if "PAT" in pat_id:
-                            try:
-                                tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
-                                tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
-                                tumor_voxels = tumor_resampled.get_fdata()
-                                tumor_voxels_norm = tumor_voxels - np.min(tumor_voxels) / (np.max(tumor_voxels) - np.min(tumor_voxels))
-                            except FileNotFoundError as e:
-                                print(f"Tumor not found for {pat_id}, {e}")
-                            except Exception as e:
-                                print(f"Uncaught error, {e}")
+#     voxel_data: list[tuple] = []
+#     for root, dirs, files in os.walk(proc_preop):
+#         for filename in files:
+#             for image_id in image_ids:
+#                 if filename.endswith(image_id):
+#                     try:
+#                         pat_id = root.split("/")[-1]
+#                         print(f"Processing {pat_id}")
+#                         preop_nifti = nib.load(os.path.join(root, filename))
+#                         postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
+#                                                          filename.replace("preop", "postop")))
+#                         # load the tumor from the tumor directory matching the patient id
+#                         if "PAT" in pat_id:
+#                             try:
+#                                 tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
+#                                 tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
+#                                 tumor_voxels = tumor_resampled.get_fdata()
+#                                 tumor_voxels_norm = tumor_voxels - np.min(tumor_voxels) / (np.max(tumor_voxels) - np.min(tumor_voxels))
+#                             except FileNotFoundError as e:
+#                                 print(f"Tumor not found for {pat_id}, {e}")
+#                             except Exception as e:
+#                                 print(f"Uncaught error, {e}")
                         
-                        # resample the postop nifti to the preop nifti
-                        preop_nifti_norm = preop_nifti.get_fdata() - np.min(preop_nifti.get_fdata()) / (np.max(preop_nifti.get_fdata()) - np.min(preop_nifti.get_fdata()))
-                        postop_nifti_norm = postop_nifti.get_fdata() - np.min(postop_nifti.get_fdata()) / (np.max(postop_nifti.get_fdata()) - np.min(postop_nifti.get_fdata()))
+#                         # resample the postop nifti to the preop nifti
+#                         preop_nifti_norm = preop_nifti.get_fdata() - np.min(preop_nifti.get_fdata()) / (np.max(preop_nifti.get_fdata()) - np.min(preop_nifti.get_fdata()))
+#                         postop_nifti_norm = postop_nifti.get_fdata() - np.min(postop_nifti.get_fdata()) / (np.max(postop_nifti.get_fdata()) - np.min(postop_nifti.get_fdata()))
 
-                        ## first check if skipping zero and lower voxels is smart by visualizing it
+#                         ## first check if skipping zero and lower voxels is smart by visualizing it
 
-                        if "-CON" in pat_id:
-                            for i in range(preop_nifti_norm.shape[0]):
-                                for j in range(preop_nifti_norm.shape[1]):
-                                    for k in range(preop_nifti_norm.shape[2]):
-                                        voxel_data.append(
-                                            (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 1)
-                                        )
-                        elif "-PAT" in pat_id:
-                                for i in range(preop_nifti_norm.shape[0]):
-                                    for j in range(preop_nifti_norm.shape[1]):
-                                        for k in range(preop_nifti_norm.shape[2]):
-                                            if tumor_voxels_norm[i, j, k] > 0.2:
-                                                voxel_data.append(
-                                                    (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 0)
-                                                )
-                                            else:
-                                                voxel_data.append(
-                                                    (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 1)
-                                                )   
-                    except FileNotFoundError as e:
-                        print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
+#                         if "-CON" in pat_id:
+#                             for i in range(preop_nifti_norm.shape[0]):
+#                                 for j in range(preop_nifti_norm.shape[1]):
+#                                     for k in range(preop_nifti_norm.shape[2]):
+#                                         voxel_data.append(
+#                                             (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 1)
+#                                         )
+#                         elif "-PAT" in pat_id:
+#                                 for i in range(preop_nifti_norm.shape[0]):
+#                                     for j in range(preop_nifti_norm.shape[1]):
+#                                         for k in range(preop_nifti_norm.shape[2]):
+#                                             if tumor_voxels_norm[i, j, k] > 0.2:
+#                                                 voxel_data.append(
+#                                                     (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 0)
+#                                                 )
+#                                             else:
+#                                                 voxel_data.append(
+#                                                     (preop_nifti_norm[i, j, k], postop_nifti_norm[i, j, k], 1)
+#                                                 )   
+#                     except FileNotFoundError as e:
+#                         print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
 
-                    except Exception as e:
-                        print(f"Uncaught error, {e}")
-                else:
-                    pass
-    return voxel_data
+#                     except Exception as e:
+#                         print(f"Uncaught error, {e}")
+#                 else:
+#                     pass
+#     return voxel_data
 
                                     
 def create_subject_pairs(root, id):
