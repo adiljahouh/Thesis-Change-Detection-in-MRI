@@ -214,19 +214,11 @@ if __name__ == "__main__":
     #TODO: mtrix calc for evaluation
 
 
-
-
-
-
-
-
-
-    
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
         epochs=args.epochs, patience=args.patience, 
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
         f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    distances, labels = predict(model_type, test_loader, 7)
+    # distances, labels = predict(model_type, test_loader, 7)
 
-    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
+    # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
