@@ -24,10 +24,9 @@ class ConstractiveLoss(nn.Module):
         distance = self.various_distance(out_vec_t0,out_vec_t1)
         #constractive_loss = (label)*torch.pow(distance,2 ) + \
         #                               1-label * torch.pow(torch.clamp(self.margin - distance, min=0.0),2)
-        
         loss = (label * torch.pow(distance, 2) +
                 (1 - label) * torch.pow(torch.clamp(self.margin - distance, min=0.0), 2))
-        return torch.sum(loss)  # Ensure loss is a scalar
+        return torch.mean(loss)  # Ensure loss is a scalar
         ## contrastive loss = sum((1-label) * distance^2 + label * max(margin - distance,0)^2)
         ## if 1 (simillar) constractive loss = margin - distance
         ## if 0 (dissimilar) constractive loss = ((margin - distance)^2)

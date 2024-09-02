@@ -100,15 +100,15 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
     for epoch in range(epochs):
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
-        for index, subject in enumerate(train_loader):
-            input1 = subject['pre'].float().to(device)
-            input2 = subject['post'].float().to(device)
+        for index, batch in enumerate(train_loader):
+            input1 = batch['pre'].float().to(device)
+            input2 = batch['post'].float().to(device)
             # Add channel dimension (greyscale image)
             input1 = input1.unsqueeze(1)
             input2 = input2.unsqueeze(1)
 
             siamese_net.train()  # switch to training mode
-            label = subject['label'].to(device)
+            label = batch['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
             loss = criterion(output1, output2, label)
             optimizer.zero_grad()
@@ -119,15 +119,15 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         # Validation loop
         siamese_net.eval()  # switch to evaluation mode
         with torch.no_grad():
-            for index, subject in enumerate(val_loader):
-                input1 = subject['pre'].float().to(device)
-                input2 = subject['post'].float().to(device)
+            for index, batch in enumerate(val_loader):
+                input1 = batch['pre'].float().to(device)
+                input2 = batch['post'].float().to(device)
 
                 input1 = input1.unsqueeze(1)
                 input2 = input2.unsqueeze(1)
 
                 output1, output2 = siamese_net(input1, input2)
-                label = subject['label'].to(device)
+                label = batch['label'].to(device)
                 loss = criterion(output1, output2, label)
                 epoch_val_loss += loss.item()
         
@@ -202,9 +202,9 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
     ## using validation split to avoid overfitting
-    train_loader = DataLoader(train_subject_images, batch_size=1, shuffle=False)
-    val_loader = DataLoader(val_subject_images, batch_size=1, shuffle=False)
-    test_loader = DataLoader(test_subject_images, batch_size=1, shuffle=False)
+    train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
+    val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
+    test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)
     #TODO: Add betters samples by tuning tumor sensitivity
     #TODO: validate images BY PLOTTING THEM NEXT TO HEATMAP
     #TODO: FIX RIM ISSUE IN HEATMAPS
@@ -219,6 +219,6 @@ if __name__ == "__main__":
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
         f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    # distances, labels = predict(model_type, test_loader, 7)
+    distances, labels = predict(model_type, test_loader, 7)
 
     # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
