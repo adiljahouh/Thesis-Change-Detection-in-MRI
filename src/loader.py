@@ -176,6 +176,7 @@ class imagePairs(Dataset):
                                  
                                 self.data.extend(triplets_pat)
                                 self.labels.extend([label for (_, label, _) in images_post_pad])
+                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:

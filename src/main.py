@@ -52,38 +52,49 @@ def predict(siamese_net, test_loader, threshold=0.3):
     distances = []
     labels = []
     with torch.no_grad():
-        for index, subject in enumerate(test_loader):
-            input1 = subject['pre'].float().to(device)
-            input2 = subject['post'].float().to(device)
+        for index, batch in enumerate(test_loader):
+            input1 = batch['pre'].float().to(device)
+            input2 = batch['post'].float().to(device)
             
             # Add channel dimension (greyscale image)
             input1 = input1.unsqueeze(1)
             input2 = input2.unsqueeze(1)
 
-            label = subject['label'].to(device)
+            labels = batch['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
-            distance = torch.dist(output1,output2,p=2)
-            #distance = torch.dist(output1, output2, p=2)
-            distances.append(distance)
-            labels.append(label)
-            # print(f"Distance: {distance}")
-            #similarity_score = 1 - distance.item()  # Convert distance to similarity score
-            prediction = distance < threshold  # Determine if the pair is similar based on the threshold
-            if prediction:
-                print("The pair is similar with a distance of:", distance.item(), " label:", label.item())
-            else:
-                print("The pair is dissimilar with a distance of:", distance.item(), " label:", label.item())
+            distance = F.pairwise_distance(output1, output2, p=2)
+            for i in range(distance.size(0)):
+                dist = distance[i].item()  # Get the distance for the i-th pair
+                label = labels[i].item()  # Get the label for the i-th pair
+                distances.append(dist)
+                prediction = dist < threshold  # Determine if the pair is similar based on the threshold
+                if prediction:
+                    print(f"Pair {i} is similar with a distance of: {dist}, label: {label}")
+                else:
+                    print(f"Pair {i} is dissimilar with a distance of: {dist}, label: {label}")
 
             # Visualize the similarity heatmap
-            filename = f"slice_{subject['pat_id'][0]}_{'axial' if subject['index_post'][0] != -1 else ''}_{subject['index_post'][0].item() if subject['index_post'][0] != -1 else ''}{'coronal' if subject['index_post'][1] != -1 else ''}_{subject['index_post'][1].item() if subject['index_post'][1] != -1 else ''}{'sagittal' if subject['index_post'][2] != -1 else ''}_{subject['index_post'][2].item() if subject['index_post'][2] != -1 else ''}.jpg" 
-            heatmap = single_layer_similar_heatmap_visual(output1, output2, 'l2')
-            # Save the heatmap
-            save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
-            os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-            save_path = f'{save_dir}/{filename}'
-            pre_image = np.rot90(np.squeeze(subject['pre']))
-            post_image = np.rot90(np.squeeze(subject['post']))
-            merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
+                print(batch['pat_id'][i])
+                print(batch['index_post'][i])
+                ## TODO: fix this index
+                filename = (
+                    f"slice_{batch['pat_id'][i]}_"
+                    f"{'axial' if batch['index_post'][0] != -1 else ''}_"
+                    f"{batch['index_post'][0].item() if batch['index_post'][0] != -1 else ''}"
+                    f"{'coronal' if batch['index_post'][1] != -1 else ''}_"
+                    f"{batch['index_post'][1].item() if batch['index_post'][1] != -1 else ''}"
+                    f"{'sagittal' if batch['index_post'][2] != -1 else ''}_"
+                    f"{batch['index_post'][2].item() if batch['index_post'][2] != -1 else ''}.jpg"
+                )
+                print(filename)
+                heatmap = single_layer_similar_heatmap_visual(output1, output2, 'l2')
+                # Save the heatmap
+                save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
+                os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
+                save_path = f'{save_dir}/{filename}'
+                pre_image = np.rot90(np.squeeze(batch['pre']))
+                post_image = np.rot90(np.squeeze(batch['post']))
+                merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
             # cv2.imwrite(save_path, heatmap)
     return distances, labels
 
