@@ -8,3 +8,4 @@
 *.pth
 *.pt
 *.png
+/src/__pycache__/*

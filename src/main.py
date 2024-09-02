@@ -75,6 +75,11 @@ def predict(siamese_net, test_loader, threshold=0.3):
                 print("The pair is dissimilar with a distance of:", distance.item(), " label:", label.item())
 
             # Visualize the similarity heatmap
+            print(subject['index_post'])
+            print(subject['pat_id'])
+            print(subject['index_post'][0])
+            print(subject['index_post'][1])
+            print(subject['index_post'][2])
             filename = f"slice_{subject['pat_id'][0]}_{'axial' if subject['index_post'][0] != -1 else ''}_{subject['index_post'][0].item() if subject['index_post'][0] != -1 else ''}{'coronal' if subject['index_post'][1] != -1 else ''}_{subject['index_post'][1].item() if subject['index_post'][1] != -1 else ''}{'sagittal' if subject['index_post'][2] != -1 else ''}_{subject['index_post'][2].item() if subject['index_post'][2] != -1 else ''}.jpg" 
             heatmap = single_layer_similar_heatmap_visual(output1, output2, 'l2')
             # Save the heatmap
@@ -219,6 +224,6 @@ if __name__ == "__main__":
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
         f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    # distances, labels = predict(model_type, test_loader, 7)
+    distances, labels = predict(model_type, test_loader, 7)
 
     # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
