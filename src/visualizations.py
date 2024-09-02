@@ -52,7 +52,7 @@ def generate_roc_curve(distances, labels, save_dir):
 def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
 
     interp = nn.Upsample(size=[512,512], mode='bilinear')
-    n, c, h, w = output_t0.data.shape
+    c, h, w = output_t0.data.shape
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
     distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)

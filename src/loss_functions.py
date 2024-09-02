@@ -21,6 +21,9 @@ class ConstractiveLoss(nn.Module):
         return distance
 
     def forward(self,out_vec_t0,out_vec_t1,label):
+        out_vec_t0 = out_vec_t0.view(out_vec_t0.size(0), -1)  
+        out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
+        
         distance = self.various_distance(out_vec_t0,out_vec_t1)
         #constractive_loss = (label)*torch.pow(distance,2 ) + \
         #                               1-label * torch.pow(torch.clamp(self.margin - distance, min=0.0),2)

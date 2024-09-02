@@ -49,8 +49,6 @@ import numpy as np
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
-    distances = []
-    labels = []
     with torch.no_grad():
         for index, batch in enumerate(test_loader):
             input1 = batch['pre'].float().to(device)
@@ -62,11 +60,14 @@ def predict(siamese_net, test_loader, threshold=0.3):
 
             labels = batch['label'].to(device)
             output1, output2 = siamese_net(input1, input2)
-            distance = F.pairwise_distance(output1, output2, p=2)
+            flattened_batch_t0 = output1.view(output1.size(0), -1)  
+            flattened_batch_t1 = output2.view(output2.size(0), -1)
+
+            distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
             for i in range(distance.size(0)):
-                dist = distance[i].item()  # Get the distance for the i-th pair
                 label = labels[i].item()  # Get the label for the i-th pair
-                distances.append(dist)
+
+                dist = distance[i].item()  # Get the distance for the i-th pair
                 prediction = dist < threshold  # Determine if the pair is similar based on the threshold
                 if prediction:
                     print(f"Pair {i} is similar with a distance of: {dist}, label: {label}")
@@ -74,29 +75,25 @@ def predict(siamese_net, test_loader, threshold=0.3):
                     print(f"Pair {i} is dissimilar with a distance of: {dist}, label: {label}")
 
             # Visualize the similarity heatmap
-                print(batch['pat_id'][i])
-                print(batch['index_post'][i])
-                ## TODO: fix this index
                 filename = (
                     f"slice_{batch['pat_id'][i]}_"
-                    f"{'axial' if batch['index_post'][0] != -1 else ''}_"
-                    f"{batch['index_post'][0].item() if batch['index_post'][0] != -1 else ''}"
-                    f"{'coronal' if batch['index_post'][1] != -1 else ''}_"
-                    f"{batch['index_post'][1].item() if batch['index_post'][1] != -1 else ''}"
-                    f"{'sagittal' if batch['index_post'][2] != -1 else ''}_"
-                    f"{batch['index_post'][2].item() if batch['index_post'][2] != -1 else ''}.jpg"
+                    f"{'axial' if batch['index_post'][0][i] != -1 else ''}_"
+                    f"{batch['index_post'][0][i].item() if batch['index_post'][0][i] != -1 else ''}"
+                    f"{'coronal' if batch['index_post'][1][i] != -1 else ''}_"
+                    f"{batch['index_post'][1][i].item() if batch['index_post'][1][i] != -1 else ''}"
+                    f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
+                    f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
-                print(filename)
-                heatmap = single_layer_similar_heatmap_visual(output1, output2, 'l2')
+                heatmap = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
-                pre_image = np.rot90(np.squeeze(batch['pre']))
-                post_image = np.rot90(np.squeeze(batch['post']))
+                pre_image = np.rot90(np.squeeze(batch['pre'][i]))
+                post_image = np.rot90(np.squeeze(batch['post'][i]))
                 merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
             # cv2.imwrite(save_path, heatmap)
-    return distances, labels
+    return
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
           save_dir='models', model_name='masked.pth', device=torch.device('cuda')):
@@ -112,15 +109,15 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
         for index, batch in enumerate(train_loader):
-            input1 = batch['pre'].float().to(device)
-            input2 = batch['post'].float().to(device)
+            pre_batch = batch['pre'].float().to(device)
+            post_batch = batch['post'].float().to(device)
             # Add channel dimension (greyscale image)
-            input1 = input1.unsqueeze(1)
-            input2 = input2.unsqueeze(1)
+            pre_batch = pre_batch.unsqueeze(1)
+            post_batch = post_batch.unsqueeze(1)
 
             siamese_net.train()  # switch to training mode
             label = batch['label'].to(device)
-            output1, output2 = siamese_net(input1, input2)
+            output1, output2 = siamese_net(pre_batch, post_batch)
             loss = criterion(output1, output2, label)
             optimizer.zero_grad()
             loss.backward()
@@ -131,13 +128,13 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         siamese_net.eval()  # switch to evaluation mode
         with torch.no_grad():
             for index, batch in enumerate(val_loader):
-                input1 = batch['pre'].float().to(device)
-                input2 = batch['post'].float().to(device)
+                pre_batch = batch['pre'].float().to(device)
+                post_batch = batch['post'].float().to(device)
 
-                input1 = input1.unsqueeze(1)
-                input2 = input2.unsqueeze(1)
+                pre_batch = pre_batch.unsqueeze(1)
+                post_batch = post_batch.unsqueeze(1)
 
-                output1, output2 = siamese_net(input1, input2)
+                output1, output2 = siamese_net(pre_batch, post_batch)
                 label = batch['label'].to(device)
                 loss = criterion(output1, output2, label)
                 epoch_val_loss += loss.item()
@@ -230,6 +227,6 @@ if __name__ == "__main__":
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
         f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    distances, labels = predict(model_type, test_loader, 7)
+    predict(model_type, test_loader, args.margin)
 
     # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
