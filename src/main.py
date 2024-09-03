@@ -84,7 +84,7 @@ def predict(siamese_net, test_loader, threshold=0.3):
                     f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
-                heatmap = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
+                heatmap, distance_map = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
@@ -92,7 +92,6 @@ def predict(siamese_net, test_loader, threshold=0.3):
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
                 post_image = np.rot90(np.squeeze(batch['post'][i]))
                 merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
-            # cv2.imwrite(save_path, heatmap)
     return
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
@@ -229,4 +228,4 @@ if __name__ == "__main__":
     
     predict(model_type, test_loader, args.margin)
 
-    # thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
+    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")

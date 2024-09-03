@@ -61,7 +61,7 @@ def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
     # print(similar_distance_map_rz)
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
-    return similar_dis_map_colorize
+    return similar_dis_map_colorize, 255*similar_distance_map_rz.data.cpu().numpy()[0][0]
 
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure

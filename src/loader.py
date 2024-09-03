@@ -154,6 +154,7 @@ class imagePairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                 self.data.extend(triplets_con)
                                 self.labels.extend([label for (_, label, _) in images_post_pad])
+                            
                             elif "-PAT" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape == tumor_norm.shape
 
@@ -176,6 +177,7 @@ class imagePairs(Dataset):
                                  
                                 self.data.extend(triplets_pat)
                                 self.labels.extend([label for (_, label, _) in images_post_pad])
+                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
