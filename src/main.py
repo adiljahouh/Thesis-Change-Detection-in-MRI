@@ -49,6 +49,8 @@ import numpy as np
 def predict(siamese_net, test_loader, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
+    distances_list = []
+    labels_list = []
     with torch.no_grad():
         for index, batch in enumerate(test_loader):
             input1 = batch['pre'].float().to(device)
@@ -68,6 +70,8 @@ def predict(siamese_net, test_loader, threshold=0.3):
                 label = labels[i].item()  # Get the label for the i-th pair
 
                 dist = distance[i].item()  # Get the distance for the i-th pair
+                distances_list.append(dist)
+                labels_list.append(label)
                 prediction = dist < threshold  # Determine if the pair is similar based on the threshold
                 if prediction:
                     print(f"Pair {i} is similar with a distance of: {dist}, label: {label}")
@@ -84,7 +88,7 @@ def predict(siamese_net, test_loader, threshold=0.3):
                     f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
-                heatmap, distance_map = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
+                heatmap, out1_trans, out2_trans = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
@@ -92,7 +96,7 @@ def predict(siamese_net, test_loader, threshold=0.3):
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
                 post_image = np.rot90(np.squeeze(batch['post'][i]))
                 merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
-    return
+    return distances_list, labels_list
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
           save_dir='models', model_name='masked.pth', device=torch.device('cuda')):
@@ -189,14 +193,6 @@ if __name__ == "__main__":
     subject_images = balance_dataset(subject_images)
     print(f"Total number of images after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
-    # for image in subject_images:
-    #     assert image['pre'].shape == image['post'].shape
-    #     assert image['index_post'] == image['index_pre']
-    #     assert image['tumor'].shape == image['pre'].shape
-    #     assert image['tumor'].shape == image['post'].shape
-    #     filename = f"slice_{image['pat_id']}_{'axial' if image['index_post'][0] is not None else ''}_{image['index_post'][0] if image['index_post'][0] is not None else ''}{'coronal' if image['index_post'][1] is not None else ''}_{image['index_post'][1] if image['index_post'][1] is not None else ''}{'sagittal' if image['index_post'][2] is not None else ''}_{image['index_post'][2] if image['index_post'][2] is not None else ''}.jpg"    # filename = f"{image['pat_id']}_{image['index_pre'][0]}_{image['index_pre'][1]}_{image['index_pre'][2]}"
-
-    #     plot_and_save_ndarray(image['pre'], './data/test', filename=filename)
 
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
@@ -226,6 +222,6 @@ if __name__ == "__main__":
         save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
         f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
     
-    predict(model_type, test_loader, args.margin)
+    distances, labels = predict(model_type, test_loader, args.margin)
 
     thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
