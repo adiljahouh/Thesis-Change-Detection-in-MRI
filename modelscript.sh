@@ -1,1 +1,1 @@
-nohup python -u src/main.py --model custom --lr 0.0001 --epochs 200 --patience 8 --dist_flag l2 --margin 0.0 > output.log &
+nohup python -u src/main.py --model custom --lr 0.001 --epochs 200 --patience 8 --dist_flag l2 --margin 7.0 > output.log &
