@@ -1,13 +1,12 @@
 import torch
 import torch.optim as optim
-from network import SaimeseTwoDim, SiameseVGG3D
+from network import SaimeseTwoDim
 from loss_functions import ConstractiveLoss
-from loader import imagePairs, stratified_kfold_split, balance_dataset
+from loader import imagePairs, balance_dataset
 import os
 from visualizations import merge_images, generate_roc_curve, single_layer_similar_heatmap_visual
 import argparse
 import cv2
-from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import random_split, DataLoader, Subset
 import torch.nn.functional as F
 import numpy as np
@@ -199,8 +198,8 @@ if __name__ == "__main__":
     
     if args.model == 'custom':
         model_type = SaimeseTwoDim()
-    elif args.model == 'vgg16':
-        model_type = SiameseVGG3D()
+    # elif args.model == 'vgg16':
+    #     model_type = SiameseVGG3D()
     criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
