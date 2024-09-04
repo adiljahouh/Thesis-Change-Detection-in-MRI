@@ -42,8 +42,11 @@ class ConstractiveThresholdHingeLoss(nn.Module):
         self.margin = margin
 
     def forward(self,out_vec_t0,out_vec_t1,label):
-
-        distance = F.pairwise_distance(out_vec_t0,out_vec_t1,p=2)
+        out_vec_t0 = out_vec_t0.view(out_vec_t0.size(0), -1)  
+        out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
+        
+        distance = self.various_distance(out_vec_t0,out_vec_t1)
+        
         similar_pair = torch.clamp(distance - self.threshold,min=0.0)
         dissimilar_pair = torch.clamp(self.margin- distance,min=0.0)
         #dissimilar_pair = torch.clamp(self.margin-(distance-self.threshold),min=0.0)
