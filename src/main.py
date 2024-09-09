@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 from network import SaimeseTwoDim
-from loss_functions import ConstractiveLoss
+from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import imagePairs, balance_dataset
 import os
 from visualizations import merge_images, generate_roc_curve, single_layer_similar_heatmap_visual
@@ -164,17 +164,21 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
-
+    # parser.add_argument('mode', type=str, choices=['train', 'predict'], required=True,
+    #                      help='Mode of operation (train or predict)')
     parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
-    parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], required=True, help=
+    parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="CL", help=
+                        "Type of loss function to use (constractive or constractive_thresh)")
+    parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
                         "Distance flag to use for the loss function (l2, l1, or cos)")
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
     parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
-    parser.add_argument("--margin", type=float, default=0.2, help="Margin of the constractive loss")
-    
+    parser.add_argument("--margin", type=float, default=7.0, help="Margin for dissimilar pairs")
+    parser.add_argument("--threshold", type=float, default=0.3, help="Threshold for similar pairs, prevents overfit")
+    # parser.add_argument("model_name", type=str, help="Name of the model to load")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -193,14 +197,15 @@ if __name__ == "__main__":
     print(f"Total number of images after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
 
-    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
-    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
+    print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
+    print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
     if args.model == 'custom':
         model_type = SaimeseTwoDim()
-    # elif args.model == 'vgg16':
-    #     model_type = SiameseVGG3D()
-    criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+    if args.loss == 'CL':
+        criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+    elif args.loss == 'TCL':
+        criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
     ## using validation split to avoid overfitting
@@ -214,12 +219,12 @@ if __name__ == "__main__":
     #TODO: WE CANT JUST LABEL 0 or 1 in PAT based on tumor, there could be changes in the brain that arent tumor related
 
     #TODO: mtrix calc for evaluation
-
-
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
-        epochs=args.epochs, patience=args.patience, 
-        save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
-        f'lr-{args.lr}_marg-{args.margin}.pth', device=device)
+            epochs=args.epochs, patience=args.patience, 
+            save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
+            f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}.pth', device=device)
+    # elif args.mode == 'predict':
+    #     model_type.load_state_dict(torch.load(f"./models/{args.model_name}"))
     
     distances, labels = predict(model_type, test_loader, args.margin)
 
