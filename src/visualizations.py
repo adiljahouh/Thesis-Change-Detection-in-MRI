@@ -29,7 +29,7 @@ def merge_images(image1, image2, image3, output_path):
     plt.savefig(output_path)
     plt.close(fig)
     
-def generate_roc_curve(distances, labels, save_dir):
+def generate_roc_curve(distances, labels, save_dir, name):
     # # Invert distances because lower distance indicates more similarity
     # distances = [d.cpu().item() for d in distances]
     # labels = [l.cpu().item() for l in labels]
@@ -46,11 +46,11 @@ def generate_roc_curve(distances, labels, save_dir):
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic')
+    plt.title(f'ROC {name}')
     plt.legend(loc="lower right")
 
     # Save the plot to the specified directory
-    plt.savefig(os.path.join(save_dir, 'roc_curve.png'))
+    plt.savefig(os.path.join(save_dir, f'{name}.png'))
     plt.close()  # Close the plot to free up memory
     return thresholds
 def single_layer_similar_heatmap_visual(output_t0,output_t1,dist_flag):

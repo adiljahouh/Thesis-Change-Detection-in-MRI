@@ -219,13 +219,14 @@ if __name__ == "__main__":
     #TODO: WE CANT JUST LABEL 0 or 1 in PAT based on tumor, there could be changes in the brain that arent tumor related
 
     #TODO: mtrix calc for evaluation
+    model_params =  f'{args.model}_{args.dist_flag}_'\
+            f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
-            save_dir=save_dir, model_name=f'{args.model}_{args.dist_flag}_'\
-            f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}.pth', device=device)
+            save_dir=save_dir, model_name=f'{model_params}.pth', device=device)
     # elif args.mode == 'predict':
     #     model_type.load_state_dict(torch.load(f"./models/{args.model_name}"))
     
     distances, labels = predict(model_type, test_loader, args.margin)
 
-    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}")
+    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}", model_params)
