@@ -1,10 +1,10 @@
 import torch
 import torch.optim as optim
-from network import SaimeseTwoDim
+from network import SimpleSiamese
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import imagePairs, balance_dataset
 import os
-from visualizations import merge_images, generate_roc_curve, single_layer_similar_heatmap_visual
+from visualizations import *
 import argparse
 import cv2
 from torch.utils.data import random_split, DataLoader, Subset
@@ -45,7 +45,7 @@ import numpy as np
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
-def predict(siamese_net, test_loader, threshold=0.3):
+def predict(siamese_net, test_loader, name, threshold=0.3):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -87,18 +87,19 @@ def predict(siamese_net, test_loader, threshold=0.3):
                     f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
+                baseline = get_baseline(input1[i], input2[i])
                 heatmap, out1_trans, out2_trans = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
                 # Save the heatmap
-                save_dir = os.path.join(os.getcwd(), f'./data/heatmaps/twodim')
+                save_dir = os.path.join(os.getcwd(), f'./results/{name}/heatmaps')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
                 post_image = np.rot90(np.squeeze(batch['post'][i]))
-                merge_images(pre_image, post_image, np.rot90(heatmap), save_path)
+                merge_images(pre_image, post_image, np.rot90(heatmap), np.rot90(np.squeeze(baseline)), save_path)
     return distances_list, labels_list
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
-          save_dir='models', model_name='masked.pth', device=torch.device('cuda')):
+          save_dir='./results', model_name='masked.pth', device=torch.device('cuda')):
     siamese_net.to(device)
     print(f"Number of samples in training set: {len(train_loader)}")
     print(f"Number of samples in validation set: {len(val_loader)}")
@@ -152,7 +153,7 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
             best_loss = avg_val_loss
             consecutive_no_improvement = 0
             # Save the best model
-            save_path = os.path.join(save_dir, model_name)
+            save_path = os.path.join(save_dir, "model.pth")
             torch.save(siamese_net.state_dict(), save_path)
             print(f'Saved best model to {save_path}')
         else:
@@ -183,7 +184,6 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
-    save_dir = f'./models/{args.model}'
     ##TODO: add root path to args.pars because this wont run on server
     subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
                   raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
     if args.model == 'custom':
-        model_type = SaimeseTwoDim()
+        model_type = SimpleSiamese()
     if args.loss == 'CL':
         criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
     elif args.loss == 'TCL':
@@ -221,12 +221,14 @@ if __name__ == "__main__":
     #TODO: mtrix calc for evaluation
     model_params =  f'{args.model}_{args.dist_flag}_'\
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
+    save_dir = f'./results/{model_params}'
+    os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, model_name=f'{model_params}.pth', device=device)
     # elif args.mode == 'predict':
     #     model_type.load_state_dict(torch.load(f"./models/{args.model_name}"))
     
-    distances, labels = predict(model_type, test_loader, args.margin)
+    distances, labels = predict(model_type, test_loader, model_params, args.margin)
 
-    thresholds = generate_roc_curve(distances, labels, f"./models/{args.model}", model_params)
+    thresholds = generate_roc_curve(distances, labels, f"./results/{model_params}")

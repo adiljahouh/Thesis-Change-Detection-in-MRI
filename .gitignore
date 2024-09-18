@@ -8,5 +8,6 @@
 *.pth
 *.pt
 *.png
+/results/*/heatmaps/*
 /src/__pycache__/*
 *.pyc
