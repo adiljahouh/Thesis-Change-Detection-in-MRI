@@ -88,14 +88,15 @@ def predict(siamese_net, test_loader, name, threshold=0.3):
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
                 baseline = get_baseline(input1[i], input2[i])
-                heatmap, out1_trans, out2_trans = single_layer_similar_heatmap_visual(output1[i], output2[i], 'l2')
+                heatmap, distance_array_norm = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
+                                                                                   mode='bilinear')
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'./results/{name}/heatmaps')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
                 post_image = np.rot90(np.squeeze(batch['post'][i]))
-                merge_images(pre_image, post_image, np.rot90(heatmap), np.rot90(np.squeeze(baseline)), save_path)
+                merge_images(pre_image, post_image, np.rot90(distance_array_norm), np.rot90(np.squeeze(baseline)), save_path)
     return distances_list, labels_list
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 

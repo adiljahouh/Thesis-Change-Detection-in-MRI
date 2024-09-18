@@ -6,6 +6,7 @@ import os
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from distance_measures import various_distance
+from loader import normalize_np_array
 def merge_images(pre, post, heatmap, baseline, output_path):
     # Create a new figure
     fig, axs = plt.subplots(1, 4, figsize=(12, 4))
@@ -60,23 +61,27 @@ def generate_roc_curve(distances, labels, save_dir):
     plt.close()  # Close the plot to free up memory
     return thresholds
 
-def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str):
+def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
+                                        mode='bilinear'):
 
-    interp = nn.Upsample(size=[256,256], mode='bilinear')
+    interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
-    print("shape: ", c, h, w)
+    # print("shape: ", c, h, w)
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
     distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
-    # print(distance)
     similar_distance_map = distance.view(h,w).data.cpu().numpy()
-    print("similar_distance_map: ", similar_distance_map.shape)
+    # print("similar_distance_map: ", similar_distance_map.shape)
+
     ## create a 4 dim torch by adding 2 axis to h,w
     ## torch upsamle expects b,c,h,w
+    ## normalize it after to 0 1
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
-    # print(similar_distance_map_rz)
+    normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
+    assert normalized_distance_map.max() <= 1.0
+    assert normalized_distance_map.min() >= 0.0    
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
-    return similar_dis_map_colorize, similar_distance_map_rz.data.cpu().numpy()[0][0]
+    return similar_dis_map_colorize, normalized_distance_map
 
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
