@@ -88,15 +88,19 @@ def predict(siamese_net, test_loader, name, threshold=0.3):
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
                 baseline = get_baseline(input1[i], input2[i])
-                heatmap, distance_array_norm = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
+                _, distance_array_bilin = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
                                                                                    mode='bilinear')
+                _, distance_array_nearest = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
+                                                                                         mode='nearest')
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'./results/{name}/heatmaps')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
                 post_image = np.rot90(np.squeeze(batch['post'][i]))
-                merge_images(pre_image, post_image, np.rot90(distance_array_norm), np.rot90(np.squeeze(baseline)), save_path)
+                merge_images(pre_image, post_image, np.rot90(distance_array_bilin), 
+                                np.rot90(distance_array_nearest), np.rot90(np.squeeze(baseline)), output_path=save_path,
+                                title="Left to right; Preop, Postop, Bilinear, Nearest, Baseline")
     return distances_list, labels_list
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
@@ -171,6 +175,10 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
+    parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
+                        "Path to the directory containing the preprocessed data")
+    parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
+                        "Path to the directory containing the tumor masks")
     parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="CL", help=
                         "Type of loss function to use (constractive or constractive_thresh)")
     parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
@@ -186,9 +194,9 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     ##TODO: add root path to args.pars because this wont run on server
-    subject_images = imagePairs(proc_preop='./data/processed/preop/BTC-preop', 
-                  raw_tumor_dir='./data/raw/preop/BTC-preop/derivatives/tumor_masks',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=2, tumor_sensitivity=0.15)
+    subject_images = imagePairs(proc_preop=args.preop_dir, 
+                  raw_tumor_dir=args.tumor_dir,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=1, tumor_sensitivity=0.18)
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
@@ -214,7 +222,6 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)
     #TODO: Add betters samples by tuning tumor sensitivity
-    #TODO: validate images BY PLOTTING THEM NEXT TO HEATMAP
     #TODO: FIX RIM ISSUE IN HEATMAPS
     #TODO: MASKS HAVE INTENSITY AT POINTS THEY SHOULDNT!
     #TODO: WE CANT JUST LABEL 0 or 1 in PAT based on tumor, there could be changes in the brain that arent tumor related

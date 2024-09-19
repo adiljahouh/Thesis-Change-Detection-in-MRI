@@ -7,30 +7,42 @@ from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from distance_measures import various_distance
 from loader import normalize_np_array
-def merge_images(pre, post, heatmap, baseline, output_path):
-    # Create a new figure
-    fig, axs = plt.subplots(1, 4, figsize=(12, 4))
-
-    # Display each image on a separate subplot
-    axs[0].imshow(pre, cmap="gray")
-    axs[0].axis('off')
-    axs[1].imshow(post, cmap="gray")
-    axs[1].axis('off')
-    axs[2].imshow(heatmap, cmap="jet")
-    axs[2].axis('off')
-    axs[3].imshow(baseline, cmap="jet")
-    axs[3].axis('off')
+def merge_images(*args, output_path, title, **kwargs):
+    """
+    Merges and visualizes a variable number of images in a single figure.
     
-    # # Create a colorbar
-    # cbar = plt.colorbar(im, ax=axs[2], orientation='vertical')
-    # cbar.set_label('Similarity Distance (Scaled by 255)')
+    Args:
+        *args: Variable number of image arrays (2D or 3D).
+        output_path (str): Path where the merged image will be saved.
+        **kwargs: Additional keyword arguments (currently not used but can be extended).
+    """
+    # Number of images
+    num_images = len(args)
+    
+    # Create a figure with a number of subplots equal to the number of images
+    fig, axs = plt.subplots(1, num_images, figsize=(num_images * 3, 4))
+    
+    # If only one subplot is created, axs will not be an array
+    if num_images == 1:
+        axs = [axs]
+    
+    # Display each image on a separate subplot
+    for i, img in enumerate(args):
+        if i < 2:
+            axs[i].imshow(img, cmap="gray")  # First two images use grayscale colormap
+        else:
+            axs[i].imshow(img, cmap="jet")   # Subsequent images use jet colormap
+        axs[i].axis('off')
     
     # Adjust spacing between subplots
+    plt.suptitle(title)
     plt.tight_layout()
     
     # Save the merged image
     plt.savefig(output_path)
     plt.close(fig)
+
+# Example usage
 
 def get_baseline(pre: torch.Tensor, post: torch.Tensor) -> torch.Tensor:  
     diff = torch.abs(pre - post)
@@ -67,6 +79,8 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
     # print("shape: ", c, h, w)
+    # TODO: check different upsampling modes!
+    # TODO: Create pre pre pairs to make sure output is correct
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
     distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
@@ -78,8 +92,9 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     ## normalize it after to 0 1
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
     normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
-    assert normalized_distance_map.max() <= 1.0
-    assert normalized_distance_map.min() >= 0.0    
+    assert normalized_distance_map.max() <= 1.0, f"max: {normalized_distance_map.max()}"
+    assert normalized_distance_map.min() >= 0.0, f"min: {normalized_distance_map.min()}"
+    
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return similar_dis_map_colorize, normalized_distance_map
 
