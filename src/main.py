@@ -176,11 +176,13 @@ if __name__ == "__main__":
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
     parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
-                        "Path to the directory containing the preprocessed data")
+                        "Path to the directory containing the preprocessed subject dirs, relative is possible from project dir\
+                            should contain sub-pat01, sub-pat02 etc. with t1 nii files in them")
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
-                        "Path to the directory containing the tumor masks")
+                        "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
+                        should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
     parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="CL", help=
-                        "Type of loss function to use (constractive or constractive_thresh)")
+                        "Type of loss function to use (constractive or thresholded constractive)")
     parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
                         "Distance flag to use for the loss function (l2, l1, or cos)")
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
@@ -188,14 +190,15 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
     parser.add_argument("--margin", type=float, default=7.0, help="Margin for dissimilar pairs")
     parser.add_argument("--threshold", type=float, default=0.3, help="Threshold for similar pairs, prevents overfit")
-    # parser.add_argument("model_name", type=str, help="Name of the model to load")
+    parser.add_argument("skip", type=int, default=2, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
+    
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=2, tumor_sensitivity=0.18)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18)
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))

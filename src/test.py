@@ -17,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
-    parser.add_argument('--model_dir', type=str, help='Path to the model to load', required=True)
+    parser.add_argument('--model_path', type=str, help='Path to the model to load', required=True)
     parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
                         "Path to the directory containing the preprocessed data")
 
@@ -40,8 +40,7 @@ if __name__ == "__main__":
     
     ## using validation split to avoid overfitting
     test_loader = DataLoader(subject_images, batch_size=16, shuffle=False)
-    model_params =  f'{args.model}_{args.dist_flag}_'\
-            f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
+    model_params =  args.model_path.split("/")[-1]
 
 
     model_type.load_state_dict(torch.load(args.model_dir))
