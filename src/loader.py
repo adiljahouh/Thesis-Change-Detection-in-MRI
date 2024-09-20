@@ -204,8 +204,7 @@ class control_pairs(Dataset):
 
     Works by matching the image just by itself
     """
-    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None, skip:int=1,
-                 tumor_sensitivity = 0.10):
+    def __init__(self, proc_preop: str, image_ids: list, transform=None, skip:int=1):
         self.root = proc_preop
         self.transform = transform
         self.data = []
@@ -219,19 +218,6 @@ class control_pairs(Dataset):
                             pat_id = root.split("/")[-1]
                             print(f"Processing {pat_id}")
                             preop_nifti = nib.load(os.path.join(root, filename))
-                            if "PAT" in pat_id:
-                                try:
-                                    tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
-                                    tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
-                                    tumor_norm = normalize_nifti(tumor_resampled)
-
-                                    assert tumor_norm.max() <= 1.0, f"max: {tumor_norm.max()}"
-                                    assert tumor_norm.min() >= 0.0, f"min: {tumor_norm.min()}"
-                                except FileNotFoundError as e:
-                                    print(f"Tumor not found for {pat_id}, {e}")
-                                except Exception as e:
-                                    print(f"Uncaught error, {e}")
-                            
                             # resample the postop nifti to the preop nifti
                             preop_nifti_norm = normalize_nifti(preop_nifti)
 
@@ -268,8 +254,6 @@ class control_pairs(Dataset):
 
         if self.transform:
             pass
-            # img1_file = self.transform(self.data[idx][0])
-            # img2_file = self.transform(self.data[idx][1])
         return self.data[idx]
                                        
 def create_subject_pairs(root, id):

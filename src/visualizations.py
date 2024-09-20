@@ -92,7 +92,7 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     ## normalize it after to 0 1
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
     normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
-    assert normalized_distance_map.max() <= 1.0, f"max: {normalized_distance_map.max()}"
+    assert normalized_distance_map.max() <= 1.0, f"max: {normalized_distance_map.max()}, {normalized_distance_map}, \n {similar_distance_map_rz.data.cpu().numpy()[0][0]}"
     assert normalized_distance_map.min() >= 0.0, f"min: {normalized_distance_map.min()}"
 
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)

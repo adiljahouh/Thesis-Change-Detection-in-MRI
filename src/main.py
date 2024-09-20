@@ -195,7 +195,7 @@ if __name__ == "__main__":
     print("Using device:", device)
     subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=1, tumor_sensitivity=0.18)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=2, tumor_sensitivity=0.18)
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
