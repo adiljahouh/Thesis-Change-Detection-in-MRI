@@ -66,9 +66,6 @@ def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_min
     percentage_high_info = num_high_info_cells / total_cells
     return percentage_high_info > percentage_minimum
 
-def balance_classes_slices():
-    return
-
 def convert_3d_into_2d(nifti_image: ndarray, skip: int =1) -> list[Tuple[ndarray, Tuple[int, int, int]]]:
     slices = []
    
@@ -94,7 +91,7 @@ def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
 
 
 
-class imagePairs(Dataset):
+class subject_patient_pairs(Dataset):
     """
     Image dataset for each subject in the dataset
     creating only 'correct' and 'incorrect' pairs for now
@@ -127,6 +124,8 @@ class imagePairs(Dataset):
                                     tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
                                     tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
                                     tumor_norm = normalize_nifti(tumor_resampled)
+                                    assert tumor_norm.max() <= 1.0, f"max: {tumor_norm.max()}"
+                                    assert tumor_norm.min() >= 0.0, f"min: {tumor_norm.min()}"
                                 except FileNotFoundError as e:
                                     print(f"Tumor not found for {pat_id}, {e}")
                                 except Exception as e:
@@ -135,6 +134,8 @@ class imagePairs(Dataset):
                             # resample the postop nifti to the preop nifti
                             preop_nifti_norm = normalize_nifti(preop_nifti)
                             postop_nifti_norm = normalize_nifti(postop_nifti)
+                            assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
+                            assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
 
                             if "-CON" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape
@@ -193,12 +194,84 @@ class imagePairs(Dataset):
 
         if self.transform:
             pass
-            # img1_file = self.transform(self.data[idx][0])
-            # img2_file = self.transform(self.data[idx][1])
         return self.data[idx]
                 
 
-                                    
+class control_pairs(Dataset):
+    """
+    Image dataset for each subject in the dataset
+    creating only control pairs, of the same image for sanity test
+
+    Works by matching the image just by itself
+    """
+    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None, skip:int=1,
+                 tumor_sensitivity = 0.10):
+        self.root = proc_preop
+        self.transform = transform
+        self.data = []
+        self.labels = [] # used for kfold later on
+        self.image_ids = image_ids
+        for root, dirs, files in os.walk(self.root):
+            for filename in files:
+                for image_id in self.image_ids:
+                    if filename.endswith(image_id):
+                        try:
+                            pat_id = root.split("/")[-1]
+                            print(f"Processing {pat_id}")
+                            preop_nifti = nib.load(os.path.join(root, filename))
+                            if "PAT" in pat_id:
+                                try:
+                                    tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
+                                    tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
+                                    tumor_norm = normalize_nifti(tumor_resampled)
+
+                                    assert tumor_norm.max() <= 1.0, f"max: {tumor_norm.max()}"
+                                    assert tumor_norm.min() >= 0.0, f"min: {tumor_norm.min()}"
+                                except FileNotFoundError as e:
+                                    print(f"Tumor not found for {pat_id}, {e}")
+                                except Exception as e:
+                                    print(f"Uncaught error, {e}")
+                            
+                            # resample the postop nifti to the preop nifti
+                            preop_nifti_norm = normalize_nifti(preop_nifti)
+
+                            assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
+                            assert preop_nifti_norm.min() >= 0.0, f"min: {preop_nifti_norm.min()}"
+
+                            
+                            images_pre = convert_3d_into_2d(preop_nifti_norm, skip=skip)
+
+                            # Create triplets with label 1 (similar slices)
+                            images_pre_pad = [(pad_slice(image[0]), image[1], 1) for image in images_pre]
+    
+                            
+                            # Create triplets (pre_slice, post_slice, label, tumor=None)
+                            triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": np.zeros_like(pre), 
+                                                "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
+                                            for (pre, index_pre, label), 
+                                            (post, index_post, _) in 
+                                            zip(images_pre_pad, images_pre_pad) if 
+                                            slice_has_high_info(pre) and slice_has_high_info(post)]
+                            self.data.extend(triplets_con)
+                            self.labels.extend([label for (_, label, _) in images_pre_pad])
+                        
+                                # return
+                        except FileNotFoundError as e:
+                            print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
+                        except Exception as e:
+                            print(f"Uncaught error, {e}")
+                    else:
+                        pass
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+
+        if self.transform:
+            pass
+            # img1_file = self.transform(self.data[idx][0])
+            # img2_file = self.transform(self.data[idx][1])
+        return self.data[idx]
+                                       
 def create_subject_pairs(root, id):
     data = []
     for root, dirs, files in os.walk(root):

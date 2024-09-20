@@ -2,12 +2,11 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import imagePairs, balance_dataset
+from loader import subject_patient_pairs, balance_dataset
 import os
 from visualizations import *
 import argparse
-import cv2
-from torch.utils.data import random_split, DataLoader, Subset
+from torch.utils.data import random_split, DataLoader
 import torch.nn.functional as F
 import numpy as np
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
@@ -104,7 +103,8 @@ def predict(siamese_net, test_loader, name, threshold=0.3):
     return distances_list, labels_list
 
 def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
-          save_dir='./results', model_name='masked.pth', device=torch.device('cuda')):
+          save_dir='./results/unassigned', device=torch.device('cuda')):
+    
     siamese_net.to(device)
     print(f"Number of samples in training set: {len(train_loader)}")
     print(f"Number of samples in validation set: {len(val_loader)}")
@@ -193,8 +193,7 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
-    ##TODO: add root path to args.pars because this wont run on server
-    subject_images = imagePairs(proc_preop=args.preop_dir, 
+    subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=1, tumor_sensitivity=0.18)
     # balance subject_images based on label
@@ -233,7 +232,7 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
-            save_dir=save_dir, model_name=f'{model_params}.pth', device=device)
+            save_dir=save_dir, device=device)
     # elif args.mode == 'predict':
     #     model_type.load_state_dict(torch.load(f"./models/{args.model_name}"))
     

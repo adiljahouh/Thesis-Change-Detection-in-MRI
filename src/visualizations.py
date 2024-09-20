@@ -79,7 +79,7 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
     # print("shape: ", c, h, w)
-    # TODO: check different upsampling modes!
+    # TODO: check that hte loss is normalized
     # TODO: Create pre pre pairs to make sure output is correct
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
@@ -94,7 +94,7 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
     assert normalized_distance_map.max() <= 1.0, f"max: {normalized_distance_map.max()}"
     assert normalized_distance_map.min() >= 0.0, f"min: {normalized_distance_map.min()}"
-    
+
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return similar_dis_map_colorize, normalized_distance_map
 
