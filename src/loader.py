@@ -41,6 +41,8 @@ def stratified_kfold_split(dataset, n_splits=5):
     return splits
 
 def normalize_np_array(array: ndarray) -> ndarray:
+    if np.max(array) == np.min(array):
+        return array
     return (array - np.min(array)) / (np.max(array) - np.min(array))
 
 def normalize_nifti(nifti_image: nib.Nifti1Image) -> ndarray:

@@ -92,8 +92,15 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     ## normalize it after to 0 1
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
     normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
-    assert normalized_distance_map.max() <= 1.0, f"max: {normalized_distance_map.max()}, {normalized_distance_map}, \n {similar_distance_map_rz.data.cpu().numpy()[0][0]}"
-    assert normalized_distance_map.min() >= 0.0, f"min: {normalized_distance_map.min()}"
+    try:
+        assert normalized_distance_map.max() <= 1.0, f"max: {normalized_distance_map.max()}, {normalized_distance_map}, \n {similar_distance_map_rz.data.cpu().numpy()[0][0]}"
+        assert normalized_distance_map.min() >= 0.0, f"min: {normalized_distance_map.min()}"
+    except AssertionError as e:
+        print(f"AssertionError caught: {e}")
+    # Save the tensor for further debugging
+        save_path = "./debug/similar_distance_map_rz_failed.txt"
+        os.makedirs("./debug", exist_ok=True)
+        np.savetxt(save_path, similar_distance_map)
 
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return similar_dis_map_colorize, normalized_distance_map

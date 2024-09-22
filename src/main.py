@@ -44,7 +44,7 @@ import numpy as np
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
-def predict(siamese_net, test_loader, name, threshold=0.3):
+def predict(siamese_net, test_loader, base_dir, device=torch.device('cuda')):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -70,13 +70,13 @@ def predict(siamese_net, test_loader, name, threshold=0.3):
                 dist = distance[i].item()  # Get the distance for the i-th pair
                 distances_list.append(dist)
                 labels_list.append(label)
-                prediction = dist < threshold  # Determine if the pair is similar based on the threshold
+            # Visualize the similarity heatmap                
+                prediction = dist < 5  # Determine if the pair is similar based on the threshold
                 if prediction:
                     print(f"Pair {i} is similar with a distance of: {dist}, label: {label}")
                 else:
                     print(f"Pair {i} is dissimilar with a distance of: {dist}, label: {label}")
 
-            # Visualize the similarity heatmap
                 filename = (
                     f"slice_{batch['pat_id'][i]}_"
                     f"{'axial' if batch['index_post'][0][i] != -1 else ''}_"
@@ -92,7 +92,8 @@ def predict(siamese_net, test_loader, name, threshold=0.3):
                 _, distance_array_nearest = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
                                                                                          mode='nearest')
                 # Save the heatmap
-                save_dir = os.path.join(os.getcwd(), f'./results/{name}/heatmaps')
+                save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
+                print(f"Saving heatmap to {save_dir}")
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
     parser.add_argument("--margin", type=float, default=7.0, help="Margin for dissimilar pairs")
     parser.add_argument("--threshold", type=float, default=0.3, help="Threshold for similar pairs, prevents overfit")
-    parser.add_argument("skip", type=int, default=2, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
+    parser.add_argument("--skip", type=int, default=2, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
     
     args = parser.parse_args()
 
@@ -231,14 +232,13 @@ if __name__ == "__main__":
     #TODO: mtrix calc for evaluation
     model_params =  f'{args.model}_{args.dist_flag}_'\
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
-    save_dir = f'./results/{model_params}'
+    save_dir = f'./results/{model_params}/train_test'
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
     best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, device=device)
-    # elif args.mode == 'predict':
-    #     model_type.load_state_dict(torch.load(f"./models/{args.model_name}"))
-    
-    distances, labels = predict(model_type, test_loader, model_params, args.margin)
 
-    thresholds = generate_roc_curve(distances, labels, f"./results/{model_params}")
+    
+    distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device)
+
+    thresholds = generate_roc_curve(distances, labels, save_dir)
