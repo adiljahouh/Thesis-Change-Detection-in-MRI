@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese
+from network import SimpleSiamese, SiameseMLO
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import subject_patient_pairs, balance_dataset
 import os
@@ -118,6 +118,7 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
         for index, batch in enumerate(train_loader):
+            print(type(batch['pre']))
             pre_batch = batch['pre'].float().to(device)
             post_batch = batch['post'].float().to(device)
             # Add channel dimension (greyscale image)
@@ -137,6 +138,8 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         siamese_net.eval()  # switch to evaluation mode
         with torch.no_grad():
             for index, batch in enumerate(val_loader):
+                ##TODO: move this to loader
+                print(type(batch['pre']))
                 pre_batch = batch['pre'].float().to(device)
                 post_batch = batch['post'].float().to(device)
 
@@ -173,7 +176,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
     # parser.add_argument('mode', type=str, choices=['train', 'predict'], required=True,
     #                      help='Mode of operation (train or predict)')
-    parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
+    parser.add_argument('--model', type=str, choices=['custom', 'deeplab'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
     parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
@@ -197,9 +200,19 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
-    subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
+    if args.model == 'custom':
+        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
+                  transform=None)
+        model_type = SimpleSiamese()
+    elif args.model == 'deeplab':
+        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
+                  raw_tumor_dir=args.tumor_dir,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
+                  transform=None)
+        model_type = SiameseMLO()
+
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
@@ -212,8 +225,6 @@ if __name__ == "__main__":
     print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
-    if args.model == 'custom':
-        model_type = SimpleSiamese()
     if args.loss == 'CL':
         criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
     elif args.loss == 'TCL':

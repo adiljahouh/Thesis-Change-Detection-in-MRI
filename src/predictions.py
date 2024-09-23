@@ -29,7 +29,7 @@ if __name__ == "__main__":
                     image_ids=['t1_ants_aligned.nii.gz'], skip=16)
     elif args.mode == 'augmented':
         subject_images = subject_patient_pairs(proc_preop=args.preop_dir,
-                    image_ids=['t1_ants_aligned.nii.gz'], skip=16, transform=, tumor_sensitivity=0.18)
+                    image_ids=['t1_ants_aligned.nii.gz'], skip=16)
         subject_images = balance_dataset(subject_images)
 
     print(f"Total number of images: {len(subject_images)}")

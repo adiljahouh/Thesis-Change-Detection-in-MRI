@@ -106,7 +106,6 @@ class subject_patient_pairs(Dataset):
         self.root = proc_preop
         self.transform = transform
         self.data = []
-        self.labels = [] # used for kfold later on
         self.image_ids = image_ids
         for root, dirs, files in os.walk(self.root):
             for filename in files:
@@ -159,7 +158,6 @@ class subject_patient_pairs(Dataset):
                                                 zip(images_pre_pad, images_post_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                 self.data.extend(triplets_con)
-                                self.labels.extend([label for (_, label, _) in images_post_pad])
                             
                             elif "-PAT" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape == tumor_norm.shape
@@ -182,7 +180,6 @@ class subject_patient_pairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                  
                                 self.data.extend(triplets_pat)
-                                self.labels.extend([label for (_, label, _) in images_post_pad])
                                 # return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
@@ -193,9 +190,11 @@ class subject_patient_pairs(Dataset):
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
-
         if self.transform:
-            pass
+            item = self.data[idx]
+            pre_image = item["pre"]
+            post_image = item["post"]
+
         return self.data[idx]
                 
 
