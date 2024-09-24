@@ -9,6 +9,7 @@ import argparse
 from torch.utils.data import random_split, DataLoader
 import torch.nn.functional as F
 import numpy as np
+from torch.optim.optimizer import Optimizer
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
 ## warp ants on raw/ses-preop skull data
@@ -44,22 +45,23 @@ import numpy as np
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
-def predict(siamese_net, test_loader, base_dir, device=torch.device('cuda')):
+def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=torch.device('cuda')):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
     labels_list = []
     with torch.no_grad():
-        for index, batch in enumerate(test_loader):
-            input1 = batch['pre'].float().to(device)
-            input2 = batch['post'].float().to(device)
+        for index, batch in enumerate(test_loader): 
+            batch: dict[str, torch.Tensor]
+            pre_batch: torch.Tensor = batch['pre'].float().to(device)
+            post_batch: torch.Tensor = batch['post'].float().to(device)
             
             # Add channel dimension (greyscale image)
-            input1 = input1.unsqueeze(1)
-            input2 = input2.unsqueeze(1)
+            pre_batch = pre_batch.unsqueeze(1)
+            post_batch = post_batch.unsqueeze(1)
 
             labels = batch['label'].to(device)
-            output1, output2 = siamese_net(input1, input2)
+            output1, output2 = siamese_net(pre_batch, post_batch)
             flattened_batch_t0 = output1.view(output1.size(0), -1)  
             flattened_batch_t1 = output2.view(output2.size(0), -1)
 
@@ -86,14 +88,13 @@ def predict(siamese_net, test_loader, base_dir, device=torch.device('cuda')):
                     f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
-                baseline = get_baseline(input1[i], input2[i])
+                baseline = get_baseline(pre_batch[i], post_batch[i])
                 _, distance_array_bilin = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
                                                                                    mode='bilinear')
                 _, distance_array_nearest = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
                                                                                          mode='nearest')
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
-                print(f"Saving heatmap to {save_dir}")
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
                 pre_image = np.rot90(np.squeeze(batch['pre'][i]))
@@ -103,7 +104,7 @@ def predict(siamese_net, test_loader, base_dir, device=torch.device('cuda')):
                                 title="Left to right; Preop, Postop, Bilinear, Nearest, Baseline")
     return distances_list, labels_list
 
-def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=100, patience=3, 
+def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
           save_dir='./results/unassigned', device=torch.device('cuda')):
     
     siamese_net.to(device)
@@ -118,16 +119,29 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
         for index, batch in enumerate(train_loader):
+            ## each batch is a dict with pre, post, label etc. and collated (merged) values from
+            ## each value in the batch
+            batch: dict[str, torch.Tensor]
             pre_batch = batch['pre'].float().to(device)
             post_batch = batch['post'].float().to(device)
-            # Add channel dimension (greyscale image)
+
+            ## add channel dimension because its just collated(merged) 2D numpy arrays
             pre_batch = pre_batch.unsqueeze(1)
             post_batch = post_batch.unsqueeze(1)
-
+            
             siamese_net.train()  # switch to training mode
-            label = batch['label'].to(device)
-            output1, output2 = siamese_net(pre_batch, post_batch)
-            loss = criterion(output1, output2, label)
+            label_batch = batch['label'].to(device)
+
+            if args.model == 'custom':
+                output1, output2 = siamese_net(pre_batch, post_batch)
+                loss: torch.Tensor = criterion(output1, output2, label_batch)
+            elif args.model == 'deeplab':
+                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+                loss_1 = criterion(first_conv[0], second_conv[1], label_batch)
+                loss_2 = criterion(second_conv[0], third_conv[1], label_batch)
+                loss_3 = criterion(first_conv[0], third_conv[1], label_batch)
+                loss: torch.Tensor = loss_1 + loss_2 + loss_3
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -137,17 +151,23 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         siamese_net.eval()  # switch to evaluation mode
         with torch.no_grad():
             for index, batch in enumerate(val_loader):
-                ##TODO: move this to loader
-                print(type(batch['pre']))
-                pre_batch = batch['pre'].float().to(device)
-                post_batch = batch['post'].float().to(device)
+
+                batch: dict[str, torch.Tensor]
+                pre_batch: torch.Tensor = batch['pre'].float().to(device)
+                post_batch: torch.Tensor = batch['post'].float().to(device)
 
                 pre_batch = pre_batch.unsqueeze(1)
                 post_batch = post_batch.unsqueeze(1)
-
-                output1, output2 = siamese_net(pre_batch, post_batch)
-                label = batch['label'].to(device)
-                loss = criterion(output1, output2, label)
+                label_batch = batch['label'].to(device)
+                if args.model == 'custom':
+                    output1, output2 = siamese_net(pre_batch, post_batch)
+                    loss: torch.Tensor = criterion(output1, output2, label_batch)
+                elif args.model == 'deeplab':
+                    first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+                    loss_1 = criterion(first_conv[0], second_conv[1], label_batch)
+                    loss_2 = criterion(second_conv[0], third_conv[1], label_batch)
+                    loss_3 = criterion(first_conv[0], third_conv[1], label_batch)
+                    loss: torch.Tensor = loss_1 + loss_2 + loss_3
                 epoch_val_loss += loss.item()
         
         # Calculate average loss for the epoch
@@ -173,8 +193,6 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
-    # parser.add_argument('mode', type=str, choices=['train', 'predict'], required=True,
-    #                      help='Mode of operation (train or predict)')
     parser.add_argument('--model', type=str, choices=['custom', 'deeplab'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
@@ -217,7 +235,7 @@ if __name__ == "__main__":
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
 
-    subject_images = balance_dataset(subject_images)
+    subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of images after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     print(type(train_subject_images[0]['pre']))
@@ -230,7 +248,7 @@ if __name__ == "__main__":
         criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
-    ## using validation split to avoid overfitting
+    ## collates the values into one tensor per key
     train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
     val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)

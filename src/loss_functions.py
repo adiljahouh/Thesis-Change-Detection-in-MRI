@@ -20,7 +20,7 @@ class ConstractiveLoss(nn.Module):
             distance = 1 - 2 * similarity/np.pi
         return distance
 
-    def forward(self,out_vec_t0,out_vec_t1,label):
+    def forward(self,out_vec_t0,out_vec_t1,label) -> torch.Tensor:
         out_vec_t0 = out_vec_t0.view(out_vec_t0.size(0), -1)  
         out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
         
@@ -52,7 +52,7 @@ class ConstractiveThresholdHingeLoss(nn.Module):
             distance = 1 - 2 * similarity/np.pi
         return distance
     
-    def forward(self,out_vec_t0,out_vec_t1,label):
+    def forward(self,out_vec_t0,out_vec_t1,label) -> torch.Tensor:
         out_vec_t0 = out_vec_t0.view(out_vec_t0.size(0), -1)  
         out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
         
