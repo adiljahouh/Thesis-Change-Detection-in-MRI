@@ -118,7 +118,6 @@ def train(siamese_net, optimizer, criterion, train_loader, val_loader, epochs=10
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
         for index, batch in enumerate(train_loader):
-            print(type(batch['pre']))
             pre_batch = batch['pre'].float().to(device)
             post_batch = batch['post'].float().to(device)
             # Add channel dimension (greyscale image)
@@ -221,7 +220,7 @@ if __name__ == "__main__":
     subject_images = balance_dataset(subject_images)
     print(f"Total number of images after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
-
+    print(type(train_subject_images[0]['pre']))
     print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
@@ -235,12 +234,7 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
     val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)
-    #TODO: Add betters samples by tuning tumor sensitivity
-    #TODO: FIX RIM ISSUE IN HEATMAPS
-    #TODO: MASKS HAVE INTENSITY AT POINTS THEY SHOULDNT!
-    #TODO: WE CANT JUST LABEL 0 or 1 in PAT based on tumor, there could be changes in the brain that arent tumor related
 
-    #TODO: mtrix calc for evaluation
     model_params =  f'{args.model}_{args.dist_flag}_'\
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
     save_dir = f'./results/{model_params}/train_test'

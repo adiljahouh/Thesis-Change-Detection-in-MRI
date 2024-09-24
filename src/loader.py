@@ -7,6 +7,7 @@ from numpy import ndarray
 from typing import Tuple
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
+import torchvision.transforms.functional as F
 
 import random
 
@@ -92,6 +93,108 @@ def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
 
 
 
+
+def various_distance(out_vec_t0, out_vec_t1,dist_flag):
+    if dist_flag == 'l2':
+        distance = F.pairwise_distance(out_vec_t0, out_vec_t1, p=2)
+    if dist_flag == 'l1':
+        distance = F.pairwise_distance(out_vec_t0, out_vec_t1, p=1)
+    if dist_flag == 'cos':
+        distance = 1 - F.cosine_similarity(out_vec_t0, out_vec_t1)
+    return distance
+
+import random
+
+def balance_dataset(subject_images, label_key='label'):
+    """
+    Balances the dataset by undersampling the majority class to match the size of the minority class.
+    
+    Parameters:
+    subject_images (list): List of dictionaries containing images and labels.
+    label_key (str): Key used to access the label in the dictionaries.
+    
+    Returns:
+    list: Balanced list of dictionaries.
+    """
+
+    similar_pairs = [x for x in subject_images if x[label_key] == 1]
+    dissimilar_pairs = [x for x in subject_images if x[label_key] == 0]
+    num_similar_pairs = len(similar_pairs)
+    num_dissimilar_pairs = len(dissimilar_pairs)
+
+    if num_similar_pairs > num_dissimilar_pairs:
+        similar_pairs = random.sample(similar_pairs, num_dissimilar_pairs)
+    else:
+        dissimilar_pairs = random.sample(dissimilar_pairs, num_similar_pairs)
+    balanced_subject_images = similar_pairs + dissimilar_pairs
+    random.shuffle(balanced_subject_images)  # Shuffle to mix the pairs
+    return balanced_subject_images
+
+def stratified_kfold_split(dataset, n_splits=5):
+    skf = StratifiedKFold(n_splits=n_splits)
+    splits = list(skf.split(range(len(dataset)), dataset.labels))
+    return splits
+
+def normalize_nifti(nifti_image: nib.Nifti1Image) -> ndarray:
+    return (nifti_image.get_fdata() - np.min(nifti_image.get_fdata())) / (np.max(
+        nifti_image.get_fdata()) - np.min(nifti_image.get_fdata()))
+
+def pad_slice(slice_2d: ndarray, output_size=(256, 256)) -> ndarray:
+    """
+    Pad a 2D slice to the desired output size with zeros.
+    """
+    pad_height = (output_size[0] - slice_2d.shape[0])
+    pad_width = (output_size[1] - slice_2d.shape[1])
+    
+    padded_slice = np.pad(slice_2d, 
+                          ((0, pad_height), (0, pad_width)), 
+                          mode='edge')
+    return padded_slice
+
+def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_minimum=0.05):
+    ## checks if the slice has high information by a certain value threshold and percentage of cells
+    total_cells = slice_2d.size
+    num_high_info_cells = np.count_nonzero(slice_2d >= value_minimum)
+    percentage_high_info = num_high_info_cells / total_cells
+    return percentage_high_info > percentage_minimum
+
+def balance_classes_slices():
+    return
+
+def convert_3d_into_2d(nifti_image: ndarray, skip: int =1) -> list[Tuple[ndarray, Tuple[int, int, int]]]:
+    slices = []
+   
+    # (axial)
+    ## TODO: Use all slices for now only using every 4th slices
+    for i in range(nifti_image.shape[0]):
+        if i % skip == 0:
+            slices.append((nifti_image[i, :, :], (i, -1 , -1)))
+    #  (coronal)
+    for i in range(nifti_image.shape[1]):
+        if i % skip == 0:
+            slices.append((nifti_image[:, i, :], (-1, i, -1)))  
+    # (sagittal)
+    for i in range(nifti_image.shape[2]):
+        if i % skip == 0:
+            slices.append((nifti_image[:, :, i], (-1, -1, i)))
+    return slices
+
+def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
+    ## checks if the slice has tumor cells by a certain value threshold
+    return np.any(slice_2d >= threshold)
+
+class ShiftImage:
+    def __init__(self, max_shift_x=10, max_shift_y=10):
+        self.max_shift_x = max_shift_x
+        self.max_shift_y = max_shift_y
+
+    def __call__(self, image):
+        # Randomly shift the image
+        shift_x = random.randint(-self.max_shift_x, self.max_shift_x)
+        shift_y = random.randint(-self.max_shift_y, self.max_shift_y)
+        
+        # Shift the image using affine transformation
+        return F.affine(image, angle=0, translate=(shift_x, shift_y), scale=1, shear=0)
 
 class subject_patient_pairs(Dataset):
     """
@@ -180,7 +283,7 @@ class subject_patient_pairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                  
                                 self.data.extend(triplets_pat)
-                                # return
+                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
@@ -192,10 +295,16 @@ class subject_patient_pairs(Dataset):
     def __getitem__(self, idx):
         if self.transform:
             item = self.data[idx]
-            pre_image = item["pre"]
-            post_image = item["post"]
-
+            try:
+                item['pre'] = self.transform(item["pre"]).cpu().numpy().squeeze(0)
+                item['post'] = self.transform(item["post"]).cpu().numpy().squeeze(0)
+            except Exception:
+                print("Couldnt transform and return an array, be sure you also pass ToTensor to the transform")
         return self.data[idx]
+                
+                
+    
+
                 
 
 class control_pairs(Dataset):
