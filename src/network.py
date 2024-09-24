@@ -47,8 +47,8 @@ class deeplab_V2(nn.Module):
     def __init__(self):
         super(deeplab_V2, self).__init__()
         self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels=3,out_channels=64,kernel_size=3,padding=1),
-            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=1 ,out_channels=64,kernel_size=3,padding=1),
+            nn.ReLU(inplace=True),  
             nn.Conv2d(in_channels=64,out_channels=64,kernel_size=3,padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3,stride=2,padding=1,ceil_mode=True)
@@ -170,10 +170,8 @@ class l2normalization(nn.Module):
 
     def forward(self, x, dim=1):
         '''out = scale * x / sqrt(\sum x_i^2)'''
-        #f = x.data.cpu().numpy()
-        #scal = self.scale * x * x.pow(2).sum(dim).clamp(min=1e-12).rsqrt().expand_as(x)
-        #sca = scal.data.cpu().numpy()
-        return self.scale * x * x.pow(2).sum(dim).clamp(min=1e-12).rsqrt().expand_as(x)
+        # return self.scale * x * x.pow(2).sum(dim).clamp(min=1e-12).rsqrt().expand_as(x)
+        return (x - x.min()) / (x.max() - x.min())
 
 class SiameseMLO(nn.Module):
     def __init__(self,norm_flag = 'l2'):

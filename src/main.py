@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, SiameseMLO
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import subject_patient_pairs, balance_dataset
+from loader import subject_patient_pairs, balance_dataset, ShiftImage
 import os
 from visualizations import *
 import argparse
@@ -10,6 +10,10 @@ from torch.utils.data import random_split, DataLoader
 import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
+import torchvision.transforms as T
+from torchvision.transforms import Compose
+
+
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
 ## warp ants on raw/ses-preop skull data
@@ -208,8 +212,8 @@ if __name__ == "__main__":
                         "Distance flag to use for the loss function (l2, l1, or cos)")
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
-    parser.add_argument("--patience", type=int, default=5, help="Patience for early stopping")
-    parser.add_argument("--margin", type=float, default=7.0, help="Margin for dissimilar pairs")
+    parser.add_argument("--patience", type=int, default=8, help="Patience for early stopping")
+    parser.add_argument("--margin", type=float, default=5.0, help="Margin for dissimilar pairs")
     parser.add_argument("--threshold", type=float, default=0.3, help="Threshold for similar pairs, prevents overfit")
     parser.add_argument("--skip", type=int, default=2, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
     
@@ -228,7 +232,10 @@ if __name__ == "__main__":
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
                   transform=None)
-        model_type = SiameseMLO()
+        model_type = SiameseMLO(Compose([
+                T.ToTensor(),
+                T.Resize((512, 512)),
+                ShiftImage(max_shift_x=20, max_shift_y=20)]))
 
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
@@ -238,7 +245,6 @@ if __name__ == "__main__":
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of images after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
-    print(type(train_subject_images[0]['pre']))
     print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
@@ -249,6 +255,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
     ## collates the values into one tensor per key
+    ## TODO: back to batchsize 16
     train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
     val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)

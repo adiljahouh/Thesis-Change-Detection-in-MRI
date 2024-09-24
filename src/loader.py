@@ -92,20 +92,6 @@ def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
     return np.any(slice_2d >= threshold)
 
 
-
-
-def various_distance(out_vec_t0, out_vec_t1,dist_flag):
-    if dist_flag == 'l2':
-        distance = F.pairwise_distance(out_vec_t0, out_vec_t1, p=2)
-    if dist_flag == 'l1':
-        distance = F.pairwise_distance(out_vec_t0, out_vec_t1, p=1)
-    if dist_flag == 'cos':
-        distance = 1 - F.cosine_similarity(out_vec_t0, out_vec_t1)
-    return distance
-
-
-
-
 class ShiftImage:
     def __init__(self, max_shift_x=10, max_shift_y=10):
         self.max_shift_x = max_shift_x
@@ -206,7 +192,6 @@ class subject_patient_pairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                  
                                 self.data.extend(triplets_pat)
-                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
@@ -288,46 +273,6 @@ class control_pairs(Dataset):
         if self.transform:
             pass
         return self.data[idx]
-                                       
-def create_subject_pairs(root, id):
-    data = []
-    for root, dirs, files in os.walk(root):
-        for filename in files:
-            for image_id in id:
-                if filename.endswith(image_id):
-                    nifti_1 = tio.ScalarImage(os.path.join(root, filename))
-                    try:
-                        if "preop" in root:
-                            nifti_2 = tio.ScalarImage(os.path.join(root.replace("preop", "postop"), filename.replace("preop", "postop")))
-                        else:
-                            nifti_2 = tio.ScalarImage(os.path.join(root.replace("postop", "preop"), filename.replace("postop", "preop")))
-                        if "-CON" in filename or "-CON" in os.path.join(root, filename):
-                            # print("control for ", filename)
-                            data.append(
-                                tio.Subject(
-                                    t1=nifti_1,
-                                    t2=nifti_2,
-                                    label=1,
-                                    name= root.split("/")[-1],
-                                    path= os.path.join(root, filename)
-                                            )
-                                    )
-                        elif "-PAT" in filename or "-PAT" in os.path.join(root, filename):
-                                data.append(
-                                tio.Subject(
-                                    t1=nifti_1,
-                                    t2=nifti_2,
-                                    label=0,
-                                    name= root.split("/")[-1],
-                                    path= os.path.join(root, filename)
-                                            )
-                                    )
-                        else:
-                            print(f"Invalid filename: {os.path.join(root, filename)}")
-                    except FileNotFoundError:
-                        print(f"Matching subject (pre and post) not found for {os.path.join(root, filename)}")
-    return data
-
 
 
 def transform_subjects(subjects: list[tio.Subject]) -> tio.SubjectsDataset:
