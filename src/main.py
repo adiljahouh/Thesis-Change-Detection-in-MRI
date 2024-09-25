@@ -231,11 +231,11 @@ if __name__ == "__main__":
         subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
-                  transform=None)
-        model_type = SiameseMLO(Compose([
-                T.ToTensor(),
-                T.Resize((512, 512)),
-                ShiftImage(max_shift_x=20, max_shift_y=20)]))
+                  transform=Compose([
+                    T.ToTensor(),
+                    T.Resize((512, 512)),
+                    ShiftImage(max_shift_x=20, max_shift_y=20)]))
+        model_type = SiameseMLO()
 
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
@@ -256,9 +256,9 @@ if __name__ == "__main__":
 
     ## collates the values into one tensor per key
     ## TODO: back to batchsize 16
-    train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
-    val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
-    test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)
+    train_loader = DataLoader(train_subject_images, batch_size=8, shuffle=False)
+    val_loader = DataLoader(val_subject_images, batch_size=8, shuffle=False)
+    test_loader = DataLoader(test_subject_images, batch_size=8, shuffle=False)
 
     model_params =  f'{args.model}_{args.dist_flag}_'\
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
