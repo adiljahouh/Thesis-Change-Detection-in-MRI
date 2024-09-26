@@ -206,7 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
-    parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="CL", help=
+    parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="TCL", help=
                         "Type of loss function to use (constractive or thresholded constractive)")
     parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
                         "Distance flag to use for the loss function (l2, l1, or cos)")
@@ -215,8 +215,8 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=8, help="Patience for early stopping")
     parser.add_argument("--margin", type=float, default=5.0, help="Margin for dissimilar pairs")
     parser.add_argument("--threshold", type=float, default=0.3, help="Threshold for similar pairs, prevents overfit")
-    parser.add_argument("--skip", type=int, default=2, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
-    
+    parser.add_argument("--skip", type=int, default=1, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -256,9 +256,9 @@ if __name__ == "__main__":
 
     ## collates the values into one tensor per key
     ## TODO: back to batchsize 16
-    train_loader = DataLoader(train_subject_images, batch_size=8, shuffle=False)
-    val_loader = DataLoader(val_subject_images, batch_size=8, shuffle=False)
-    test_loader = DataLoader(test_subject_images, batch_size=8, shuffle=False)
+    train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
+    val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
+    test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)
 
     model_params =  f'{args.model}_{args.dist_flag}_'\
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
