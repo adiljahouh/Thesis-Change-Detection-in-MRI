@@ -10,6 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 import torchvision.transforms.functional as F
 
 import random
+from scipy.ndimage import shift
 
 def balance_dataset(subject_images, label_key='label'):
     """
@@ -91,19 +92,20 @@ def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
     ## checks if the slice has tumor cells by a certain value threshold
     return np.any(slice_2d >= threshold)
 
-
-class ShiftImage:
-    def __init__(self, max_shift_x=10, max_shift_y=10):
-        self.max_shift_x = max_shift_x
-        self.max_shift_y = max_shift_y
-
-    def __call__(self, image):
-        # Randomly shift the image
-        shift_x = random.randint(-self.max_shift_x, self.max_shift_x)
-        shift_y = random.randint(-self.max_shift_y, self.max_shift_y)
-        
-        # Shift the image using affine transformation
-        return F.affine(image, angle=0, translate=(shift_x, shift_y), scale=1, shear=0)
+def shift_image_numpy(image: np.ndarray, shift_amount: tuple, fill_value=0, mode='nearest') -> np.ndarray:
+    """
+    Shift an image using NumPy and fill the edges with the specified fill_value.
+    
+    Args:
+        image (np.ndarray): Input 2D or 3D image array.
+        shift_amount (tuple): Tuple indicating the amount to shift along each axis.
+        fill_value (int, float, optional): Value to use for edge filling. Defaults to 0.
+    
+    Returns:
+        np.ndarray: Shifted image with edges filled.
+    """
+    shifted_image = shift(image, shift=shift_amount, cval=fill_value, mode=mode)
+    return shifted_image
 
 class subject_patient_pairs(Dataset):
     """
@@ -210,7 +212,110 @@ class subject_patient_pairs(Dataset):
                 print("Couldnt transform and return an array, be sure you also pass ToTensor to the transform")
         return self.data[idx]
                 
-                
+class shifted_subject_patient_pairs(Dataset):
+    """
+    Image dataset for each subject in the dataset transformed by a random shift
+    creating only 'correct' and 'incorrect' pairs for now
+
+    Works by passing preop or postop directory to the class
+    and finds the corresponding image in the other dir and labels
+    """
+    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, transform=None, skip:int=1,
+                 tumor_sensitivity = 0.10):
+        self.root = proc_preop
+        self.transform = transform
+        self.data = []
+        self.image_ids = image_ids
+        for root, dirs, files in os.walk(self.root):
+            for filename in files:
+                for image_id in self.image_ids:
+                    if filename.endswith(image_id):
+                        try:
+                            pat_id = root.split("/")[-1]
+                            print(f"Processing {pat_id}")
+                            preop_nifti = nib.load(os.path.join(root, filename))
+                            postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
+                                                                filename.replace("preop", "postop")))
+                            # print(preop_nifti.shape)
+                            # print(postop_nifti.shape)
+                            # load the tumor from the tumor directory matching the patient id
+                            if "PAT" in pat_id:
+                                try:
+                                    tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
+                                    tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
+                                    tumor_norm = normalize_nifti(tumor_resampled)
+                                    assert tumor_norm.max() <= 1.0, f"max: {tumor_norm.max()}"
+                                    assert tumor_norm.min() >= 0.0, f"min: {tumor_norm.min()}"
+                                except FileNotFoundError as e:
+                                    print(f"Tumor not found for {pat_id}, {e}")
+                                except Exception as e:
+                                    print(f"Uncaught error, {e}")
+                            
+                            # resample the postop nifti to the preop nifti
+                            preop_nifti_norm = normalize_nifti(preop_nifti)
+                            postop_nifti_norm = normalize_nifti(postop_nifti)
+                            assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
+                            assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
+
+                            if "-CON" in pat_id:
+                                assert preop_nifti_norm.shape == postop_nifti_norm.shape
+                                
+                                images_pre = convert_3d_into_2d(preop_nifti_norm, skip=skip)
+                                images_post = convert_3d_into_2d(postop_nifti_norm, skip = skip)
+
+                                # Create triplets with label 1 (similar slices)
+                                images_pre_pad = [(pad_slice(image[0]), image[1], 1) for image in images_pre]
+                                images_post_pad = [(pad_slice(image[0]), image[1], 1) for image in images_post]
+                                
+                                assert len(images_pre_pad) == len(images_post_pad)
+                                
+                                # Create triplets (pre_slice, post_slice, label, tumor=None)
+                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": np.zeros_like(pre), 
+                                                 "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
+                                                for (pre, index_pre, label), 
+                                                (post, index_post, _) in 
+                                                zip(images_pre_pad, images_post_pad) if 
+                                                slice_has_high_info(pre) and slice_has_high_info(post)]
+                                self.data.extend(triplets_con)
+                            
+                            elif "-PAT" in pat_id:
+                                assert preop_nifti_norm.shape == postop_nifti_norm.shape == tumor_norm.shape
+
+                                images_pre = convert_3d_into_2d(preop_nifti_norm, skip=skip)
+                                images_post = convert_3d_into_2d(postop_nifti_norm, skip=skip)
+                                mask_slices = convert_3d_into_2d(tumor_norm, skip=skip)
+                                # Create triplets with label 0 if the slice contains a tumor
+                                images_pre_pad = [(pad_slice(image[0]), image[1], 0 if has_tumor_cells(mask_slice[0], threshold=tumor_sensitivity) else 1) for image, mask_slice in zip(images_pre, mask_slices)]
+                                images_post_pad = [(pad_slice(image[0]), image[1], 0 if has_tumor_cells(mask_slice[0], threshold=tumor_sensitivity) else 1) for image, mask_slice in zip(images_post, mask_slices)]
+                                # pad the tumor mask as well
+                                mask_slices_pad = [(pad_slice(mask_slice[0]), mask_slice[1]) for mask_slice in mask_slices]
+                                assert len(images_pre_pad) == len(images_post_pad) == len(mask_slices_pad)
+                                
+                                # Create triplets (pre_slice, post_slice, label, tumor)
+                                triplets_pat = [{"pre": pre, "post": post, "label": label, "tumor": mask_slice, 
+                                                 "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
+                                                for (pre, index_pre, label), (post, index_post, _), (mask_slice, _) in 
+                                                zip(images_pre_pad, images_post_pad, mask_slices_pad) if 
+                                                slice_has_high_info(pre) and slice_has_high_info(post)]
+                                 
+                                self.data.extend(triplets_pat)
+                        except FileNotFoundError as e:
+                            print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
+                        except Exception as e:
+                            print(f"Uncaught error, {e}")
+                    else:
+                        pass
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        if self.transform:
+            item = self.data[idx]
+            try:
+                item['pre'] = self.transform(item["pre"]).cpu().numpy().squeeze(0)
+                item['post'] = self.transform(item["post"]).cpu().numpy().squeeze(0)
+            except Exception:
+                print("Couldnt transform and return an array, be sure you also pass ToTensor to the transform")
+        return self.data[idx]               
     
 
                 

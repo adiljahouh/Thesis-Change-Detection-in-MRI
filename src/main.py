@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, SiameseMLO
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import subject_patient_pairs, balance_dataset, ShiftImage
+from loader import subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset
 import os
 from visualizations import *
 import argparse
@@ -228,13 +228,9 @@ if __name__ == "__main__":
                   transform=None)
         model_type = SimpleSiamese()
     elif args.model == 'deeplab':
-        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
+        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
-                  transform=Compose([
-                    T.ToTensor(),
-                    T.Resize((512, 512)),
-                    ShiftImage(max_shift_x=20, max_shift_y=20)]))
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18)
         model_type = SiameseMLO()
 
     # balance subject_images based on label
