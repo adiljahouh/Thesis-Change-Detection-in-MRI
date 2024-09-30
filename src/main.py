@@ -59,29 +59,34 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
-            
+            assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             # Add channel dimension (greyscale image)
             pre_batch = pre_batch.unsqueeze(1)
             post_batch = post_batch.unsqueeze(1)
 
             labels = batch['label'].to(device)
-            output1, output2 = siamese_net(pre_batch, post_batch)
-            flattened_batch_t0 = output1.view(output1.size(0), -1)  
-            flattened_batch_t1 = output2.view(output2.size(0), -1)
+        
+            if args.model == 'custom':
+                output1, output2 = siamese_net(pre_batch, post_batch)
+                flattened_batch_t0 = output1.view(output1.size(0), -1)  
+                flattened_batch_t1 = output2.view(output2.size(0), -1)
+                distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
 
-            distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
+            elif args.model == 'deeplab':
+                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+                flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
+                flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
+                flattened_
+            assert distance.size(0) == labels.size(0), "Distance and label sizes do not match"
             for i in range(distance.size(0)):
+                baseline = get_baseline(pre_batch[i], post_batch[i])
                 label = labels[i].item()  # Get the label for the i-th pair
 
                 dist = distance[i].item()  # Get the distance for the i-th pair
                 distances_list.append(dist)
                 labels_list.append(label)
-            # Visualize the similarity heatmap                
-                prediction = dist < 5  # Determine if the pair is similar based on the threshold
-                if prediction:
-                    print(f"Pair {i} is similar with a distance of: {dist}, label: {label}")
-                else:
-                    print(f"Pair {i} is dissimilar with a distance of: {dist}, label: {label}")
+
+                print(f"Pair has a distance of: {dist}, label: {label}")
 
                 filename = (
                     f"slice_{batch['pat_id'][i]}_"
@@ -92,7 +97,6 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
                     f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
                 )
-                baseline = get_baseline(pre_batch[i], post_batch[i])
                 _, distance_array_bilin = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
                                                                                    mode='bilinear')
                 _, distance_array_nearest = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
@@ -107,6 +111,8 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                                 np.rot90(distance_array_nearest), np.rot90(np.squeeze(baseline)), output_path=save_path,
                                 title="Left to right; Preop, Postop, Bilinear, Nearest, Baseline")
     return distances_list, labels_list
+
+
 
 def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
           save_dir='./results/unassigned', device=torch.device('cuda')):

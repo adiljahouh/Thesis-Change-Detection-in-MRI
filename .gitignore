@@ -7,8 +7,7 @@
 /models/*
 *.pth
 *.pt
-*.png
-/results/*/heatmaps/*
+/results/*/heatmaps/*.jpg
+/results/*/*/heatmaps/*.jpg
 /src/__pycache__/*
 *.pyc
-/results/*
