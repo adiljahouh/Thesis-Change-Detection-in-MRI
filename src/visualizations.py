@@ -48,7 +48,7 @@ def get_baseline(pre: torch.Tensor, post: torch.Tensor) -> torch.Tensor:
     diff = torch.abs(pre - post)
     return diff.data.cpu().numpy()
 
-def generate_roc_curve(distances, labels, save_dir):
+def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     # # Invert distances because lower distance indicates more similarity
     # distances = [d.cpu().item() for d in distances]
     # labels = [l.cpu().item() for l in labels]
@@ -69,7 +69,7 @@ def generate_roc_curve(distances, labels, save_dir):
     plt.legend(loc="lower right")
 
     # Save the plot to the specified directory
-    plt.savefig(os.path.join(save_dir, f'roc.png'))
+    plt.savefig(os.path.join(save_dir, f'roc{extra_title}.png'))
     plt.close()  # Close the plot to free up memory
     return thresholds
 

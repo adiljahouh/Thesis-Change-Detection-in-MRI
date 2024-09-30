@@ -65,61 +65,92 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             post_batch = post_batch.unsqueeze(1)
 
             labels = batch['label'].to(device)
-        
             if args.model == 'custom':
                 output1, output2 = siamese_net(pre_batch, post_batch)
+                output1: torch.Tensor
+                output2: torch.Tensor
                 flattened_batch_t0 = output1.view(output1.size(0), -1)  
                 flattened_batch_t1 = output2.view(output2.size(0), -1)
+                assert flattened_batch_t0.size(0) == flattened_batch_t1.size(0), "Flattened batch sizes do not match"
                 distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
 
             elif args.model == 'deeplab':
+                first_conv: torch.Tensor
+                second_conv: torch.Tensor
+                third_conv: torch.Tensor
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+
                 flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
                 flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
-                flattened_
-            assert distance.size(0) == labels.size(0), "Distance and label sizes do not match"
-            for i in range(distance.size(0)):
-                baseline = get_baseline(pre_batch[i], post_batch[i])
-                label = labels[i].item()  # Get the label for the i-th pair
+                distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)
 
-                dist = distance[i].item()  # Get the distance for the i-th pair
+                flattened_batch_conv2_t0 = second_conv[0].view(second_conv[0].size(0), -1)
+                flattened_batch_conv2_t1 = second_conv[1].view(second_conv[1].size(0), -1)
+                distance_2 = F.pairwise_distance(flattened_batch_conv2_t0, flattened_batch_conv2_t1, p=2)
+
+                flattened_batch_conv3_t0 = third_conv[0].view(third_conv[0].size(0), -1)
+                flattened_batch_conv3_t1 = third_conv[1].view(third_conv[1].size(0), -1)
+                distance_3 = F.pairwise_distance(flattened_batch_conv3_t0, flattened_batch_conv3_t1, p=2)
+                assert distance_1.size(0) == distance_2.size(0) == distance_3.size(0), "Distance sizes do not match"
+
+            assert distance.size(0) == labels.size(0), "Distance and label sizes do not match"
+            
+            # Iterate over the batch
+            for batch_index in range(pre_batch.size(0)):
+                baseline = get_baseline(pre_batch[batch_index], post_batch[batch_index])
+                if args.model == 'deeplab':
+                    dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
+                    
+                    _, distance_map_2d_conv1 = single_layer_similar_heatmap_visual(
+                    first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    _, distance_map_2d_conv2 = single_layer_similar_heatmap_visual(
+                    second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    _, distance_map_2d_conv3 = single_layer_similar_heatmap_visual(
+                    third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+
+                elif args.model == 'custom':
+                    dist = distance[batch_index]
+                    _, distance_map_2d = single_layer_similar_heatmap_visual(output1[batch_index], 
+                    output2[batch_index], dist_flag='l2', mode='bilinear')
+
+                label = labels[batch_index].item()  # Get the label for the i-th pair
                 distances_list.append(dist)
                 labels_list.append(label)
 
                 print(f"Pair has a distance of: {dist}, label: {label}")
-
                 filename = (
-                    f"slice_{batch['pat_id'][i]}_"
-                    f"{'axial' if batch['index_post'][0][i] != -1 else ''}_"
-                    f"{batch['index_post'][0][i].item() if batch['index_post'][0][i] != -1 else ''}"
-                    f"{'coronal' if batch['index_post'][1][i] != -1 else ''}_"
-                    f"{batch['index_post'][1][i].item() if batch['index_post'][1][i] != -1 else ''}"
-                    f"{'sagittal' if batch['index_post'][2][i] != -1 else ''}_"
-                    f"{batch['index_post'][2][i].item() if batch['index_post'][2][i] != -1 else ''}.jpg"
+                    f"slice_{batch['pat_id'][batch_index]}_"
+                    f"{'axial' if batch['index_post'][0][batch_index] != -1 else ''}_"
+                    f"{batch['index_post'][0][batch_index].item() if batch['index_post'][0][batch_index] != -1 else ''}"
+                    f"{'coronal' if batch['index_post'][1][batch_index] != -1 else ''}_"
+                    f"{batch['index_post'][1][batch_index].item() if batch['index_post'][1][batch_index] != -1 else ''}"
+                    f"{'sagittal' if batch['index_post'][2][batch_index] != -1 else ''}_"
+                    f"{batch['index_post'][2][batch_index].item() if batch['index_post'][2][batch_index] != -1 else ''}.jpg"
                 )
-                _, distance_array_bilin = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
-                                                                                   mode='bilinear')
-                _, distance_array_nearest = single_layer_similar_heatmap_visual(output1[i], output2[i], dist_flag='l2',
-                                                                                         mode='nearest')
+
                 # Save the heatmap
                 save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
-                pre_image = np.rot90(np.squeeze(batch['pre'][i]))
-                post_image = np.rot90(np.squeeze(batch['post'][i]))
-                merge_images(pre_image, post_image, np.rot90(distance_array_bilin), 
-                                np.rot90(distance_array_nearest), np.rot90(np.squeeze(baseline)), output_path=save_path,
-                                title="Left to right; Preop, Postop, Bilinear, Nearest, Baseline")
+                pre_image = np.rot90(np.squeeze(batch['pre'][batch_index]))
+                post_image = np.rot90(np.squeeze(batch['post'][batch_index]))
+
+                if args.model == 'custom':
+                    merge_images(pre_image, post_image, np.rot90(distance_map_2d), np.rot90(np.squeeze(baseline)), output_path=save_path,
+                                    title="Left to right; Preop, Postop, Output_conv, Baseline")
+                elif args.model == 'deeplab':
+                    merge_images(pre_image, post_image, np.rot90(distance_map_2d_conv1), 
+                                 np.rot90(distance_map_2d_conv2), np.rot90(distance_map_2d_conv3),
+                                  np.rot90(np.squeeze(baseline)), output_path=save_path,
+                                    title="Left to right; Preop, Postop, Conv1, Conv2, Conv3, Baseline")
     return distances_list, labels_list
-
-
 
 def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
           save_dir='./results/unassigned', device=torch.device('cuda')):
     
     siamese_net.to(device)
-    print(f"Number of samples in training set: {len(train_loader)}")
-    print(f"Number of samples in validation set: {len(val_loader)}")
+    print(f"Number of batches in training set: {len(train_loader)}")
+    print(f"Number of batches in validation set: {len(val_loader)}")
     
     print("\nStarting training...")
     best_loss = float('inf')
@@ -250,8 +281,6 @@ if __name__ == "__main__":
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of images after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
-    print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
-    print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
     if args.loss == 'CL':
         criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
@@ -276,4 +305,10 @@ if __name__ == "__main__":
     
     distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device)
 
-    thresholds = generate_roc_curve(distances, labels, save_dir)
+    if args.model == 'custom':
+        thresholds = generate_roc_curve(distances, labels, save_dir)
+    elif args.model == 'deeplab':
+        # take the first distance from each tuple
+        thresholds = generate_roc_curve([d[0] for d in distances], labels, save_dir, "_conv1")
+        thresholds = generate_roc_curve([d[1] for d in distances], labels, save_dir, "_conv2")
+        thresholds = generate_roc_curve([d[2] for d in distances], labels, save_dir, "_conv3")

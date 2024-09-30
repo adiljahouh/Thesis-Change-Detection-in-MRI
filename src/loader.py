@@ -301,6 +301,7 @@ class shifted_subject_patient_pairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                  
                                 self.data.extend(triplets_pat)
+                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
