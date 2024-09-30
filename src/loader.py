@@ -236,9 +236,6 @@ class shifted_subject_patient_pairs(Dataset):
                             preop_nifti = nib.load(os.path.join(root, filename))
                             postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                                 filename.replace("preop", "postop")))
-                            # print(preop_nifti.shape)
-                            # print(postop_nifti.shape)
-                            # load the tumor from the tumor directory matching the patient id
                             if "PAT" in pat_id:
                                 try:
                                     tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
@@ -256,7 +253,7 @@ class shifted_subject_patient_pairs(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
-
+                            shift_values = (random.randint(0, 50), random.randint(0, 50))
                             if "-CON" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape
                                 
@@ -270,10 +267,12 @@ class shifted_subject_patient_pairs(Dataset):
                                 assert len(images_pre_pad) == len(images_post_pad)
                                 
                                 # Create triplets (pre_slice, post_slice, label, tumor=None)
-                                triplets_con = [{"pre": pre, "post": post, "label": label, "tumor": np.zeros_like(pre), 
+                                
+                                triplets_con = [{"pre": shift_image_numpy(pre, shift_amount=shift_values), 
+                                                 "post": shift_image_numpy(post, shift_amount=shift_values),
+                                                  "label": label, "tumor": np.zeros_like(pre), 
                                                  "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
-                                                for (pre, index_pre, label), 
-                                                (post, index_post, _) in 
+                                                for (pre, index_pre, label), (post, index_post, _) in 
                                                 zip(images_pre_pad, images_post_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                 self.data.extend(triplets_con)
@@ -290,10 +289,13 @@ class shifted_subject_patient_pairs(Dataset):
                                 # pad the tumor mask as well
                                 mask_slices_pad = [(pad_slice(mask_slice[0]), mask_slice[1]) for mask_slice in mask_slices]
                                 assert len(images_pre_pad) == len(images_post_pad) == len(mask_slices_pad)
-                                
+                            
                                 # Create triplets (pre_slice, post_slice, label, tumor)
-                                triplets_pat = [{"pre": pre, "post": post, "label": label, "tumor": mask_slice, 
-                                                 "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
+                                triplets_pat = [{"pre": shift_image_numpy(pre, shift_amount=shift_values), 
+                                                 "post": shift_image_numpy(post, shift_amount=shift_values),
+                                                 "label": label, "tumor": mask_slice, 
+                                                 "pat_id": pat_id, "index_pre": index_pre, 
+                                                 "index_post": index_post} 
                                                 for (pre, index_pre, label), (post, index_post, _), (mask_slice, _) in 
                                                 zip(images_pre_pad, images_post_pad, mask_slices_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
@@ -308,13 +310,6 @@ class shifted_subject_patient_pairs(Dataset):
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
-        if self.transform:
-            item = self.data[idx]
-            try:
-                item['pre'] = self.transform(item["pre"]).cpu().numpy().squeeze(0)
-                item['post'] = self.transform(item["post"]).cpu().numpy().squeeze(0)
-            except Exception:
-                print("Couldnt transform and return an array, be sure you also pass ToTensor to the transform")
         return self.data[idx]               
     
 

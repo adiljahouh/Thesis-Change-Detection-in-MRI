@@ -132,21 +132,23 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
             ## add channel dimension because its just collated(merged) 2D numpy arrays
             pre_batch = pre_batch.unsqueeze(1)
             post_batch = post_batch.unsqueeze(1)
-            
+            assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             siamese_net.train()  # switch to training mode
+
+            optimizer.zero_grad()
             label_batch = batch['label'].to(device)
 
             if args.model == 'custom':
                 output1, output2 = siamese_net(pre_batch, post_batch)
                 loss: torch.Tensor = criterion(output1, output2, label_batch)
             elif args.model == 'deeplab':
+
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                loss_1 = criterion(first_conv[0], second_conv[1], label_batch)
-                loss_2 = criterion(second_conv[0], third_conv[1], label_batch)
-                loss_3 = criterion(first_conv[0], third_conv[1], label_batch)
+                loss_1 = criterion(first_conv[0], first_conv[1], label_batch)
+                loss_2 = criterion(second_conv[0], second_conv[1], label_batch)
+                loss_3 = criterion(third_conv[0], third_conv[1], label_batch)
                 loss: torch.Tensor = loss_1 + loss_2 + loss_3
 
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             epoch_train_loss += loss.item()
@@ -162,15 +164,16 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
 
                 pre_batch = pre_batch.unsqueeze(1)
                 post_batch = post_batch.unsqueeze(1)
+                assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 label_batch = batch['label'].to(device)
                 if args.model == 'custom':
                     output1, output2 = siamese_net(pre_batch, post_batch)
                     loss: torch.Tensor = criterion(output1, output2, label_batch)
                 elif args.model == 'deeplab':
                     first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                    loss_1 = criterion(first_conv[0], second_conv[1], label_batch)
-                    loss_2 = criterion(second_conv[0], third_conv[1], label_batch)
-                    loss_3 = criterion(first_conv[0], third_conv[1], label_batch)
+                    loss_1 = criterion(first_conv[0], first_conv[1], label_batch)
+                    loss_2 = criterion(second_conv[0], second_conv[1], label_batch)
+                    loss_3 = criterion(third_conv[0], third_conv[1], label_batch)
                     loss: torch.Tensor = loss_1 + loss_2 + loss_3
                 epoch_val_loss += loss.item()
         
@@ -252,9 +255,9 @@ if __name__ == "__main__":
 
     ## collates the values into one tensor per key
     ## TODO: back to batchsize 16
-    train_loader = DataLoader(train_subject_images, batch_size=16, shuffle=False)
-    val_loader = DataLoader(val_subject_images, batch_size=16, shuffle=False)
-    test_loader = DataLoader(test_subject_images, batch_size=16, shuffle=False)
+    train_loader = DataLoader(train_subject_images, batch_size=args.batch_size, shuffle=False)
+    val_loader = DataLoader(val_subject_images, batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(test_subject_images, batch_size=args.batch_size, shuffle=False)
 
     model_params =  f'{args.model}_{args.dist_flag}_'\
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
