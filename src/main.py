@@ -92,12 +92,11 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 flattened_batch_conv3_t1 = third_conv[1].view(third_conv[1].size(0), -1)
                 distance_3 = F.pairwise_distance(flattened_batch_conv3_t0, flattened_batch_conv3_t1, p=2)
                 assert distance_1.size(0) == distance_2.size(0) == distance_3.size(0), "Distance sizes do not match"
-
-            assert distance.size(0) == labels.size(0), "Distance and label sizes do not match"
             
             # Iterate over the batch
             for batch_index in range(pre_batch.size(0)):
                 baseline = get_baseline(pre_batch[batch_index], post_batch[batch_index])
+                label = labels[batch_index].item()  # Get the label for the i-th pair
                 if args.model == 'deeplab':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
                     
@@ -107,17 +106,17 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     _, distance_map_2d_conv3 = single_layer_similar_heatmap_visual(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-
+                    print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
                 elif args.model == 'custom':
                     dist = distance[batch_index]
                     _, distance_map_2d = single_layer_similar_heatmap_visual(output1[batch_index], 
                     output2[batch_index], dist_flag='l2', mode='bilinear')
+                    print(f"Pair has a distance of: {dist.item()}, label: {label}")
 
-                label = labels[batch_index].item()  # Get the label for the i-th pair
+
                 distances_list.append(dist)
                 labels_list.append(label)
 
-                print(f"Pair has a distance of: {dist}, label: {label}")
                 filename = (
                     f"slice_{batch['pat_id'][batch_index]}_"
                     f"{'axial' if batch['index_post'][0][batch_index] != -1 else ''}_"
@@ -309,6 +308,6 @@ if __name__ == "__main__":
         thresholds = generate_roc_curve(distances, labels, save_dir)
     elif args.model == 'deeplab':
         # take the first distance from each tuple
-        thresholds = generate_roc_curve([d[0] for d in distances], labels, save_dir, "_conv1")
-        thresholds = generate_roc_curve([d[1] for d in distances], labels, save_dir, "_conv2")
-        thresholds = generate_roc_curve([d[2] for d in distances], labels, save_dir, "_conv3")
+        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
+        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
+        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")
