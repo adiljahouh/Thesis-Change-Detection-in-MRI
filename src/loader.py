@@ -192,7 +192,7 @@ class subject_patient_pairs(Dataset):
                                                 for (pre, index_pre, label), (post, index_post, _), (mask_slice, _) in 
                                                 zip(images_pre_pad, images_post_pad, mask_slices_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
-                                 
+                                
                                 self.data.extend(triplets_pat)
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
@@ -301,7 +301,6 @@ class shifted_subject_patient_pairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                  
                                 self.data.extend(triplets_pat)
-                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
@@ -360,7 +359,6 @@ class control_pairs(Dataset):
                             self.data.extend(triplets_con)
                             self.labels.extend([label for (_, label, _) in images_pre_pad])
                         
-                                # return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:

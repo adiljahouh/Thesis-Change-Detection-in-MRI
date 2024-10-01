@@ -50,12 +50,19 @@ def get_baseline(pre: torch.Tensor, post: torch.Tensor) -> torch.Tensor:
 
 def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     # # Invert distances because lower distance indicates more similarity
-    # distances = [d.cpu().item() for d in distances]
-    # labels = [l.cpu().item() for l in labels]
-
-    scores = [-d for d in distances]
+    try:
+        scores = [d.cpu().item() for d in distances]
+        scores = [-s for s in scores]
+    except AttributeError:
+        scores = [-s for s in distances]
+    # print(labels, scores)
     fpr, tpr, thresholds = roc_curve(labels, scores)
     roc_auc = auc(fpr, tpr)
+
+    # Calculate Youden's J statistic for each threshold
+    J_scores = tpr - fpr
+    optimal_idx = np.argmax(J_scores)
+    optimal_threshold = thresholds[optimal_idx]
 
     plt.figure()
     lw = 2
@@ -69,9 +76,12 @@ def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     plt.legend(loc="lower right")
 
     # Save the plot to the specified directory
+    print("Saving ROC curve to:", os.path.join(save_dir, f'roc{extra_title}.png'))
+
     plt.savefig(os.path.join(save_dir, f'roc{extra_title}.png'))
     plt.close()  # Close the plot to free up memory
-    return thresholds
+    print(optimal_threshold)
+    return optimal_threshold
 
 def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
                                         mode='bilinear'):
