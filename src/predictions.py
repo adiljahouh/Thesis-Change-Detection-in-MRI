@@ -37,8 +37,8 @@ if __name__ == "__main__":
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced
-    print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
-    print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
+    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
+    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
     
     if args.model == 'SLO':
         model_type = SimpleSiamese()
@@ -53,6 +53,6 @@ if __name__ == "__main__":
 
     model_type.load_state_dict(torch.load(args.model_path))
     
-    distances, labels = predict(model_type, test_loader, save_dir, device)
+    distances, labels = predict(model_type, test_loader, save_dir, device, model_type=args.model)
 
     thresholds = generate_roc_curve(distances, labels, save_dir)

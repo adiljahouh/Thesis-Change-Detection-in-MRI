@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, SiameseMLO
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset
+from loader import subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
 import os
 from visualizations import *
 import argparse
@@ -10,9 +10,6 @@ from torch.utils.data import random_split, DataLoader
 import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
-import torchvision.transforms as T
-from torchvision.transforms import Compose
-
 
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -49,7 +46,7 @@ from torchvision.transforms import Compose
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
-def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=torch.device('cuda')):
+def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=torch.device('cuda'), model_type='SLO'):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -59,13 +56,17 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
+            if "shift_x" in batch.keys() or "shift_y" in batch.keys():
+                shift_x_batch = batch['shift_x'].to(device)
+                shift_y_batch = batch['shift_y'].to(device)
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             # Add channel dimension (greyscale image)
             pre_batch = pre_batch.unsqueeze(1)
             post_batch = post_batch.unsqueeze(1)
+            
 
             labels = batch['label'].to(device)
-            if args.model == 'SLO':
+            if model_type == 'SLO':
                 output1, output2 = siamese_net(pre_batch, post_batch)
                 output1: torch.Tensor
                 output2: torch.Tensor
@@ -74,7 +75,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 assert flattened_batch_t0.size(0) == flattened_batch_t1.size(0), "Flattened batch sizes do not match"
                 distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
 
-            elif args.model == 'MLO':
+            elif model_type == 'MLO':
                 first_conv: torch.Tensor
                 second_conv: torch.Tensor
                 third_conv: torch.Tensor
@@ -95,9 +96,16 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             
             # Iterate over the batch
             for batch_index in range(pre_batch.size(0)):
-                baseline = get_baseline(pre_batch[batch_index], post_batch[batch_index])
+                if "shift_x" in batch.keys() or "shift_y" in batch.keys():
+                    # reverse the shift and get the baseline
+                    shift_x = shift_x_batch[batch_index].item()
+                    shift_y = shift_y_batch[batch_index].item()
+                    re_aligned_post = shift_image_numpy(post_batch[batch_index], (-shift_x, -shift_y))
+                    baseline = get_baseline(pre_batch[batch_index], re_aligned_post)
+                else:
+                    baseline = get_baseline(pre_batch[batch_index], post_batch[batch_index])
                 label = labels[batch_index].item()  # Get the label for the i-th pair
-                if args.model == 'MLO':
+                if model_type == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
                     
                     _, distance_map_2d_conv1 = single_layer_similar_heatmap_visual(
@@ -107,7 +115,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     _, distance_map_2d_conv3 = single_layer_similar_heatmap_visual(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
-                elif args.model == 'SLO':
+                elif model_type == 'SLO':
                     dist = distance[batch_index]
                     _, distance_map_2d = single_layer_similar_heatmap_visual(output1[batch_index], 
                     output2[batch_index], dist_flag='l2', mode='bilinear')
@@ -134,10 +142,10 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 pre_image = np.rot90(np.squeeze(batch['pre'][batch_index]))
                 post_image = np.rot90(np.squeeze(batch['post'][batch_index]))
 
-                if args.model == 'SLO':
+                if model_type == 'SLO':
                     merge_images(pre_image, post_image, np.rot90(distance_map_2d), np.rot90(np.squeeze(baseline)), output_path=save_path,
                                     title="Left to right; Preop, Postop, Output_conv, Baseline")
-                elif args.model == 'MLO':
+                elif model_type == 'MLO':
                     merge_images(pre_image, post_image, np.rot90(distance_map_2d_conv1), 
                                  np.rot90(distance_map_2d_conv2), np.rot90(distance_map_2d_conv3),
                                   np.rot90(np.squeeze(baseline)), output_path=save_path,
@@ -303,7 +311,7 @@ if __name__ == "__main__":
             save_dir=save_dir, device=device)
 
     
-    distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device)
+    distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device, model_type=args.model)
 
     if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)

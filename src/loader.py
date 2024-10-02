@@ -268,6 +268,8 @@ class shifted_subject_patient_pairs(Dataset):
                                 
                                 triplets_con = [{"pre": pre, 
                                                  "post": shift_image_numpy(post, shift_amount=shift_values),
+                                                 "shift_x": shift_values[0],
+                                                 "shift_y": shift_values[1],
                                                   "label": label, "tumor": np.zeros_like(pre), 
                                                  "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
                                                 for (pre, index_pre, label), (post, index_post, _) in 
@@ -292,6 +294,8 @@ class shifted_subject_patient_pairs(Dataset):
                                 # Create triplets (pre_slice, post_slice, label, tumor)
                                 triplets_pat = [{"pre": pre, 
                                                  "post": shift_image_numpy(post, shift_amount=shift_values),
+                                                 "shift_x": shift_values[0],
+                                                 "shift_y": shift_values[1],
                                                  "label": label, "tumor": mask_slice, 
                                                  "pat_id": pat_id, "index_pre": index_pre, 
                                                  "index_post": index_post} 
@@ -300,6 +304,7 @@ class shifted_subject_patient_pairs(Dataset):
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                  
                                 self.data.extend(triplets_pat)
+                                return
                         except FileNotFoundError as e:
                             print(f"{e}, this is normal to happen for 3 subjects which have no postoperative data")
                         except Exception as e:
