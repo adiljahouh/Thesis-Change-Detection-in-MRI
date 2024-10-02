@@ -1,7 +1,7 @@
 import torch
 from network import SimpleSiamese
 
-from loader import balance_dataset, control_pairs, subject_patient_pairs
+from loader import balance_dataset, control_pairs, subject_patient_pairs, shifted_subject_patient_pairs
 import os
 from visualizations import *
 import argparse
@@ -13,23 +13,26 @@ from main import predict, generate_roc_curve
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
 
-    parser.add_argument('--model', type=str, choices=['custom', 'vgg16'],
+    parser.add_argument('--model', type=str, choices=['SLO', 'MLO'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
     parser.add_argument('--model_path', type=str, help='Path to the model to load', required=True)
     parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
                         "Path to the directory containing the preprocessed data")
     parser.add_argument("--mode", type=str, choices= ['sanity_check', 'augmented'] ,default='sanity_check', help="Mode of testing, sanity_check or augmented")
+    parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
+                        "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
+                        should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     if args.mode == 'sanity_check':
         subject_images = control_pairs(proc_preop=args.preop_dir,
-                    image_ids=['t1_ants_aligned.nii.gz'], skip=16)
+                    image_ids=['t1_ants_aligned.nii.gz'], skip=16, tumor_sensitivity=0.18)
     elif args.mode == 'augmented':
-        subject_images = subject_patient_pairs(proc_preop=args.preop_dir,
-                    image_ids=['t1_ants_aligned.nii.gz'], skip=16)
+        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, raw_tumor_dir=args.tumor_dir,
+                    image_ids=['t1_ants_aligned.nii.gz'], skip=2, tumor_sensitivity=0.18)
         subject_images = balance_dataset(subject_images)
 
     print(f"Total number of images: {len(subject_images)}")
@@ -37,9 +40,9 @@ if __name__ == "__main__":
     print("Number of similar batches:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar batches:", len([x for x in subject_images if x['label'] == 0]))
     
-    if args.model == 'custom':
+    if args.model == 'SLO':
         model_type = SimpleSiamese()
-    elif args.model == 'vgg16':
+    elif args.model == 'MLO':
         pass
     
     ## using validation split to avoid overfitting

@@ -65,7 +65,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             post_batch = post_batch.unsqueeze(1)
 
             labels = batch['label'].to(device)
-            if args.model == 'custom':
+            if args.model == 'SLO':
                 output1, output2 = siamese_net(pre_batch, post_batch)
                 output1: torch.Tensor
                 output2: torch.Tensor
@@ -74,7 +74,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 assert flattened_batch_t0.size(0) == flattened_batch_t1.size(0), "Flattened batch sizes do not match"
                 distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
 
-            elif args.model == 'deeplab':
+            elif args.model == 'MLO':
                 first_conv: torch.Tensor
                 second_conv: torch.Tensor
                 third_conv: torch.Tensor
@@ -97,7 +97,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             for batch_index in range(pre_batch.size(0)):
                 baseline = get_baseline(pre_batch[batch_index], post_batch[batch_index])
                 label = labels[batch_index].item()  # Get the label for the i-th pair
-                if args.model == 'deeplab':
+                if args.model == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
                     
                     _, distance_map_2d_conv1 = single_layer_similar_heatmap_visual(
@@ -107,7 +107,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     _, distance_map_2d_conv3 = single_layer_similar_heatmap_visual(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
-                elif args.model == 'custom':
+                elif args.model == 'SLO':
                     dist = distance[batch_index]
                     _, distance_map_2d = single_layer_similar_heatmap_visual(output1[batch_index], 
                     output2[batch_index], dist_flag='l2', mode='bilinear')
@@ -134,10 +134,10 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 pre_image = np.rot90(np.squeeze(batch['pre'][batch_index]))
                 post_image = np.rot90(np.squeeze(batch['post'][batch_index]))
 
-                if args.model == 'custom':
+                if args.model == 'SLO':
                     merge_images(pre_image, post_image, np.rot90(distance_map_2d), np.rot90(np.squeeze(baseline)), output_path=save_path,
                                     title="Left to right; Preop, Postop, Output_conv, Baseline")
-                elif args.model == 'deeplab':
+                elif args.model == 'MLO':
                     merge_images(pre_image, post_image, np.rot90(distance_map_2d_conv1), 
                                  np.rot90(distance_map_2d_conv2), np.rot90(distance_map_2d_conv3),
                                   np.rot90(np.squeeze(baseline)), output_path=save_path,
@@ -174,10 +174,10 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
             optimizer.zero_grad()
             label_batch = batch['label'].to(device)
 
-            if args.model == 'custom':
+            if args.model == 'SLO':
                 output1, output2 = siamese_net(pre_batch, post_batch)
                 loss: torch.Tensor = criterion(output1, output2, label_batch)
-            elif args.model == 'deeplab':
+            elif args.model == 'MLO':
 
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 loss_1 = criterion(first_conv[0], first_conv[1], label_batch)
@@ -202,10 +202,10 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                 post_batch = post_batch.unsqueeze(1)
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 label_batch = batch['label'].to(device)
-                if args.model == 'custom':
+                if args.model == 'SLO':
                     output1, output2 = siamese_net(pre_batch, post_batch)
                     loss: torch.Tensor = criterion(output1, output2, label_batch)
-                elif args.model == 'deeplab':
+                elif args.model == 'MLO':
                     first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                     loss_1 = criterion(first_conv[0], first_conv[1], label_batch)
                     loss_2 = criterion(second_conv[0], second_conv[1], label_batch)
@@ -236,7 +236,7 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
-    parser.add_argument('--model', type=str, choices=['custom', 'deeplab'],
+    parser.add_argument('--model', type=str, choices=['SLO', 'MLO'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
     parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
@@ -260,14 +260,15 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
-    if args.model == 'custom':
-        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
+    if args.model == 'SLO':
+        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
                   transform=None)
         model_type = SimpleSiamese()
-    elif args.model == 'deeplab':
-        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
+    elif args.model == 'MLO':
+        ## TODO: change back to shifted, but we just want to optimize the model for now
+        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18)
         model_type = SiameseMLO()
@@ -304,9 +305,9 @@ if __name__ == "__main__":
     
     distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device)
 
-    if args.model == 'custom':
+    if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)
-    elif args.model == 'deeplab':
+    elif args.model == 'MLO':
         # take the first distance from each tuple
         thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
         thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")

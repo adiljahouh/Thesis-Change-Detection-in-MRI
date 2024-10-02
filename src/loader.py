@@ -63,7 +63,7 @@ def pad_slice(slice_2d: ndarray, output_size=(256, 256)) -> ndarray:
                           mode='edge')
     return padded_slice
 
-def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_minimum=0.12):
+def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_minimum=0.20):
     ## checks if the slice has high information by a certain value threshold and percentage of cells
     total_cells = slice_2d.size
     num_high_info_cells = np.count_nonzero(slice_2d >= value_minimum)
@@ -131,8 +131,6 @@ class subject_patient_pairs(Dataset):
                             preop_nifti = nib.load(os.path.join(root, filename))
                             postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                                 filename.replace("preop", "postop")))
-                            # print(preop_nifti.shape)
-                            # print(postop_nifti.shape)
                             # load the tumor from the tumor directory matching the patient id
                             if "PAT" in pat_id:
                                 try:
@@ -253,7 +251,7 @@ class shifted_subject_patient_pairs(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
-                            shift_values = (random.randint(0, 50), random.randint(0, 50))
+                            shift_values = (random.randint(0, 100), random.randint(0, 100))
                             if "-CON" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape
                                 
@@ -268,7 +266,7 @@ class shifted_subject_patient_pairs(Dataset):
                                 
                                 # Create triplets (pre_slice, post_slice, label, tumor=None)
                                 
-                                triplets_con = [{"pre": shift_image_numpy(pre, shift_amount=shift_values), 
+                                triplets_con = [{"pre": pre, 
                                                  "post": shift_image_numpy(post, shift_amount=shift_values),
                                                   "label": label, "tumor": np.zeros_like(pre), 
                                                  "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
@@ -286,12 +284,13 @@ class shifted_subject_patient_pairs(Dataset):
                                 # Create triplets with label 0 if the slice contains a tumor
                                 images_pre_pad = [(pad_slice(image[0]), image[1], 0 if has_tumor_cells(mask_slice[0], threshold=tumor_sensitivity) else 1) for image, mask_slice in zip(images_pre, mask_slices)]
                                 images_post_pad = [(pad_slice(image[0]), image[1], 0 if has_tumor_cells(mask_slice[0], threshold=tumor_sensitivity) else 1) for image, mask_slice in zip(images_post, mask_slices)]
+                                
                                 # pad the tumor mask as well
                                 mask_slices_pad = [(pad_slice(mask_slice[0]), mask_slice[1]) for mask_slice in mask_slices]
                                 assert len(images_pre_pad) == len(images_post_pad) == len(mask_slices_pad)
                             
                                 # Create triplets (pre_slice, post_slice, label, tumor)
-                                triplets_pat = [{"pre": shift_image_numpy(pre, shift_amount=shift_values), 
+                                triplets_pat = [{"pre": pre, 
                                                  "post": shift_image_numpy(post, shift_amount=shift_values),
                                                  "label": label, "tumor": mask_slice, 
                                                  "pat_id": pat_id, "index_pre": index_pre, 
