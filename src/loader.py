@@ -63,7 +63,7 @@ def pad_slice(slice_2d: ndarray, output_size=(256, 256)) -> ndarray:
                           mode='edge')
     return padded_slice
 
-def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.15, percentage_minimum=0.20):
+def slice_has_high_info(slice_2d: np.ndarray, value_minimum=0.25, percentage_minimum=0.25):
     ## checks if the slice has high information by a certain value threshold and percentage of cells
     total_cells = slice_2d.size
     num_high_info_cells = np.count_nonzero(slice_2d >= value_minimum)
@@ -104,8 +104,22 @@ def shift_image_numpy(image: np.ndarray, shift_amount: tuple, fill_value=0, mode
     Returns:
         np.ndarray: Shifted image with edges filled.
     """
+
     shifted_image = shift(image, shift=shift_amount, cval=fill_value, mode=mode)
     return shifted_image
+
+class ShiftImage:
+    def __init__(self, max_shift_x=10, max_shift_y=10):
+        self.max_shift_x = max_shift_x
+        self.max_shift_y = max_shift_y
+    def __call__(self, image):
+        # Randomly shift the image
+        shift_x = random.randint(-self.max_shift_x, self.max_shift_x)
+        shift_y = random.randint(-self.max_shift_y, self.max_shift_y)
+        
+        # Shift the image using affine transformation
+        return F.affine(image, angle=0, translate=(shift_x, shift_y), scale=1, shear=0)
+
 
 class subject_patient_pairs(Dataset):
     """
@@ -251,7 +265,6 @@ class shifted_subject_patient_pairs(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
-                            shift_values = (random.randint(0, 100), random.randint(0, 100))
                             if "-CON" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape
                                 
@@ -266,17 +279,13 @@ class shifted_subject_patient_pairs(Dataset):
                                 
                                 # Create triplets (pre_slice, post_slice, label, tumor=None)
                                 
-                                triplets_con = [{"pre": pre, 
-                                                 "post": shift_image_numpy(post, shift_amount=shift_values),
-                                                 "shift_x": shift_values[0],
-                                                 "shift_y": shift_values[1],
+                                triplets_con = [{"pre": pre, "post": post,
                                                   "label": label, "tumor": np.zeros_like(pre), 
                                                  "pat_id": pat_id, "index_pre": index_pre, "index_post": index_post} 
                                                 for (pre, index_pre, label), (post, index_post, _) in 
                                                 zip(images_pre_pad, images_post_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
                                 self.data.extend(triplets_con)
-                            
                             elif "-PAT" in pat_id:
                                 assert preop_nifti_norm.shape == postop_nifti_norm.shape == tumor_norm.shape
 
@@ -293,16 +302,13 @@ class shifted_subject_patient_pairs(Dataset):
                             
                                 # Create triplets (pre_slice, post_slice, label, tumor)
                                 triplets_pat = [{"pre": pre, 
-                                                 "post": shift_image_numpy(post, shift_amount=shift_values),
-                                                 "shift_x": shift_values[0],
-                                                 "shift_y": shift_values[1],
+                                                 "post": post,
                                                  "label": label, "tumor": mask_slice, 
                                                  "pat_id": pat_id, "index_pre": index_pre, 
                                                  "index_post": index_post} 
                                                 for (pre, index_pre, label), (post, index_post, _), (mask_slice, _) in 
                                                 zip(images_pre_pad, images_post_pad, mask_slices_pad) if 
                                                 slice_has_high_info(pre) and slice_has_high_info(post)]
-                                 
                                 self.data.extend(triplets_pat)
                                 return
                         except FileNotFoundError as e:
@@ -314,6 +320,8 @@ class shifted_subject_patient_pairs(Dataset):
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
+        shift_values = (random.randint(0, 40), random.randint(0, 40))
+        triplet = self.data[idx]
         return self.data[idx]               
     
 

@@ -44,10 +44,13 @@ def merge_images(*args, output_path, title, **kwargs):
 
 # Example usage
 
-def get_baseline(pre: torch.Tensor, post: torch.Tensor) -> torch.Tensor:  
+def get_baseline_torch(pre: torch.Tensor, post: torch.Tensor) -> np.ndarray:  
     diff = torch.abs(pre - post)
     return diff.data.cpu().numpy()
 
+def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
+    diff = np.abs(pre - post)
+    return diff
 def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     # # Invert distances because lower distance indicates more similarity
     try:

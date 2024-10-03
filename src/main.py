@@ -100,10 +100,10 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     # reverse the shift and get the baseline
                     shift_x = shift_x_batch[batch_index].item()
                     shift_y = shift_y_batch[batch_index].item()
-                    re_aligned_post = shift_image_numpy(post_batch[batch_index], (-shift_x, -shift_y))
-                    baseline = get_baseline(pre_batch[batch_index], re_aligned_post)
+                    re_aligned_post = shift_image_numpy(post_batch[batch_index].squeeze(0).cpu().numpy(), (-shift_x, -shift_y))
+                    baseline = get_baseline_np(pre_batch[batch_index].squeeze(0).cpu().numpy(), re_aligned_post)
                 else:
-                    baseline = get_baseline(pre_batch[batch_index], post_batch[batch_index])
+                    baseline = get_baseline_torch(pre_batch[batch_index], post_batch[batch_index])
                 label = labels[batch_index].item()  # Get the label for the i-th pair
                 if model_type == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
@@ -271,14 +271,14 @@ if __name__ == "__main__":
     if args.model == 'SLO':
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   transform=None)
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now
         subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.18)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16)
         model_type = SiameseMLO()
 
     # balance subject_images based on label
