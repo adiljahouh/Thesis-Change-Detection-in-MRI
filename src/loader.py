@@ -142,6 +142,7 @@ class subject_patient_pairs(Dataset):
                         try:
                             pat_id = root.split("/")[-1]
                             print(f"Processing {pat_id}")
+                            print("simple sol")
                             preop_nifti = nib.load(os.path.join(root, filename))
                             postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                                 filename.replace("preop", "postop")))
@@ -260,7 +261,9 @@ class shifted_subject_patient_pairs(Dataset):
                             # Normalize and resample preop and postop images
                             preop_nifti_norm = normalize_nifti(preop_nifti)
                             postop_nifti_norm = normalize_nifti(postop_nifti)
-
+                            assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
+                            assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
+                            
                             # Convert 3D images to 2D slices
                             images_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
                             images_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
@@ -270,7 +273,7 @@ class shifted_subject_patient_pairs(Dataset):
                             elif "-PAT" in pat_id and tumor_norm is not None:
                                 mask_slices = convert_3d_into_2d(tumor_norm, skip=self.skip)
                                 self._process_pat_slices(pat_id, images_pre, images_post, mask_slices)
-                            return
+                                # return
                         except FileNotFoundError as e:
                             print(f"File not found: {e}")
                         except Exception as e:
@@ -281,9 +284,15 @@ class shifted_subject_patient_pairs(Dataset):
         for i, (pre_slice, post_slice) in enumerate(zip(images_pre, images_post)):
             pre_slice_pad = pad_slice(pre_slice[0])
             post_slice_pad = pad_slice(post_slice[0])
-            pre_path = self._save_slice(pre_slice_pad, pat_id, i, 'pre', 1)
-            post_path = self._save_slice(post_slice_pad, pat_id, i, 'post', 1)
+            ## post_slice[0] is an image, post_slice[1] is the index
+            pre_slice_index: Tuple[int, int, int] = pre_slice[1]
+            post_slice_index: Tuple[int, int, int] = post_slice[1]
+            
+            assert pre_slice_index == post_slice_index, f"Indices tuples do not match: {pre_slice_index}, {post_slice_index}"
+            assert pre_slice_pad.shape == post_slice_pad.shape == (256, 256), f"Shapes do not match: {pre_slice_pad.shape}, {post_slice_pad.shape}"
             if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
+                pre_path = self._save_slice(pre_slice_pad, pat_id, pre_slice_index, 'pre', 1)
+                post_path = self._save_slice(post_slice_pad, pat_id, post_slice_index, 'post', 1)
                 self.data.append({"pre_path": pre_path, "post_path": post_path, "label": 1, "pat_id": pat_id})
 
     def _process_pat_slices(self, pat_id, images_pre, images_post, mask_slices):
@@ -291,23 +300,41 @@ class shifted_subject_patient_pairs(Dataset):
         for i, (pre_slice, post_slice, mask_slice) in enumerate(zip(images_pre, images_post, mask_slices)):
             pre_slice_pad = pad_slice(pre_slice[0])
             post_slice_pad = pad_slice(post_slice[0])
-            mask_slice_pad = pad_slice(mask_slice[0])
             
-            label = 0 if has_tumor_cells(mask_slice_pad, threshold=self.tumor_sensitivity) else 1
-            pre_path = self._save_slice(pre_slice_pad, pat_id, i, 'pre', label)
-            post_path = self._save_slice(post_slice_pad, pat_id, i, 'post', label)
-            tumor_path = self._save_slice(mask_slice_pad, pat_id, i, 'tumor', label)
+            pre_slice_index: Tuple[int, int, int] = pre_slice[1]
+            post_slice_index: Tuple[int, int, int] = post_slice[1]
+            tumor_slice_index: Tuple[int, int, int] = mask_slice[1]
+            assert pre_slice_index == post_slice_index == tumor_slice_index, f"Indices\
+                tuples do not match: {pre_slice_index}, {post_slice_index}, {tumor_slice_index}"
+                
+            assert pre_slice_pad.shape == post_slice_pad.shape  == (256, 256), f"Shapes do not match: {pre_slice_pad.shape}, {post_slice_pad.shape}"
+            label = 0 if has_tumor_cells(mask_slice[0], threshold=self.tumor_sensitivity) else 1
+            
             if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
+                pre_path = self._save_slice(pre_slice_pad, pat_id, pre_slice_index, 'pre', label)
+                post_path = self._save_slice(post_slice_pad, pat_id, post_slice_index, 'post', label)
+                tumor_path = self._save_slice(mask_slice[0], pat_id, tumor_slice_index, 'tumor', label)
                 self.data.append({"pre_path": pre_path, "post_path": post_path, "tumor_path": tumor_path, "label": label, "pat_id": pat_id})
 
-    def _save_slice(self, slice_array, pat_id, index, slice_type, label):
+    def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):
         """Save the 2D slice as a numpy file and return the file path."""
-        filename = f"{pat_id}_slice_{index}_{slice_type}_label_{label}.npy"
+        brain_axis = self.convert_tuple_to_string(index)
+        ##TODO: remove label from this
+        filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npy"
         save_path = os.path.join(self.save_dir, filename)
         if not os.path.exists(save_path):
             np.save(save_path, slice_array)
         return save_path
-
+    
+    def convert_tuple_to_string(self, index):
+        
+        if index[0] != -1:
+            return "axial_" + str(index[0])
+        elif index[1] != -1:
+            return "coronal_" + str(index[1])
+        elif index[2] != -1:
+            return "sagittal" + str(index[2])
+        
     def __len__(self):
         return len(self.data)
 
@@ -315,6 +342,7 @@ class shifted_subject_patient_pairs(Dataset):
         triplet = self.data[idx]
         pre_slice = np.load(triplet["pre_path"])
         post_slice = np.load(triplet["post_path"])
+        assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
         tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
 
         # Apply any transformations if necessary

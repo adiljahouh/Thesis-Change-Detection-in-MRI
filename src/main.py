@@ -272,7 +272,7 @@ if __name__ == "__main__":
         ## TODO: 
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.10,
                   transform=None)
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
@@ -288,7 +288,7 @@ if __name__ == "__main__":
     print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
 
     subject_images: list[dict] = balance_dataset(subject_images)
-    print(f"Total number of images after balancing: {len(subject_images)}")
+    print(f"Total number of total pairs after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     
     if args.loss == 'CL':
