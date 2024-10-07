@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, SiameseMLO
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import subject_patient_pairs_old, subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
+from loader import ShiftImage, subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
 import os
 from visualizations import *
 import argparse
@@ -10,6 +10,10 @@ from torch.utils.data import random_split, DataLoader
 import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
+from torchvision import transforms as T
+from torchvision.transforms import Compose
+from PIL import Image
+
 
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -56,13 +60,11 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
-            if "shift_x" in batch.keys() or "shift_y" in batch.keys():
-                shift_x_batch = batch['shift_x'].to(device)
-                shift_y_batch = batch['shift_y'].to(device)
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             # Add channel dimension (greyscale image)
-            pre_batch = pre_batch.unsqueeze(1)
-            post_batch = post_batch.unsqueeze(1)
+            ## if len(pre_batch.size()) == 3:
+            # pre_batch = pre_batch.unsqueeze(1)
+            # post_batch = post_batch.unsqueeze(1)
             
 
             labels = batch['label'].to(device)
@@ -96,14 +98,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             
             # Iterate over the batch
             for batch_index in range(pre_batch.size(0)):
-                if "shift_x" in batch.keys() or "shift_y" in batch.keys():
-                    # reverse the shift and get the baseline
-                    shift_x = shift_x_batch[batch_index].item()
-                    shift_y = shift_y_batch[batch_index].item()
-                    re_aligned_post = shift_image_numpy(post_batch[batch_index].squeeze(0).cpu().numpy(), (-shift_x, -shift_y))
-                    baseline = get_baseline_np(pre_batch[batch_index].squeeze(0).cpu().numpy(), re_aligned_post)
-                else:
-                    baseline = get_baseline_torch(pre_batch[batch_index], post_batch[batch_index])
+                baseline = batch['baseline'][batch_index]
                 label = labels[batch_index].item()  # Get the label for the i-th pair
                 if model_type == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
@@ -124,15 +119,14 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
 
                 distances_list.append(dist)
                 labels_list.append(label)
-
                 filename = (
                     f"slice_{batch['pat_id'][batch_index]}_"
                     f"{'axial' if batch['index_post'][0][batch_index] != -1 else ''}_"
-                    f"{batch['index_post'][0][batch_index].item() if batch['index_post'][0][batch_index] != -1 else ''}"
+                    f"{batch['index_post'][0][batch_index] if batch['index_post'][0][batch_index] != -1 else ''}"
                     f"{'coronal' if batch['index_post'][1][batch_index] != -1 else ''}_"
-                    f"{batch['index_post'][1][batch_index].item() if batch['index_post'][1][batch_index] != -1 else ''}"
+                    f"{batch['index_post'][1][batch_index] if batch['index_post'][1][batch_index] != -1 else ''}"
                     f"{'sagittal' if batch['index_post'][2][batch_index] != -1 else ''}_"
-                    f"{batch['index_post'][2][batch_index].item() if batch['index_post'][2][batch_index] != -1 else ''}.jpg"
+                    f"{batch['index_post'][2][batch_index] if batch['index_post'][2][batch_index] != -1 else ''}.jpg"
                 )
 
                 # Save the heatmap
@@ -174,8 +168,10 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
             post_batch = batch['post'].float().to(device)
 
             ## add channel dimension because its just collated(merged) 2D numpy arrays
-            pre_batch = pre_batch.unsqueeze(1)
-            post_batch = post_batch.unsqueeze(1)
+            
+            # pre_batch = pre_batch.unsqueeze(1)
+            # post_batch = post_batch.unsqueeze(1)
+
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             siamese_net.train()  # switch to training mode
 
@@ -206,8 +202,8 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
 
-                pre_batch = pre_batch.unsqueeze(1)
-                post_batch = post_batch.unsqueeze(1)
+                # pre_batch = pre_batch.unsqueeze(1)
+                # post_batch = post_batch.unsqueeze(1)
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 label_batch = batch['label'].to(device)
                 if args.model == 'SLO':
@@ -260,8 +256,8 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
     parser.add_argument("--patience", type=int, default=8, help="Patience for early stopping")
-    parser.add_argument("--margin", type=float, default=5.0, help="Margin for dissimilar pairs")
-    parser.add_argument("--threshold", type=float, default=0.3, help="Threshold for similar pairs, prevents overfit")
+    parser.add_argument("--margin", type=float, default=7.0, help="Margin for dissimilar pairs")
+    parser.add_argument("--threshold", type=float, default=0.1, help="Threshold for similar pairs, prevents overfit")
     parser.add_argument("--skip", type=int, default=1, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
     args = parser.parse_args()
@@ -270,10 +266,14 @@ if __name__ == "__main__":
     print("Using device:", device)
     if args.model == 'SLO':
         ## TODO: 
-        subject_images = subject_patient_pairs_old(proc_preop=args.preop_dir, 
+        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.10,
-                  transform=None)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
+                  save_dir='./data/2D/',
+                  transform=Compose([
+                    T.ToTensor(),
+                    ShiftImage(max_shift_x=20, max_shift_y=20)]))
+        
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now
@@ -284,8 +284,8 @@ if __name__ == "__main__":
 
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")
-    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
-    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
+    # print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
+    # print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
 
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of total pairs after balancing: {len(subject_images)}")
