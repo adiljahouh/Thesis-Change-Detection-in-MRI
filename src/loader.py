@@ -270,7 +270,7 @@ class shifted_subject_patient_pairs(Dataset):
                             elif "-PAT" in pat_id and tumor_norm is not None:
                                 mask_slices = convert_3d_into_2d(tumor_norm, skip=self.skip)
                                 self._process_pat_slices(pat_id, images_pre, images_post, mask_slices)
-                            # return
+                            return
                         except FileNotFoundError as e:
                             print(f"File not found: {e}")
                         except Exception as e:
@@ -279,19 +279,25 @@ class shifted_subject_patient_pairs(Dataset):
     def _process_con_slices(self, pat_id, images_pre, images_post):
         """Process control patient (CON) slices and save them."""
         for i, (pre_slice, post_slice) in enumerate(zip(images_pre, images_post)):
-            pre_path = self._save_slice(pre_slice[0], pat_id, i, 'pre', 1)
-            post_path = self._save_slice(post_slice[0], pat_id, i, 'post', 1)
-            if slice_has_high_info(pre_slice[0]) and slice_has_high_info(post_slice[0]):
+            pre_slice_pad = pad_slice(pre_slice[0])
+            post_slice_pad = pad_slice(post_slice[0])
+            pre_path = self._save_slice(pre_slice_pad, pat_id, i, 'pre', 1)
+            post_path = self._save_slice(post_slice_pad, pat_id, i, 'post', 1)
+            if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
                 self.data.append({"pre_path": pre_path, "post_path": post_path, "label": 1, "pat_id": pat_id})
 
     def _process_pat_slices(self, pat_id, images_pre, images_post, mask_slices):
         """Process patient (PAT) slices and save them."""
         for i, (pre_slice, post_slice, mask_slice) in enumerate(zip(images_pre, images_post, mask_slices)):
-            label = 0 if has_tumor_cells(mask_slice[0], threshold=self.tumor_sensitivity) else 1
-            pre_path = self._save_slice(pre_slice[0], pat_id, i, 'pre', label)
-            post_path = self._save_slice(post_slice[0], pat_id, i, 'post', label)
-            tumor_path = self._save_slice(mask_slice[0], pat_id, i, 'tumor', label)
-            if slice_has_high_info(pre_slice[0]) and slice_has_high_info(post_slice[0]):
+            pre_slice_pad = pad_slice(pre_slice[0])
+            post_slice_pad = pad_slice(post_slice[0])
+            mask_slice_pad = pad_slice(mask_slice[0])
+            
+            label = 0 if has_tumor_cells(mask_slice_pad, threshold=self.tumor_sensitivity) else 1
+            pre_path = self._save_slice(pre_slice_pad, pat_id, i, 'pre', label)
+            post_path = self._save_slice(post_slice_pad, pat_id, i, 'post', label)
+            tumor_path = self._save_slice(mask_slice_pad, pat_id, i, 'tumor', label)
+            if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
                 self.data.append({"pre_path": pre_path, "post_path": post_path, "tumor_path": tumor_path, "label": label, "pat_id": pat_id})
 
     def _save_slice(self, slice_array, pat_id, index, slice_type, label):
