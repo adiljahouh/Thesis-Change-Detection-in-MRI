@@ -269,15 +269,16 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     if args.model == 'SLO':
+        ## TODO: 
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
-                  raw_tumor_dir=args.tumor_dir,
+                  raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   transform=None)
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now
-        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
-                  raw_tumor_dir=args.tumor_dir,
+        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
+                  raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16)
         model_type = SiameseMLO()
 
