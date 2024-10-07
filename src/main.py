@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, SiameseMLO
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
+from loader import subject_patient_pairs_old, subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
 import os
 from visualizations import *
 import argparse
@@ -270,8 +270,8 @@ if __name__ == "__main__":
     print("Using device:", device)
     if args.model == 'SLO':
         ## TODO: 
-        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
-                  raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
+        subject_images = subject_patient_pairs_old(proc_preop=args.preop_dir, 
+                  raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.10,
                   transform=None)
         model_type = SimpleSiamese()
