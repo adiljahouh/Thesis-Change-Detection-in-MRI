@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, SiameseMLO
+from network import SimpleSiamese, complexSiamese
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import ShiftImage, subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
 import os
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16)
-        model_type = SiameseMLO()
+        model_type = complexSiamese()
 
     # balance subject_images based on label
     print(f"Total number of images: {len(subject_images)}")

@@ -127,6 +127,26 @@ class ShiftImage:
         #                 interpolation=F.InterpolationMode.NEAREST)
 
         return torch.roll(image, shifts=(shift_x, shift_y), dims=(1, 2))
+class ShiftImage:
+    def __init__(self, max_shift_x=10, max_shift_y=10, mode='bilinear', padding_mode='border', align_corners=True):
+        self.max_shift_x = max_shift_x
+        self.max_shift_y = max_shift_y
+        self.mode = mode
+        self.padding_mode = padding_mode
+        self.align_corners = align_corners
+
+    def __call__(self, image):
+        # Randomly generate shift values for x and y axes
+        shift_x = torch.randint(-self.max_shift_x, self.max_shift_x + 1, (1,)).item()
+        shift_y = torch.randint(-self.max_shift_y, self.max_shift_y + 1, (1,)).item()
+
+        theta = torch.tensor([[1, 0, shift_x], [0, 1, shift_y]], dtype=torch.float).unsqueeze(0)
+
+        grid = torch.nn.functional.affine_grid(theta, image.unsqueeze(0).size(), align_corners=self.align_corners)
+        shifted_image = torch.nn.functional.grid_sample(image.unsqueeze(0), grid, mode=self.mode, padding_mode=self.padding_mode, align_corners=self.align_corners)
+
+        return shifted_image.squeeze(0)
+
 class subject_patient_pairs(Dataset):
     """
     Image dataset for each subject in the dataset
