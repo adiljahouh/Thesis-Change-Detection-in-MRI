@@ -11,7 +11,7 @@ import torchvision.transforms.functional as F
 import random
 import torch
 from scipy.ndimage import shift
-
+import kornia.geometry.transform as kornia_transform
 def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
     diff = np.abs(pre - post)
     return diff
@@ -112,40 +112,23 @@ def shift_image_numpy(image: np.ndarray, shift_amount: tuple, fill_value=0, mode
     shifted_image = shift(image, shift=shift_amount, cval=fill_value, mode=mode)
     return shifted_image
 
+
+
 class ShiftImage:
-    def __init__(self, max_shift_x=10, max_shift_y=10):
+    def __init__(self, max_shift_x, max_shift_y):
         self.max_shift_x = max_shift_x
         self.max_shift_y = max_shift_y
-    def __call__(self, image):
-        # Randomly shift the image
-        shift_x = random.randint(-self.max_shift_x, self.max_shift_x)
-        shift_y = random.randint(-self.max_shift_y, self.max_shift_y)
-        
-        # Shift the image using affine transformation
 
-        # return F.affine(image, angle=0, translate=(shift_x, shift_y), scale=1, shear=0, 
-        #                 interpolation=F.InterpolationMode.NEAREST)
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        # Ensure the tensor is 3D
+        shift_x = torch.randint(-self.max_shift_x, self.max_shift_x + 1, (1,)).double()
+        shift_y = torch.randint(-self.max_shift_y, self.max_shift_y + 1, (1,)).double()
 
-        return torch.roll(image, shifts=(shift_x, shift_y), dims=(1, 2))
-class ShiftImage:
-    def __init__(self, max_shift_x=10, max_shift_y=10, mode='bilinear', padding_mode='border', align_corners=True):
-        self.max_shift_x = max_shift_x
-        self.max_shift_y = max_shift_y
-        self.mode = mode
-        self.padding_mode = padding_mode
-        self.align_corners = align_corners
+        # Create translation tensor
+        translation = torch.tensor([[shift_x.item(), shift_y.item()]]).double()
+        return kornia_transform.translate(tensor.unsqueeze(0).double(), translation, mode='bilinear', padding_mode='border', align_corners=True).squeeze(0).float()
 
-    def __call__(self, image):
-        # Randomly generate shift values for x and y axes
-        shift_x = torch.randint(-self.max_shift_x, self.max_shift_x + 1, (1,)).item()
-        shift_y = torch.randint(-self.max_shift_y, self.max_shift_y + 1, (1,)).item()
 
-        theta = torch.tensor([[1, 0, shift_x], [0, 1, shift_y]], dtype=torch.float).unsqueeze(0)
-
-        grid = torch.nn.functional.affine_grid(theta, image.unsqueeze(0).size(), align_corners=self.align_corners)
-        shifted_image = torch.nn.functional.grid_sample(image.unsqueeze(0), grid, mode=self.mode, padding_mode=self.padding_mode, align_corners=self.align_corners)
-
-        return shifted_image.squeeze(0)
 
 class subject_patient_pairs(Dataset):
     """
@@ -471,3 +454,38 @@ def create_loaders_with_split(dataset: Dataset, split=(0.8, 0.2), generator=None
     train_loader_t1 = DataLoader(train_t1, batch_size=BATCH_SIZE, shuffle=False)
     test_loader_t1 = DataLoader(test_t1, batch_size=BATCH_SIZE, shuffle=False)
     return train_loader_t1, test_loader_t1
+
+# class ShiftImage:
+#     def __init__(self, max_shift_x=10, max_shift_y=10):
+#         self.max_shift_x = max_shift_x
+#         self.max_shift_y = max_shift_y
+#     def __call__(self, image):
+#         # Randomly shift the image
+#         shift_x = random.randint(-self.max_shift_x, self.max_shift_x)
+#         shift_y = random.randint(-self.max_shift_y, self.max_shift_y)
+        
+#         # Shift the image using affine transformation
+
+#         # return F.affine(image, angle=0, translate=(shift_x, shift_y), scale=1, shear=0, 
+#         #                 interpolation=F.InterpolationMode.NEAREST)
+
+#         return torch.roll(image, shifts=(shift_x, shift_y), dims=(1, 2))
+# class ShiftImage:
+#     def __init__(self, max_shift_x=10, max_shift_y=10, mode='bilinear', padding_mode='border', align_corners=True):
+#         self.max_shift_x = max_shift_x
+#         self.max_shift_y = max_shift_y
+#         self.mode = mode
+#         self.padding_mode = padding_mode
+#         self.align_corners = align_corners
+
+#     def __call__(self, image):
+#         # Randomly generate shift values for x and y axes
+#         shift_x = torch.randint(-self.max_shift_x, self.max_shift_x + 1, (1,)).item()
+#         shift_y = torch.randint(-self.max_shift_y, self.max_shift_y + 1, (1,)).item()
+
+#         theta = torch.tensor([[1, 0, shift_x], [0, 1, shift_y]], dtype=torch.float).unsqueeze(0)
+
+#         grid = torch.nn.functional.affine_grid(theta, image.unsqueeze(0).size(), align_corners=self.align_corners)
+#         shifted_image = torch.nn.functional.grid_sample(image.unsqueeze(0), grid, mode=self.mode, padding_mode=self.padding_mode, align_corners=self.align_corners)
+
+#         return shifted_image.squeeze(0)

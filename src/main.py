@@ -164,6 +164,10 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
             ## each batch is a dict with pre, post, label etc. and collated (merged) values from
             ## each value in the batch
             batch: dict[str, torch.Tensor]
+            
+            assert batch['pre'].shape == batch['post'].shape, "Pre and post batch shapes do not match"
+            assert type(batch['pre']) == type(batch['post']) == torch.Tensor, "Pre or post is not a tensor, use transform ToTensor()  in the dataSet or unsqueeze(0) after loading each batch"
+            
             pre_batch = batch['pre'].float().to(device)
             post_batch = batch['post'].float().to(device)
 
@@ -256,8 +260,8 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for the optimizer")
     parser.add_argument("--patience", type=int, default=8, help="Patience for early stopping")
-    parser.add_argument("--margin", type=float, default=7.0, help="Margin for dissimilar pairs")
-    parser.add_argument("--threshold", type=float, default=0.1, help="Threshold for similar pairs, prevents overfit")
+    parser.add_argument("--margin", type=float, default=5.0, help="Margin for dissimilar pairs")
+    parser.add_argument("--threshold", type=float, default=0.2, help="Threshold for similar pairs, prevents overfit")
     parser.add_argument("--skip", type=int, default=1, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
     args = parser.parse_args()
@@ -265,21 +269,23 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     if args.model == 'SLO':
-        ## TODO: 
+        ## Always call T.ToTensor()
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   save_dir='./data/2D/',
                   transform=Compose([
-                    T.ToTensor(),
-                    ShiftImage(max_shift_x=20, max_shift_y=20)]))
+                    T.ToTensor()]))
+                    # ShiftImage(max_shift_x=20, max_shift_y=20)]))
         
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16)
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
+                  transform=Compose([
+                    T.ToTensor()]))
         model_type = complexSiamese()
 
     # balance subject_images based on label
