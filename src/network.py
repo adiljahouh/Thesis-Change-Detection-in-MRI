@@ -57,9 +57,13 @@ class complexSiamese(nn.Module):
         self.bn3 = nn.BatchNorm2d(128)
         
         self.conv4 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        ## same output channels, just to refine the features later on
+        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
         self.bn4 = nn.BatchNorm2d(256)
         
-        self.conv5 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
+        self.conv6 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
+        self.conv7 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+    
         self.bn5 = nn.BatchNorm2d(512)
         
         # self.fc1 = nn.Linear(131072, 128)  # Adjust input size based on input dimensions
@@ -73,8 +77,14 @@ class complexSiamese(nn.Module):
         output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
         output1_conv3 = F.relu(self.bn3(self.conv3(output1_pool2)))
         output1_pool3 = F.max_pool2d(output1_conv3, kernel_size=2, stride=2)
-        output1_conv4 = F.relu(self.bn4(self.conv4(output1_pool3)))
-        output1_pool4 = F.max_pool2d(output1_conv4, kernel_size=2, stride=2)
+        
+        output1_conv4 = F.relu(self.conv4(output1_pool3))
+        output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
+        output1_pool4 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2)
+        
+        output1_conv6 = F.relu(self.conv6(output1_pool4))
+        output1_conv7 = F.relu(self.conv7(output1_conv6))
+        output1_pool5 = F.max_pool2d(output1_conv7, kernel_size=2, stride=2)
 
 
         output2_conv1 = F.relu(self.bn1(self.conv1(input2)))
@@ -83,13 +93,19 @@ class complexSiamese(nn.Module):
         output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
         output2_conv3 = F.relu(self.bn3(self.conv3(output2_pool2)))
         output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
-        output2_conv4 = F.relu(self.bn4(self.conv4(output2_pool3)))
-        output2_pool4 = F.max_pool2d(output2_conv4, kernel_size=2, stride=2)
+        
+        output2_conv4 = F.relu(self.conv4(output2_pool3))
+        output2_conv5 = F.relu(self.bn4(self.conv5(output2_conv4)))
+        output2_pool4 = F.max_pool2d(output2_conv5, kernel_size=2, stride=2)
+    
+        output2_conv6 = F.relu(self.conv6(output2_pool4))
+        output2_conv7 = F.relu(self.conv7(output2_conv6))
+        output2_pool5 = F.max_pool2d(output2_conv7, kernel_size=2, stride=2)
         # output2 = output2.view(output2.size(0), -1)  # Flatten to (batch_size, 128*32*32)
         # output2 = self.dropout(output2)
         # output2 = self.fc1(output2)
 
-        return [output1_pool2, output2_pool2], [output1_pool3, output2_pool3], [output1_pool4, output2_pool4]
+        return [output1_pool3, output2_pool3], [output1_pool4, output2_pool4], [output1_pool5, output2_pool5]
 class deeplab_V2(nn.Module):
     def __init__(self):
         super(deeplab_V2, self).__init__()
