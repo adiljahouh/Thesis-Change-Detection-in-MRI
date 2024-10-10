@@ -283,7 +283,7 @@ if __name__ == "__main__":
         ## TODO: change back to shifted, but we just want to optimize the model for now
         subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.30,
                   transform=Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50)]))
