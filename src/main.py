@@ -285,7 +285,8 @@ if __name__ == "__main__":
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   transform=Compose([
-                    T.ToTensor()]))
+                    T.ToTensor(),
+                    ShiftImage(max_shift_x=50, max_shift_y=50)]))
         model_type = complexSiamese()
 
     # balance subject_images based on label
