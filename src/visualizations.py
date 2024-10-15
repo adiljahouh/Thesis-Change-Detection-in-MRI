@@ -98,11 +98,11 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
     distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
     similar_distance_map = distance.view(h,w).data.cpu().numpy()
-    # print("similar_distance_map: ", similar_distance_map.shape)
-
     ## create a 4 dim torch by adding 2 axis to h,w
     ## torch upsamle expects b,c,h,w
     ## normalize it after to 0 1
+    
+    ## TODO: remove this, numpy to torch to numpy
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
     normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
     try:
