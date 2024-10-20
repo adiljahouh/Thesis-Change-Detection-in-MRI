@@ -245,7 +245,7 @@ if __name__ == "__main__":
     parser.add_argument("--aerts_dir", type=str, default='./data/processed/preop/BTC-preop', help=
                         "Path to the directory containing the preprocessed subject dirs FROM AERTS, relative is possible from project dir\
                             should contain sub-pat01, sub-pat02 etc. with a specific nifti image id anywhere down the tree")
-    parser.add_argument("--remind_dir", type=str, default='./data/processed/preop/REMIND', help=
+    parser.add_argument("--remind_dir", type=str, default='./data/ReMIND_dataset/ReMIND-Manifest-Sept-2023/ReMIND', help=
                         "Path to the directory containing the preprocessed subject dirs FROM REMIND, relative is possible from project dir\
                             should contain remind-001, remind-002 etc. with a specific nifti image_id anywhere down the tree")
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
@@ -284,10 +284,11 @@ if __name__ == "__main__":
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
                   tumor_sensitivity=0.30,transform=transforms)
+        print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped.nii.gz'], save_dir='./data/2D/',
                     skip=args.skip, tumor_sensitivity=0.30, transform=transforms)
-        subject_images = ConcatDataset(aertsImages, remindImages)
+        subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiamese()
 
     # balance subject_images based on label

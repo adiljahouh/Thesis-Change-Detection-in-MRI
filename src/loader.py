@@ -139,7 +139,7 @@ class remindDataset(Dataset):
         self.tumor_sensitivity = tumor_sensitivity
         self.data = []
         # https://www.nature.com/articles/s41597-024-03295-z
-        
+        print("startinng remind dataset")
         os.makedirs(self.save_dir, exist_ok=True)  # Ensure the save directory exists
         for root_path, dirs, files in os.walk(preop_dir):
             for filename in files:
@@ -168,7 +168,6 @@ class remindDataset(Dataset):
                             images_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
                             mask_slices = convert_3d_into_2d(tumor_norm, skip=self.skip)
                             self._process_pat_slices(pat_id, images_pre, images_post, mask_slices)
-                            return
                         except FileNotFoundError as e:
                             print(f"File not found: {e}")
                         except Exception as e:
@@ -188,8 +187,6 @@ class remindDataset(Dataset):
                 
             assert pre_slice_pad.shape == post_slice_pad.shape  == (256, 256), f"Shapes do not match: {pre_slice_pad.shape}, {post_slice_pad.shape}"
             label = 0 if has_tumor_cells(mask_slice[0], threshold=self.tumor_sensitivity) else 1
-            if label == 0:
-                print("Tumor found")
             if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
                 pre_path = self._save_slice(pre_slice_pad, pat_id, pre_slice_index, 'pre', label)
                 post_path = self._save_slice(post_slice_pad, pat_id, post_slice_index, 'post', label)
@@ -288,7 +285,6 @@ class aertsDataset(Dataset):
                             elif "-PAT" in pat_id and tumor_norm is not None:
                                 mask_slices = convert_3d_into_2d(tumor_norm, skip=self.skip)
                                 self._process_pat_slices(pat_id, images_pre, images_post, mask_slices)
-                                # return
                         except FileNotFoundError as e:
                             print(f"File not found: {e}")
                         except Exception as e:
