@@ -2,18 +2,16 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiamese
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import ShiftImage, subject_patient_pairs, balance_dataset
+from loader import ShiftImage, aertsDataset, remindDataset, balance_dataset
 import os
 from visualizations import *
 import argparse
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import random_split, DataLoader, ConcatDataset
 import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
 from torchvision import transforms as T
 from torchvision.transforms import Compose
-from PIL import Image
-
 
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -40,9 +38,6 @@ from PIL import Image
 ## Aligned and normalized the tumor using nilearn transformations such that python handles it properly
 ## One voxel input is too little information so im looking into patches, tried voxel based but didnt make sense
 ## padded them
-
-## work in patches, but that would mean a lot of labels. Maybe aggregate them to have some sort of probability?
-## or can we just go back to images? 
 
 ## using images and tumor mask but ratio is not 1:1
 ## filtering low info slices
@@ -247,9 +242,12 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, choices=['SLO', 'MLO'],
                              help='Type of model architecture to use (custom or VGG16-based).', 
                              required=True)
-    parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
-                        "Path to the directory containing the preprocessed subject dirs, relative is possible from project dir\
-                            should contain sub-pat01, sub-pat02 etc. with t1 nii files in them")
+    parser.add_argument("--aerts_dir", type=str, default='./data/processed/preop/BTC-preop', help=
+                        "Path to the directory containing the preprocessed subject dirs FROM AERTS, relative is possible from project dir\
+                            should contain sub-pat01, sub-pat02 etc. with a specific nifti image id anywhere down the tree")
+    parser.add_argument("--remind_dir", type=str, default='./data/processed/preop/REMIND', help=
+                        "Path to the directory containing the preprocessed subject dirs FROM REMIND, relative is possible from project dir\
+                            should contain remind-001, remind-002 etc. with a specific nifti image_id anywhere down the tree")
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
@@ -270,7 +268,7 @@ if __name__ == "__main__":
     print("Using device:", device)
     if args.model == 'SLO':
         ## Always call T.ToTensor()
-        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
+        subject_images = aertsDataset(proc_preop=args.aerts_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   save_dir='./data/2D/',
@@ -279,12 +277,17 @@ if __name__ == "__main__":
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now
-        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
-                  raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.30,
-                  transform=Compose([
+        transforms = Compose([
                     T.ToTensor(),
-                    ShiftImage(max_shift_x=50, max_shift_y=50)]))
+                    ShiftImage(max_shift_x=50, max_shift_y=50)])
+        aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
+                  raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
+                  tumor_sensitivity=0.30,transform=transforms)
+        remindImages = remindDataset(preop_dir=args.remind_dir, 
+                    image_ids=['t1_aligned_stripped.nii.gz'], save_dir='./data/2D/',
+                    skip=args.skip, tumor_sensitivity=0.30, transform=transforms)
+        subject_images = ConcatDataset(aertsImages, remindImages)
         model_type = complexSiamese()
 
     # balance subject_images based on label

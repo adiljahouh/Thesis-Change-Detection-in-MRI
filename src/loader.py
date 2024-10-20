@@ -129,7 +129,117 @@ class ShiftImage:
         return kornia_transform.translate(tensor.unsqueeze(0).double(), translation, mode='bilinear', padding_mode='border', align_corners=True).squeeze(0).float()
 
 
-class subject_patient_pairs(Dataset):
+class remindDataset(Dataset):
+    def __init__(self, preop_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, transform=None):
+        self.preop_dir = preop_dir
+        self.transform = transform
+        self.image_ids = image_ids
+        self.save_dir = save_dir  # Directory to save 2D slices
+        self.skip = skip
+        self.tumor_sensitivity = tumor_sensitivity
+        self.data = []
+        # https://www.nature.com/articles/s41597-024-03295-z
+        
+        os.makedirs(self.save_dir, exist_ok=True)  # Ensure the save directory exists
+        for root_path, dirs, files in os.walk(preop_dir):
+            for filename in files:
+                for image_id in self.image_ids:
+                    if filename.endswith(image_id):
+                        try:
+                            pat_id = root_path.split("/")[-3]
+                            if "Intraop" in root_path:
+                                continue
+                            print(f"Processing {pat_id}")
+                            preop_nifti = nib.load(os.path.join(root_path, filename))
+                            postop_nifti = nib.load(os.path.join(root_path.replace("Preop", "Intraop"), 
+                                                                filename))
+                            postop_nifti = resample_to_img(source_img=postop_nifti, target_img=preop_nifti, interpolation='nearest')
+                            tumor = nib.load(os.path.join(root_path.replace("T1_converted", "tumor_converted"), "1.nii.gz"))
+                            tumor_resampled = resample_to_img(source_img=tumor, target_img=preop_nifti, interpolation='nearest')
+                            tumor_norm = normalize_nifti(tumor_resampled)
+                            # Normalize and resample preop and postop images
+                            preop_nifti_norm = normalize_nifti(preop_nifti)
+                            postop_nifti_norm = normalize_nifti(postop_nifti)
+                            assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
+                            assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
+                            print(preop_nifti_norm.shape, postop_nifti_norm.shape, tumor_norm.shape)
+                            # Convert 3D images to 2D slices
+                            images_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
+                            images_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
+                            mask_slices = convert_3d_into_2d(tumor_norm, skip=self.skip)
+                            self._process_pat_slices(pat_id, images_pre, images_post, mask_slices)
+                            return
+                        except FileNotFoundError as e:
+                            print(f"File not found: {e}")
+                        except Exception as e:
+                            print(f"Uncaught error: {e}")
+
+    def _process_pat_slices(self, pat_id, images_pre, images_post, mask_slices):
+        """Process patient (PAT) slices and save them."""
+        for i, (pre_slice, post_slice, mask_slice) in enumerate(zip(images_pre, images_post, mask_slices)):
+            pre_slice_pad = pad_slice(pre_slice[0])
+            post_slice_pad = pad_slice(post_slice[0])
+            
+            pre_slice_index: Tuple[int, int, int] = pre_slice[1]
+            post_slice_index: Tuple[int, int, int] = post_slice[1]
+            tumor_slice_index: Tuple[int, int, int] = mask_slice[1]
+            assert pre_slice_index == post_slice_index == tumor_slice_index, f"Indices\
+                tuples do not match: {pre_slice_index}, {post_slice_index}, {tumor_slice_index}"
+                
+            assert pre_slice_pad.shape == post_slice_pad.shape  == (256, 256), f"Shapes do not match: {pre_slice_pad.shape}, {post_slice_pad.shape}"
+            label = 0 if has_tumor_cells(mask_slice[0], threshold=self.tumor_sensitivity) else 1
+            if label == 0:
+                print("Tumor found")
+            if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
+                pre_path = self._save_slice(pre_slice_pad, pat_id, pre_slice_index, 'pre', label)
+                post_path = self._save_slice(post_slice_pad, pat_id, post_slice_index, 'post', label)
+                tumor_path = self._save_slice(mask_slice[0], pat_id, tumor_slice_index, 'tumor', label)
+                self.data.append({"pre_path": pre_path, "post_path": post_path, 
+                                  "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
+                                  "index_pre": pre_slice_index, "index_post": post_slice_index})
+
+    def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):
+        """Save the 2D slice as a numpy file and return the file path."""
+        brain_axis = self.convert_tuple_to_string(index)
+        ##TODO: remove label from this
+        filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npy"
+        save_path = os.path.join(self.save_dir, filename)
+        if not os.path.exists(save_path):
+            np.save(save_path, slice_array)
+        return save_path
+    
+    def convert_tuple_to_string(self, index):
+        
+        if index[0] != -1:
+            return "axial_" + str(index[0])
+        elif index[1] != -1:
+            return "coronal_" + str(index[1])
+        elif index[2] != -1:
+            return "sagittal" + str(index[2])
+        
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        triplet = self.data[idx]
+        pre_slice = np.load(triplet["pre_path"])
+        post_slice = np.load(triplet["post_path"])
+        baseline = get_baseline_np(pre_slice, post_slice)
+        assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
+        # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
+
+        # Apply any transformations if necessary
+        if self.transform:
+            pre_slice = self.transform(pre_slice)
+            post_slice = self.transform(post_slice)
+            # if tumor_slice is not None:
+            #     tumor_slice = self.transform(tumor_slice)
+
+        return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
+                "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
+                "baseline": baseline}
+        
+class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, transform=None):
         self.root = proc_preop
         self.raw_tumor_dir = raw_tumor_dir
@@ -139,6 +249,7 @@ class subject_patient_pairs(Dataset):
         self.skip = skip
         self.tumor_sensitivity = tumor_sensitivity
         self.data = []
+        # https://www.nature.com/articles/s41597-022-01806-4
 
         os.makedirs(self.save_dir, exist_ok=True)  # Ensure the save directory exists
         
