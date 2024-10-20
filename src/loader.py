@@ -129,7 +129,7 @@ class ShiftImage:
         return kornia_transform.translate(tensor.unsqueeze(0).double(), translation, mode='bilinear', padding_mode='border', align_corners=True).squeeze(0).float()
 
 
-class shifted_subject_patient_pairs(Dataset):
+class subject_patient_pairs(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, transform=None):
         self.root = proc_preop
         self.raw_tumor_dir = raw_tumor_dir

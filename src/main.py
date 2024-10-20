@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiamese
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import ShiftImage, subject_patient_pairs, shifted_subject_patient_pairs, balance_dataset, shift_image_numpy
+from loader import ShiftImage, subject_patient_pairs, balance_dataset
 import os
 from visualizations import *
 import argparse
@@ -270,18 +270,16 @@ if __name__ == "__main__":
     print("Using device:", device)
     if args.model == 'SLO':
         ## Always call T.ToTensor()
-        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
+        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   save_dir='./data/2D/',
                   transform=Compose([
-                    T.ToTensor()]))
-                    # ShiftImage(max_shift_x=20, max_shift_y=20)]))
-        
+                    T.ToTensor()]))        
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now
-        subject_images = shifted_subject_patient_pairs(proc_preop=args.preop_dir, 
+        subject_images = subject_patient_pairs(proc_preop=args.preop_dir, 
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.30,
                   transform=Compose([
