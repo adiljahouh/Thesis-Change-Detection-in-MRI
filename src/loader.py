@@ -10,7 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 import torchvision.transforms.functional as F
 import random
 import torch
-from scipy.ndimage import shift
+from scipy.ndimage import shift, zoom
 import kornia.geometry.transform as kornia_transform
 def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
     diff = np.abs(pre - post)
@@ -112,7 +112,28 @@ def shift_image_numpy(image: np.ndarray, shift_amount: tuple, fill_value=0, mode
     shifted_image = shift(image, shift=shift_amount, cval=fill_value, mode=mode)
     return shifted_image
 
+def downsize_if_needed_array(image_array: ndarray, target = 256) -> ndarray:
+    # Get the original size
+    original_height, original_width = image_array.shape
 
+    if original_height <= target and original_width <= target:
+        return image_array
+
+    if original_height > original_width:
+        # Set height to fixed_dim
+        new_height = target
+        resize_factor = new_height / original_height
+        new_width = int(original_width * resize_factor)
+    else:
+        # Set width to fixed_dim
+        new_width = target
+        resize_factor = new_width / original_width
+        new_height = int(original_height * resize_factor)
+
+    # Resize the image using zoom with cubic interpolation
+    resized_image = zoom(image_array, (resize_factor, resize_factor), order=3)
+
+    return resized_image
 
 class ShiftImage:
     def __init__(self, max_shift_x, max_shift_y):
@@ -162,7 +183,6 @@ class remindDataset(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
-                            print(preop_nifti_norm.shape, postop_nifti_norm.shape, tumor_norm.shape)
                             # Convert 3D images to 2D slices
                             images_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
                             images_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
@@ -176,8 +196,8 @@ class remindDataset(Dataset):
     def _process_pat_slices(self, pat_id, images_pre, images_post, mask_slices):
         """Process patient (PAT) slices and save them."""
         for i, (pre_slice, post_slice, mask_slice) in enumerate(zip(images_pre, images_post, mask_slices)):
-            pre_slice_pad = pad_slice(pre_slice[0])
-            post_slice_pad = pad_slice(post_slice[0])
+            pre_slice_pad = pad_slice(downsize_if_needed_array(pre_slice[0]))
+            post_slice_pad = pad_slice(downsize_if_needed_array(post_slice[0]))
             
             pre_slice_index: Tuple[int, int, int] = pre_slice[1]
             post_slice_index: Tuple[int, int, int] = post_slice[1]
