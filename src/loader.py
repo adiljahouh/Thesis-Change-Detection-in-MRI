@@ -7,11 +7,11 @@ from numpy import ndarray
 from typing import Tuple
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
-import torchvision.transforms.functional as F
 import random
 import torch
 from scipy.ndimage import shift, zoom
 import kornia.geometry.transform as kornia_transform
+from matplotlib import pyplot as plt
 def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
     diff = np.abs(pre - post)
     return diff
@@ -198,7 +198,7 @@ class remindDataset(Dataset):
         for i, (pre_slice, post_slice, mask_slice) in enumerate(zip(images_pre, images_post, mask_slices)):
             pre_slice_pad = pad_slice(downsize_if_needed_array(pre_slice[0]))
             post_slice_pad = pad_slice(downsize_if_needed_array(post_slice[0]))
-            
+            ## DO i need to pad and downsize the tumor too?
             pre_slice_index: Tuple[int, int, int] = pre_slice[1]
             post_slice_index: Tuple[int, int, int] = post_slice[1]
             tumor_slice_index: Tuple[int, int, int] = mask_slice[1]
@@ -223,6 +223,8 @@ class remindDataset(Dataset):
         save_path = os.path.join(self.save_dir, filename)
         if not os.path.exists(save_path):
             np.save(save_path, slice_array)
+            
+            #plt.imsave(save_path + '.png', slice_array, cmap='gray')
         return save_path
     
     def convert_tuple_to_string(self, index):
@@ -297,6 +299,7 @@ class aertsDataset(Dataset):
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
                             
                             # Convert 3D images to 2D slices
+                            
                             images_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
                             images_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
 
@@ -357,6 +360,7 @@ class aertsDataset(Dataset):
         filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npy"
         save_path = os.path.join(self.save_dir, filename)
         if not os.path.exists(save_path):
+            #plt.imsave(save_path + '.png', slice_array, cmap='gray')
             np.save(save_path, slice_array)
         return save_path
     

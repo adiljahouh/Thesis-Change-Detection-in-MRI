@@ -13,20 +13,35 @@ for patient_dir in "$BASE_DIR"/*; do
             if [ -d "$t1_converted_dir" ]; then
                 echo "Found T1_converted directory: $t1_converted_dir"
 
-                # Iterate through all .nii.gz files in the T1_converted directory
-                for nii_file in "$t1_converted_dir"/*.nii.gz; do
+                # Define output file name
+                output_file="$t1_converted_dir/t1_aligned_stripped.nii.gz"
+                
+                # Remove the output file if it exists
+                if [ -f "$output_file" ]; then
+                    echo "Removing existing output file: $output_file"
+                    rm "$output_file"
+                fi
+
+                  for nii_file in "$t1_converted_dir"/*.nii.gz; do
                     if [ -f "$nii_file" ]; then
-                        # Define output file name
-                        output_file="$t1_converted_dir/t1_aligned_stripped.nii.gz"
-                        
-                        # Check if the output file already exists
-                        if [ ! -f "$output_file" ]; then
-                            echo "Applying BET on $nii_file with f=0.4..."
-                            # Run the BET command
-                            bet "$nii_file" "$output_file" -f 0.4 -g 0
-                        else
-                            echo "Skipping $nii_file; output file $output_file already exists."
+                        # Skip the output file if it matches the current nii_file
+                        if [ "$nii_file" == "$output_file" ]; then
+                            continue
                         fi
+
+                        # Determine the -f parameter based on the file path
+                        if [[ "$nii_file" == *"Intraop"* ]]; then
+                            f_value=0.6
+                        elif [[ "$nii_file" == *"Preop"* ]]; then
+                            f_value=0.5
+                        else
+                            echo "Unknown type for $nii_file; skipping."
+                            continue
+                        fi
+
+                        echo "Applying BET on $nii_file with f=$f_value..."
+                        # Run the BET command
+                        bet "$nii_file" "$output_file" -f "$f_value" -g 0
                     else
                         echo "No .nii.gz files found in $t1_converted_dir"
                     fi

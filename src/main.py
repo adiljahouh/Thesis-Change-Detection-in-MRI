@@ -290,8 +290,9 @@ if __name__ == "__main__":
                     skip=args.skip, tumor_sensitivity=0.30, transform=transforms)
         subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiamese()
-
+    pass
     # balance subject_images based on label
+    
     print(f"Total number of images: {len(subject_images)}")
     # print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
     # print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
@@ -307,7 +308,6 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
     ## collates the values into one tensor per key
-    ## TODO: back to batchsize 16
     train_loader = DataLoader(train_subject_images, batch_size=args.batch_size, shuffle=False)
     val_loader = DataLoader(val_subject_images, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_subject_images, batch_size=args.batch_size, shuffle=False)
