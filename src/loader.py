@@ -135,6 +135,27 @@ def downsize_if_needed_array(image_array: ndarray, target = 256) -> ndarray:
 
     return resized_image
 
+def reorient_to_standard(image):
+    # Get the current orientation as axis codes
+    current_orientation = nib.aff2axcodes(image.affine)
+    # Define the desired orientation (RAS)
+    desired_orientation = ('L', 'A', 'S')
+
+    # Convert axis codes to orientation arrays
+    current_ornt = nib.orientations.axcodes2ornt(current_orientation)
+    desired_ornt = nib.orientations.axcodes2ornt(desired_orientation)
+
+    # Get the orientation transform
+    ornt_transform = nib.orientations.ornt_transform(current_ornt, desired_ornt)
+
+    # Apply the orientation transform
+    reoriented_data = nib.orientations.apply_orientation(image.get_fdata(), ornt_transform)
+    reoriented_affine = nib.orientations.inv_ornt_aff(ornt_transform, image.shape)
+    reoriented_affine = np.dot(image.affine, reoriented_affine)
+
+    # Create a new NIfTI image with the reoriented data and affine
+    reoriented_image = nib.Nifti1Image(reoriented_data, reoriented_affine)
+    return reoriented_image
 class ShiftImage:
     def __init__(self, max_shift_x, max_shift_y):
         self.max_shift_x = max_shift_x
@@ -171,14 +192,21 @@ class remindDataset(Dataset):
                             if "Intraop" in root_path:
                                 continue
                             print(f"Processing {pat_id}")
+                            
                             preop_nifti = nib.load(os.path.join(root_path, filename))
                             postop_nifti = nib.load(os.path.join(root_path.replace("Preop", "Intraop"), 
                                                                 filename))
+                            tumor = nib.load(os.path.join(root_path.replace("T1_converted", "tumor_converted"), 
+                                                          "1.nii.gz"))
+
+                            if nib.aff2axcodes(preop_nifti.affine) != ('L', 'A', 'S'):
+                                preop_nifti = reorient_to_standard(preop_nifti)
+                            
                             postop_nifti = resample_to_img(source_img=postop_nifti, target_img=preop_nifti, interpolation='nearest')
-                            tumor = nib.load(os.path.join(root_path.replace("T1_converted", "tumor_converted"), "1.nii.gz"))
                             tumor_resampled = resample_to_img(source_img=tumor, target_img=preop_nifti, interpolation='nearest')
+                            assert nib.aff2axcodes(preop_nifti.affine) == nib.aff2axcodes(postop_nifti.affine) == nib.aff2axcodes(tumor.affine) == ('L', 'A', 'S')
+                            
                             tumor_norm = normalize_nifti(tumor_resampled)
-                            # Normalize and resample preop and postop images
                             preop_nifti_norm = normalize_nifti(preop_nifti)
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
