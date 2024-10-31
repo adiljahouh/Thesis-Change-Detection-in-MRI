@@ -1,10 +1,18 @@
 #!/bin/bash
 
+# Set locale to ensure dot as decimal separator
+export LC_NUMERIC="C"
+
 # Base directory where the ReMIND dataset is stored
 BASE_DIR=~/Documents/TUE/preparationPhase/myProject/data/ReMIND_dataset/ReMIND-Manifest-Sept-2023/ReMIND
 
 # Iterate through each patient directory
 for patient_dir in "$BASE_DIR"/*; do
+    if [[ "$(basename "$patient_dir")" == Unused_* ]]; then
+        echo "Skipping: $(basename "$patient_dir") (Already marked as unused)"
+        continue
+    fi
+
     if [ -d "$patient_dir" ]; then
         echo "Processing patient: $(basename "$patient_dir")"
 
@@ -12,7 +20,8 @@ for patient_dir in "$BASE_DIR"/*; do
         found_t1_converted=false
 
         # Search for all T1_converted directories
-        find "$patient_dir" -type d -name "*T1_converted*" | while read -r t1_converted_dir; do
+        t1_converted_dirs=$(find "$patient_dir" -type d -name "*T1_converted*")
+        for t1_converted_dir in $t1_converted_dirs; do
             if [ -d "$t1_converted_dir" ]; then
                 found_t1_converted=true
                 echo "Found T1_converted directory: $t1_converted_dir"
@@ -33,7 +42,7 @@ for patient_dir in "$BASE_DIR"/*; do
 
                         # Determine the range of -f values based on the file path
                         if [[ "$nii_file" == *"Intraop"* ]]; then
-                            f_values=$(seq 0.5 0.1 0.8)
+                            f_values=$(seq 0.4 0.1 0.8)
                         elif [[ "$nii_file" == *"Preop"* ]]; then
                             f_values=$(seq 0.4 0.1 0.6)
                         else
@@ -43,6 +52,8 @@ for patient_dir in "$BASE_DIR"/*; do
 
                         # Apply BET for each -f value in the range
                         for f_value in $f_values; do
+                            # Format the f_value to use a dot as the decimal separator
+                            f_value=$(printf "%.1f" "$f_value")
                             output_file="${output_file_prefix}_f${f_value}.nii.gz"
                             echo "Applying BET on $nii_file with f=$f_value..."
                             bet "$nii_file" "$output_file" -f "$f_value" -g 0
