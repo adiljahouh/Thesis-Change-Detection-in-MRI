@@ -1,16 +1,17 @@
 # *.gz
 *.txt
+*.dcm
 *.log
 *.csv
 *.tsv
 data/2D/*
 data/raw/*
-data/ReMIND_dataset/*
-
-# Except for t1_converted directories a couple of levels deep
+data/ReMIND_dataset/**
+!data/ReMIND_dataset/**/
 !data/ReMIND_dataset/**/T1_converted/
 !data/ReMIND_dataset/**/T1_converted/**
-
+!data/ReMIND_dataset/**/tumor_converted/
+!data/ReMIND_dataset/**/tumor_converted/**
 data/processed/*
 *.pth
 *.pt
