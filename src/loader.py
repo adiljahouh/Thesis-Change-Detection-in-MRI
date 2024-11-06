@@ -189,7 +189,7 @@ class remindDataset(Dataset):
                     if filename.endswith(image_id):
                         try:
                             pat_id = root_path.split("/")[-3]
-                            if "Intraop" in root_path:
+                            if "Intraop" in root_path or "Unused" in root_path:
                                 continue
                             print(f"Processing {pat_id}")
                             
@@ -212,36 +212,42 @@ class remindDataset(Dataset):
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
                             # Convert 3D images to 2D slices
-                            images_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
-                            images_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
-                            mask_slices = convert_3d_into_2d(tumor_norm, skip=self.skip)
-                            self._process_pat_slices(pat_id, images_pre, images_post, mask_slices)
+                            images_and_indices_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
+                            images_and_indices_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
+                            masks_and_indices = convert_3d_into_2d(tumor_norm, skip=self.skip)
+                            self._process_pat_slices(pat_id, 
+                                                     images_and_indices_pre, 
+                                                     images_and_indices_post, 
+                                                     masks_and_indices)
                         except FileNotFoundError as e:
                             print(f"File not found: {e}")
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
-    def _process_pat_slices(self, pat_id, images_pre, images_post, mask_slices):
+    def _process_pat_slices(self, pat_id: str, 
+                            images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
+                            images_post: list[Tuple[ndarray, Tuple[int, int, int]]], 
+                            mask_slices: list[Tuple[ndarray, Tuple[int, int, int]]]):
         """Process patient (PAT) slices and save them."""
-        for i, (pre_slice, post_slice, mask_slice) in enumerate(zip(images_pre, images_post, mask_slices)):
-            pre_slice_pad = pad_slice(downsize_if_needed_array(pre_slice[0]))
-            post_slice_pad = pad_slice(downsize_if_needed_array(post_slice[0]))
+        for (pre_slice_and_index, post_slice_and_index, mask_slice_and_index) in  zip(images_pre, images_post, mask_slices):
+            pre_slice_padded = pad_slice(downsize_if_needed_array(pre_slice_and_index[0]))
+            post_slice_padded = pad_slice(downsize_if_needed_array(post_slice_and_index[0]))
             ## DO i need to pad and downsize the tumor too?
-            pre_slice_index: Tuple[int, int, int] = pre_slice[1]
-            post_slice_index: Tuple[int, int, int] = post_slice[1]
-            tumor_slice_index: Tuple[int, int, int] = mask_slice[1]
-            assert pre_slice_index == post_slice_index == tumor_slice_index, f"Indices\
-                tuples do not match: {pre_slice_index}, {post_slice_index}, {tumor_slice_index}"
+            pre_index = pre_slice_and_index[1]
+            post_index = post_slice_and_index[1]
+            mask_index = mask_slice_and_index[1]
+            assert pre_index == post_index == mask_index, f"Indices\
+                tuples do not match: {pre_index}, {post_index}, {mask_index}"
                 
-            assert pre_slice_pad.shape == post_slice_pad.shape  == (256, 256), f"Shapes do not match: {pre_slice_pad.shape}, {post_slice_pad.shape}"
-            label = 0 if has_tumor_cells(mask_slice[0], threshold=self.tumor_sensitivity) else 1
-            if slice_has_high_info(pre_slice_pad) and slice_has_high_info(post_slice_pad):
-                pre_path = self._save_slice(pre_slice_pad, pat_id, pre_slice_index, 'pre', label)
-                post_path = self._save_slice(post_slice_pad, pat_id, post_slice_index, 'post', label)
-                tumor_path = self._save_slice(mask_slice[0], pat_id, tumor_slice_index, 'tumor', label)
+            assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
+            label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
+            if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
+                pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
+                post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
+                tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
-                                  "index_pre": pre_slice_index, "index_post": post_slice_index})
+                                  "index_pre": pre_index, "index_post": post_index})
 
     def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):
         """Save the 2D slice as a numpy file and return the file path."""

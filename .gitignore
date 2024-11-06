@@ -8,11 +8,6 @@ data/*
 data/2D/*
 data/raw/*
 data/ReMIND_dataset/*
-# !data/ReMIND_dataset/**/
-# !data/ReMIND_dataset/**/T1_converted/
-# !data/ReMIND_dataset/**/T1_converted/**
-# !data/ReMIND_dataset/**/tumor_converted/
-# !data/ReMIND_dataset/**/tumor_converted/**
 data/processed/*
 *.pth
 *.pt
