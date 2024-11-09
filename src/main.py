@@ -286,7 +286,7 @@ if __name__ == "__main__":
                   tumor_sensitivity=0.30,transform=transforms)
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
-                    image_ids=['t1_aligned_stripped.nii.gz'], save_dir='./data/2D/',
+                    image_ids=['t1_aligned_stripped'], save_dir='./data/2D/',
                     skip=args.skip, tumor_sensitivity=0.30, transform=transforms)
         subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiamese()
