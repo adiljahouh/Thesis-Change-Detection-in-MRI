@@ -134,7 +134,6 @@ def downsize_if_needed_array(image_array: ndarray, target = 256) -> ndarray:
     resized_image = zoom(image_array, (resize_factor, resize_factor), order=3)
 
     return resized_image
-
 def reorient_to_standard(image):
     # Get the current orientation as axis codes
     current_orientation = nib.aff2axcodes(image.affine)
@@ -156,6 +155,13 @@ def reorient_to_standard(image):
     # Create a new NIfTI image with the reoriented data and affine
     reoriented_image = nib.Nifti1Image(reoriented_data, reoriented_affine)
     return reoriented_image
+
+def find_matching_file(directory, image_id):
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if image_id in file:
+                return os.path.join(root, file)
+    return None
 
 class ShiftImage:
     def __init__(self, max_shift_x, max_shift_y):
