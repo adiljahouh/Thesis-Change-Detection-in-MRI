@@ -138,7 +138,7 @@ def reorient_to_standard(image):
     # Get the current orientation as axis codes
     current_orientation = nib.aff2axcodes(image.affine)
     # Define the desired orientation (RAS)
-    desired_orientation = ('L', 'A', 'S')
+    desired_orientation = ('R', 'A', 'S')
 
     # Convert axis codes to orientation arrays
     current_ornt = nib.orientations.axcodes2ornt(current_orientation)
@@ -218,12 +218,12 @@ class remindDataset(Dataset):
                                                           "1.nii.gz"))
                             assert preop_nifti != None and postop_nifti != None and tumor != None
                             
-                            if nib.aff2axcodes(preop_nifti.affine) != ('L', 'A', 'S'):
+                            if nib.aff2axcodes(preop_nifti.affine) != ('R', 'A', 'S'):
                                 preop_nifti = reorient_to_standard(preop_nifti)
 
                             postop_nifti = resample_to_img(source_img=postop_nifti, target_img=preop_nifti, interpolation='nearest')
                             tumor_resampled = resample_to_img(source_img=tumor, target_img=preop_nifti, interpolation='nearest')
-                            assert nib.aff2axcodes(preop_nifti.affine) == nib.aff2axcodes(postop_nifti.affine) == nib.aff2axcodes(tumor_resampled.affine) == ('L', 'A', 'S'), "ArithmeticError: Affine mismatch"
+                            assert nib.aff2axcodes(preop_nifti.affine) == nib.aff2axcodes(postop_nifti.affine) == nib.aff2axcodes(tumor_resampled.affine) == ('R', 'A', 'S'), "ArithmeticError: Affine mismatch"
                             tumor_norm = normalize_nifti(tumor_resampled)
                             preop_nifti_norm = normalize_nifti(preop_nifti)
                             postop_nifti_norm = normalize_nifti(postop_nifti)
