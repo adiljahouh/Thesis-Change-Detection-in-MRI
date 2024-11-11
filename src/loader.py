@@ -258,6 +258,7 @@ class remindDataset(Dataset):
             pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
             print(f"{pat_id}_slice_{orientation}_pre")
             print(pre_slices)
+            pre_slices = pre_slices[::self.skip]
             for pre_slice in pre_slices:
                 pre_path = os.path.join(self.save_dir, pre_slice)
                 post_slice = pre_slice.replace('_pre_', '_post_')
@@ -285,7 +286,7 @@ class remindDataset(Dataset):
                     "index_pre": index_tuple,
                     "index_post": index_tuple,
                 })
-                print(f"Loaded existing slices for {pat_id}, with index_pre: {index_pre}, index_post: {index_post} using {pre_slice}")
+            print(f"loaded {len(pre_slices)} existing slices for {pat_id}")
     def _process_pat_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]], 
@@ -420,8 +421,8 @@ class aertsDataset(Dataset):
         for orientation in orientations:
             pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
             print(f"{pat_id}_slice_{orientation}_pre")
-            print(pre_slices)
-            
+            pre_slices = pre_slices[::self.skip]
+
             for pre_slice in pre_slices:
                 pre_path = os.path.join(self.save_dir, pre_slice)
                 post_slice = pre_slice.replace('_pre_', '_post_')
@@ -449,7 +450,7 @@ class aertsDataset(Dataset):
                     "index_pre": index_tuple,
                     "index_post": index_tuple,
                 })
-                print(f"Loaded existing slices for {pat_id}, with index_pre: {index_pre}, index_post: {index_post} using {pre_slice}")
+            print(f"loaded {len(pre_slices)} existing slices for {pat_id}")
                 
     def _find_nifti_patients_and_save_slices(self):
         for root, dirs, files in os.walk(self.root):
