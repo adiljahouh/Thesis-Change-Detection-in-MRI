@@ -262,6 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--threshold", type=float, default=0.2, help="Threshold for similar pairs, prevents overfit")
     parser.add_argument("--skip", type=int, default=1, help=" Every xth slice to take from the image, if 1 take all. Saves memory")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
+    parser.add_argument("--load_slices", action="store_true", help="Load slices instead of full 3D image")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -283,11 +284,11 @@ if __name__ == "__main__":
         aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
                   raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
-                  tumor_sensitivity=0.30,transform=transforms)
+                  tumor_sensitivity=0.30,transform=transforms, load_slices=args.load_slices)
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir='./data/2D/',
-                    skip=args.skip, tumor_sensitivity=0.30, transform=transforms)
+                    skip=args.skip, tumor_sensitivity=0.30, transform=transforms, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiamese()
     pass

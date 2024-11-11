@@ -178,7 +178,7 @@ class ShiftImage:
         return kornia_transform.translate(tensor.unsqueeze(0).double(), translation, mode='bilinear', padding_mode='border', align_corners=True).squeeze(0).float()
 
 class remindDataset(Dataset):
-    def __init__(self, preop_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, transform=None):
+    def __init__(self, preop_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices=False, transform=None):
         self.preop_dir = preop_dir
         self.transform = transform
         self.image_ids = image_ids
@@ -186,13 +186,17 @@ class remindDataset(Dataset):
         self.skip = skip
         self.tumor_sensitivity = tumor_sensitivity
         self.data = []
+        self.load_slices = load_slices
+        self.preop_dir = preop_dir
         # https://www.nature.com/articles/s41597-024-03295-z
         print("Starting remind dataset")
         
         os.makedirs(self.save_dir, exist_ok=True)  # Ensure the save directory exists
         os.makedirs(os.path.join(self.save_dir, 'overview'), exist_ok=True)  # Ensure the overview directory exists
+        self._find_nifti_patients_and_get_slices()
 
-        for root_path, dirs, files in os.walk(preop_dir):
+    def _find_nifti_patients_and_get_slices(self):
+        for root_path, dirs, files in os.walk(self.preop_dir):
             for filename in files:
                 for image_id in self.image_ids:
                     if filename.startswith(image_id):
@@ -201,10 +205,11 @@ class remindDataset(Dataset):
                             if "Intraop" in root_path or "Unused" in root_path:
                                 continue
                             print(f"Processing {pat_id}, loading {filename}")
-                            preop_nifti = nib.load(os.path.join(root_path, filename))
-                            if self._slices_already_exist(pat_id, preop_nifti):
-                                print(f"Slices already exist for {pat_id}, skipping resampling and slicing.")
+                            if self.load_slices:
+                                print(f"Loading existing slices for {pat_id} instead of processing...")
+                                self._load_existing_slices(pat_id)
                                 continue
+                            preop_nifti = nib.load(os.path.join(root_path, filename))
                             post_op_path = root_path.replace("Preop", "Intraop")
             
                             # Find the matching filename in the post_op directory
@@ -246,18 +251,41 @@ class remindDataset(Dataset):
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
+    def _load_existing_slices(self, pat_id: str):
+        """Load existing slices for the given pat_id."""
+        orientations = ['axial', 'coronal', 'sagittal']
+        for orientation in orientations:
+            pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
+            print(f"{pat_id}_slice_{orientation}_pre")
+            print(pre_slices)
+            for pre_slice in pre_slices:
+                pre_path = os.path.join(self.save_dir, pre_slice)
+                post_slice = pre_slice.replace('_pre_', '_post_')
+                post_path = os.path.join(self.save_dir, post_slice)
+                if not os.path.exists(post_path):
+                    continue
+                tumor_path = ""
+                if "ReMIND" in pat_id:
+                    tumor_slice = pre_slice.replace('_pre_', '_tumor_')
+                    tumor_path = os.path.join(self.save_dir, tumor_slice)
+                    if not os.path.exists(tumor_path):
+                        tumor_path = ""
+                label = int(pre_slice.split('_')[-1].split('.')[0])
+                index_pre = int(pre_slice.split('_')[3])
+                index_post = int(post_slice.split('_')[3])
+                assert index_pre == index_post, f"Indices do not match: {index_pre}, {index_post}"
+                index_tuple = self._get_index_tuple(index_pre, orientation)
 
-    def _slices_already_exist(self, pat_id: str, preop_nifti: nib.Nifti1Image) -> bool:
-        """Check if the expected (max) number of slices already exists for the given pat_id."""
-        expected_slices = sum(preop_nifti.shape) * 3
-        print(f"Expected slices: {expected_slices}")
-        existing_slices = len([f for f in os.listdir(self.save_dir) if f.startswith(pat_id)])
-        print(f"Existing slices: {existing_slices}")
-        if existing_slices >= expected_slices:
-            print(f"Slices already exist for {pat_id}, skipping resampling and slicing.")
-            return True
-        return False
-    
+                self.data.append({
+                    "pre_path": pre_path,
+                    "post_path": post_path,
+                    "tumor_path": tumor_path,
+                    "label": label,
+                    "pat_id": pat_id,
+                    "index_pre": index_tuple,
+                    "index_post": index_tuple,
+                })
+                print(f"Loaded existing slices for {pat_id}, with index_pre: {index_pre}, index_post: {index_post} using {pre_slice}")
     def _process_pat_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]], 
@@ -282,7 +310,7 @@ class remindDataset(Dataset):
                 post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
                 pre_post_tumor_vis = self._save_overview(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label)
-
+            
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
                                   "index_pre": pre_index, "index_post": post_index})
@@ -335,8 +363,18 @@ class remindDataset(Dataset):
         elif index[1] != -1:
             return "coronal_" + str(index[1])
         elif index[2] != -1:
-            return "sagittal" + str(index[2])
-        
+            return "sagittal_" + str(index[2])
+    
+    def _get_index_tuple(self, index: int, orientation: str) -> Tuple[int, int, int]:
+        """Convert index to a tuple based on orientation."""
+        if orientation == 'axial':
+            return (index, -1, -1)
+        elif orientation == 'coronal':
+            return (-1, index, -1)
+        elif orientation == 'sagittal':
+            return (-1, -1, index)
+        return (-1, -1, -1)
+    
     def __len__(self):
         return len(self.data)
 
@@ -359,7 +397,7 @@ class remindDataset(Dataset):
                 "baseline": baseline, "tumor_path": triplet["tumor_path"]}
 
 class aertsDataset(Dataset):
-    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, transform=None):
+    def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
         self.root = proc_preop
         self.raw_tumor_dir = raw_tumor_dir
         self.transform = transform
@@ -368,10 +406,52 @@ class aertsDataset(Dataset):
         self.skip = skip
         self.tumor_sensitivity = tumor_sensitivity
         self.data = []
+        self.load_slices = load_slices
         # https://www.nature.com/articles/s41597-022-01806-4
 
         os.makedirs(self.save_dir, exist_ok=True)  # Ensure the save directory exists
-        
+        os.makedirs(os.path.join(self.save_dir, 'overview'), exist_ok=True)  # Ensure the overview directory exists
+        self._find_nifti_patients_and_save_slices()
+
+
+    def _load_existing_slices(self, pat_id: str):
+        """Load existing slices for the given pat_id."""
+        orientations = ['axial', 'coronal', 'sagittal']
+        for orientation in orientations:
+            pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
+            print(f"{pat_id}_slice_{orientation}_pre")
+            print(pre_slices)
+            
+            for pre_slice in pre_slices:
+                pre_path = os.path.join(self.save_dir, pre_slice)
+                post_slice = pre_slice.replace('_pre_', '_post_')
+                post_path = os.path.join(self.save_dir, post_slice)
+                if not os.path.exists(post_path):
+                    continue
+                tumor_path = ""
+                if "PAT" in pat_id:
+                    tumor_slice = pre_slice.replace('_pre_', '_tumor_')
+                    tumor_path = os.path.join(self.save_dir, tumor_slice)
+                    if not os.path.exists(tumor_path):
+                        tumor_path = ""
+                label = int(pre_slice.split('_')[-1].split('.')[0])
+                index_pre = int(pre_slice.split('_')[3])
+                index_post = int(post_slice.split('_')[3])
+                assert index_pre == index_post, f"Indices do not match: {index_pre}, {index_post}"
+                index_tuple = self._get_index_tuple(index_pre, orientation)
+
+                self.data.append({
+                    "pre_path": pre_path,
+                    "post_path": post_path,
+                    "tumor_path": tumor_path,
+                    "label": label,
+                    "pat_id": pat_id,
+                    "index_pre": index_tuple,
+                    "index_post": index_tuple,
+                })
+                print(f"Loaded existing slices for {pat_id}, with index_pre: {index_pre}, index_post: {index_post} using {pre_slice}")
+                
+    def _find_nifti_patients_and_save_slices(self):
         for root, dirs, files in os.walk(self.root):
             for filename in files:
                 for image_id in self.image_ids:
@@ -379,14 +459,18 @@ class aertsDataset(Dataset):
                         try:
                             pat_id = root.split("/")[-1]
                             print(f"Processing {pat_id}")
+                            if self.load_slices:
+                                print(f"Loading existing slices for {pat_id} instead of processing...")
+                                self._load_existing_slices(pat_id)
+                                continue
                             preop_nifti = nib.load(os.path.join(root, filename))
-                            
+
                             postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                                 filename.replace("preop", "postop")))
 
                             if "PAT" in pat_id:
                                 try:
-                                    tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
+                                    tumor = nib.load(os.path.join(f"{self.raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
                                     tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
                                     tumor_norm = normalize_nifti(tumor_resampled)
                                     assert tumor_norm.max() <= 1.0, f"max: {tumor_norm.max()}"
@@ -416,17 +500,16 @@ class aertsDataset(Dataset):
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
+    def _get_index_tuple(self, index: int, orientation: str) -> Tuple[int, int, int]:
+        """Convert index to a tuple based on orientation."""
+        if orientation == 'axial':
+            return (index, -1, -1)
+        elif orientation == 'coronal':
+            return (-1, index, -1)
+        elif orientation == 'sagittal':
+            return (-1, -1, index)
+        return (-1, -1, -1)
     
-    def _slices_already_exist(self, pat_id: str, preop_nifti: nib.Nifti1Image) -> bool:
-        """Check if the expected (max) number of slices already exists for the given pat_id."""
-        expected_slices = sum(preop_nifti.shape) * 2 if "-CON" in pat_id else sum(preop_nifti.shape) * 3
-        print(f"Expected slices: {expected_slices}")
-        existing_slices = len([f for f in os.listdir(self.save_dir) if f.startswith(pat_id)])
-        print(f"Existing slices: {existing_slices}")
-        if existing_slices >= expected_slices:
-            print(f"Slices already exist for {pat_id}, skipping resampling and slicing.")
-            return True
-        return False
     def _process_con_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]]):
@@ -491,7 +574,7 @@ class aertsDataset(Dataset):
         elif index[1] != -1:
             return "coronal_" + str(index[1])
         elif index[2] != -1:
-            return "sagittal" + str(index[2])
+            return "sagittal_" + str(index[2])
         
     def __len__(self):
         return len(self.data)
