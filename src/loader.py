@@ -351,7 +351,7 @@ class remindDataset(Dataset):
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             #TODO: remove the label from this condition
-            if label == 0:
+            if label == 1:
                 return
             if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
@@ -539,7 +539,7 @@ class aertsDataset(Dataset):
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
-            if label == 0:
+            if label == 1:
                 return
             if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', label)
