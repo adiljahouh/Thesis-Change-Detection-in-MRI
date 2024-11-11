@@ -96,6 +96,14 @@ def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
     ## checks if the slice has tumor cells by a certain value threshold
     return np.any(slice_2d >= threshold)
 
+
+def convert_tuple_to_string(self, index):
+    if index[0] != -1:
+        return "axial_" + str(index[0])
+    elif index[1] != -1:
+        return "coronal_" + str(index[1])
+    elif index[2] != -1:
+        return "sagittal_" + str(index[2])
 def shift_image_numpy(image: np.ndarray, shift_amount: tuple, fill_value=0, mode='nearest') -> np.ndarray:
     """
     Shift an image using NumPy and fill the edges with the specified fill_value.
@@ -163,11 +171,11 @@ def find_matching_file(directory, image_id):
                 return os.path.join(root, file)
     return None
 
-def save_before_comparison_with_tumor(self, pre_slice: ndarray, post_slice: ndarray, mask_slice: ndarray, pat_id: str, index: Tuple, label: int):
+def save_before_comparison_with_tumor(pre_slice: ndarray, post_slice: ndarray, mask_slice: ndarray, pat_id: str, index: Tuple, label: int, save_dir: str):
     """Save the overview image with pre slice, tumor overlay, and post slice."""
-    brain_axis = self.convert_tuple_to_string(index)
+    brain_axis = convert_tuple_to_string(index)
     filename = f"{pat_id}_slice_{brain_axis}_label_{label}.png"
-    save_path = os.path.join(self.save_dir, 'overview', filename)
+    save_path = os.path.join(save_dir, 'overview', filename)
     assert pre_slice.shape == post_slice.shape == mask_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}, {mask_slice.shape}"
     # Create the tumor overlay on the pre slice
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
@@ -190,6 +198,16 @@ def save_before_comparison_with_tumor(self, pre_slice: ndarray, post_slice: ndar
     fig.savefig(save_path, bbox_inches='tight')
     plt.close(fig)
     return save_path
+
+def get_index_tuple(index: int, orientation: str) -> Tuple[int, int, int]:
+    """Convert index to a tuple based on orientation."""
+    if orientation == 'axial':
+        return (index, -1, -1)
+    elif orientation == 'coronal':
+        return (-1, index, -1)
+    elif orientation == 'sagittal':
+        return (-1, -1, index)
+    return (-1, -1, -1)
 
 class ShiftImage:
     def __init__(self, max_shift_x, max_shift_y):
@@ -302,7 +320,7 @@ class remindDataset(Dataset):
                 index_pre = int(pre_slice.split('_')[3])
                 index_post = int(post_slice.split('_')[3])
                 assert index_pre == index_post, f"Indices do not match: {index_pre}, {index_post}"
-                index_tuple = self._get_index_tuple(index_pre, orientation)
+                index_tuple = get_index_tuple(index_pre, orientation)
 
                 self.data.append({
                     "pre_path": pre_path,
@@ -339,7 +357,7 @@ class remindDataset(Dataset):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
-                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label)
+                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir)
             
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
@@ -348,7 +366,7 @@ class remindDataset(Dataset):
 
     def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):
         """Save the 2D slice as a numpy file and return the file path."""
-        brain_axis = self.convert_tuple_to_string(index)
+        brain_axis = convert_tuple_to_string(index)
         ##TODO: remove label from this
         filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npz"
         save_path = os.path.join(self.save_dir, filename)
@@ -358,25 +376,6 @@ class remindDataset(Dataset):
             #plt.imsave(save_path + '.png', slice_array, cmap='gray')
         return save_path
     
-        
-    def convert_tuple_to_string(self, index):
-        
-        if index[0] != -1:
-            return "axial_" + str(index[0])
-        elif index[1] != -1:
-            return "coronal_" + str(index[1])
-        elif index[2] != -1:
-            return "sagittal_" + str(index[2])
-    
-    def _get_index_tuple(self, index: int, orientation: str) -> Tuple[int, int, int]:
-        """Convert index to a tuple based on orientation."""
-        if orientation == 'axial':
-            return (index, -1, -1)
-        elif orientation == 'coronal':
-            return (-1, index, -1)
-        elif orientation == 'sagittal':
-            return (-1, -1, index)
-        return (-1, -1, -1)
     
     def __len__(self):
         return len(self.data)
@@ -441,7 +440,7 @@ class aertsDataset(Dataset):
                 index_pre = int(pre_slice.split('_')[3])
                 index_post = int(post_slice.split('_')[3])
                 assert index_pre == index_post, f"Indices do not match: {index_pre}, {index_post}"
-                index_tuple = self._get_index_tuple(index_pre, orientation)
+                index_tuple = get_index_tuple(index_pre, orientation)
 
                 self.data.append({
                     "pre_path": pre_path,
@@ -503,16 +502,6 @@ class aertsDataset(Dataset):
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
-    def _get_index_tuple(self, index: int, orientation: str) -> Tuple[int, int, int]:
-        """Convert index to a tuple based on orientation."""
-        if orientation == 'axial':
-            return (index, -1, -1)
-        elif orientation == 'coronal':
-            return (-1, index, -1)
-        elif orientation == 'sagittal':
-            return (-1, -1, index)
-        return (-1, -1, -1)
-    
     def _process_con_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]]):
@@ -556,14 +545,14 @@ class aertsDataset(Dataset):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_slice_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, tumor_slice_index, 'tumor', label)
-                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_slice_index, label)
+                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_slice_index, label, self.save_dir)
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
                                   "index_pre": pre_slice_index, "index_post": post_slice_index})
 
     def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):
         """Save the 2D slice as a numpy file and return the file path."""
-        brain_axis = self.convert_tuple_to_string(index)
+        brain_axis = convert_tuple_to_string(index)
         ##TODO: remove label from this
         filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npz"
         save_path = os.path.join(self.save_dir, filename)
@@ -572,14 +561,6 @@ class aertsDataset(Dataset):
             np.savez_compressed(save_path, data=slice_array)
         return save_path
     
-    def convert_tuple_to_string(self, index):
-        
-        if index[0] != -1:
-            return "axial_" + str(index[0])
-        elif index[1] != -1:
-            return "coronal_" + str(index[1])
-        elif index[2] != -1:
-            return "sagittal_" + str(index[2])
         
     def __len__(self):
         return len(self.data)
