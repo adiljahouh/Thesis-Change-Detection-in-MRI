@@ -163,6 +163,34 @@ def find_matching_file(directory, image_id):
                 return os.path.join(root, file)
     return None
 
+def save_before_comparison_with_tumor(self, pre_slice: ndarray, post_slice: ndarray, mask_slice: ndarray, pat_id: str, index: Tuple, label: int):
+    """Save the overview image with pre slice, tumor overlay, and post slice."""
+    brain_axis = self.convert_tuple_to_string(index)
+    filename = f"{pat_id}_slice_{brain_axis}_label_{label}.png"
+    save_path = os.path.join(self.save_dir, 'overview', filename)
+    assert pre_slice.shape == post_slice.shape == mask_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}, {mask_slice.shape}"
+    # Create the tumor overlay on the pre slice
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+    
+    # Plot pre slice in grayscale
+    ax1.imshow(pre_slice, cmap='gray')
+    
+    # Create and plot tumor overlay
+    tumor_overlay = np.ma.masked_where(mask_slice == 0, mask_slice)
+    tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
+    ax1.imshow(tumor_overlay, cmap='jet', alpha=1)
+    ax1.axis('off')
+    
+    # Plot post slice in grayscale
+    ax2.imshow(post_slice, cmap='gray')
+    ax2.axis('off')
+
+    # Save figure with tight layout
+    fig.tight_layout()
+    fig.savefig(save_path, bbox_inches='tight')
+    plt.close(fig)
+    return save_path
+
 class ShiftImage:
     def __init__(self, max_shift_x, max_shift_y):
         self.max_shift_x = max_shift_x
@@ -256,8 +284,7 @@ class remindDataset(Dataset):
         orientations = ['axial', 'coronal', 'sagittal']
         for orientation in orientations:
             pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
-            print(f"{pat_id}_slice_{orientation}_pre")
-            print(pre_slices)
+            # print(f"{pat_id}_slice_{orientation}_pre")
             pre_slices = pre_slices[::self.skip]
             for pre_slice in pre_slices:
                 pre_path = os.path.join(self.save_dir, pre_slice)
@@ -306,11 +333,13 @@ class remindDataset(Dataset):
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             #TODO: remove the label from this condition
+            if label == 0:
+                return
             if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
-                pre_post_tumor_vis = self._save_overview(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label)
+                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label)
             
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
@@ -329,33 +358,6 @@ class remindDataset(Dataset):
             #plt.imsave(save_path + '.png', slice_array, cmap='gray')
         return save_path
     
-    def _save_overview(self, pre_slice: ndarray, post_slice: ndarray, mask_slice: ndarray, pat_id: str, index: Tuple, label: int):
-        """Save the overview image with pre slice, tumor overlay, and post slice."""
-        brain_axis = self.convert_tuple_to_string(index)
-        filename = f"{pat_id}_slice_{brain_axis}_label_{label}.png"
-        save_path = os.path.join(self.save_dir, 'overview', filename)
-        assert pre_slice.shape == post_slice.shape == mask_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}, {mask_slice.shape}"
-        # Create the tumor overlay on the pre slice
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-        
-        # Plot pre slice in grayscale
-        ax1.imshow(pre_slice, cmap='gray')
-        
-        # Create and plot tumor overlay
-        tumor_overlay = np.ma.masked_where(mask_slice == 0, mask_slice)
-        tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
-        ax1.imshow(tumor_overlay, cmap='jet', alpha=1)
-        ax1.axis('off')
-        
-        # Plot post slice in grayscale
-        ax2.imshow(post_slice, cmap='gray')
-        ax2.axis('off')
-
-        # Save figure with tight layout
-        fig.tight_layout()
-        fig.savefig(save_path, bbox_inches='tight')
-        plt.close(fig)
-        return save_path
         
     def convert_tuple_to_string(self, index):
         
@@ -420,7 +422,7 @@ class aertsDataset(Dataset):
         orientations = ['axial', 'coronal', 'sagittal']
         for orientation in orientations:
             pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
-            print(f"{pat_id}_slice_{orientation}_pre")
+            # print(f"{pat_id}_slice_{orientation}_pre")
             pre_slices = pre_slices[::self.skip]
 
             for pre_slice in pre_slices:
@@ -548,11 +550,13 @@ class aertsDataset(Dataset):
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
-            
+            if label == 0:
+                return
             if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_slice_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, tumor_slice_index, 'tumor', label)
+                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_slice_index, label)
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
                                   "index_pre": pre_slice_index, "index_post": post_slice_index})
