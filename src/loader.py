@@ -97,7 +97,7 @@ def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
     return np.any(slice_2d >= threshold)
 
 
-def convert_tuple_to_string(self, index):
+def convert_tuple_to_string(index):
     if index[0] != -1:
         return "axial_" + str(index[0])
     elif index[1] != -1:
