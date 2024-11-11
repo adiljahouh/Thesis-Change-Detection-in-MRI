@@ -171,34 +171,41 @@ def find_matching_file(directory, image_id):
                 return os.path.join(root, file)
     return None
 
-def save_before_comparison_with_tumor(pre_slice: ndarray, post_slice: ndarray, mask_slice: ndarray, pat_id: str, index: Tuple, label: int, save_dir: str):
-    """Save the overview image with pre slice, tumor overlay, and post slice."""
+def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, mask_slice: np.ndarray, pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str) -> str:
+    """Save the comparison image with tumor overlay, pre slice, and post slice."""
     brain_axis = convert_tuple_to_string(index)
-    filename = f"{pat_id}_slice_{brain_axis}_label_{label}.png"
+    filename = f"{pat_id}_slice_{brain_axis}_comparison.png"
     save_path = os.path.join(save_dir, 'overview', filename)
-    assert pre_slice.shape == post_slice.shape == mask_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}, {mask_slice.shape}"
+
     # Create the tumor overlay on the pre slice
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-    
-    # Plot pre slice in grayscale
-    ax1.imshow(pre_slice, cmap='gray')
-    
-    # Create and plot tumor overlay
     tumor_overlay = np.ma.masked_where(mask_slice == 0, mask_slice)
     tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
-    ax1.imshow(tumor_overlay, cmap='jet', alpha=1)
-    ax1.axis('off')
-    
-    # Plot post slice in grayscale
-    ax2.imshow(post_slice, cmap='gray')
-    ax2.axis('off')
 
-    # Save figure with tight layout
+    # Plot the images
+    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+
+    # First image: pre slice with tumor overlay
+    ax[0].imshow(pre_slice, cmap='gray')
+    ax[0].imshow(tumor_overlay_normalized, cmap='hot', alpha=1)
+    ax[0].axis('off')
+    ax[0].set_title('Pre Slice with Tumor Overlay')
+
+    # Second image: regular pre slice
+    ax[1].imshow(pre_slice, cmap='gray')
+    ax[1].axis('off')
+    ax[1].set_title('Pre Slice')
+
+    # Third image: post slice
+    ax[2].imshow(post_slice, cmap='gray')
+    ax[2].axis('off')
+    ax[2].set_title('Post Slice')
+
+    # Save the figure
     fig.tight_layout()
     fig.savefig(save_path, bbox_inches='tight')
     plt.close(fig)
-    return save_path
 
+    return save_path
 def get_index_tuple(index: int, orientation: str) -> Tuple[int, int, int]:
     """Convert index to a tuple based on orientation."""
     if orientation == 'axial':
@@ -352,7 +359,7 @@ class remindDataset(Dataset):
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             #TODO: remove the label from this condition
             if label == 1:
-                return
+                continue
             if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
@@ -540,7 +547,7 @@ class aertsDataset(Dataset):
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             if label == 1:
-                return
+                continue
             if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_slice_index, 'post', label)
