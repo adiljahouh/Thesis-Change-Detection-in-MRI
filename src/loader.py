@@ -131,7 +131,7 @@ def downsize_if_needed_array(image_array: ndarray, target = 256) -> ndarray:
         new_height = int(original_height * resize_factor)
 
     # Resize the image using zoom with cubic interpolation
-    resized_image = zoom(image_array, (resize_factor, resize_factor), order=3)
+    resized_image = zoom(image_array, (resize_factor, resize_factor), order=0)
 
     return resized_image
 def reorient_to_standard(image):
@@ -201,8 +201,10 @@ class remindDataset(Dataset):
                             if "Intraop" in root_path or "Unused" in root_path:
                                 continue
                             print(f"Processing {pat_id}, loading {filename}")
-                            
                             preop_nifti = nib.load(os.path.join(root_path, filename))
+                            if self._slices_already_exist(pat_id, preop_nifti):
+                                print(f"Slices already exist for {pat_id}, skipping resampling and slicing.")
+                                continue
                             post_op_path = root_path.replace("Preop", "Intraop")
             
                             # Find the matching filename in the post_op directory
@@ -244,6 +246,18 @@ class remindDataset(Dataset):
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
+
+    def _slices_already_exist(self, pat_id: str, preop_nifti: nib.Nifti1Image) -> bool:
+        """Check if the expected (max) number of slices already exists for the given pat_id."""
+        expected_slices = sum(preop_nifti.shape) * 3
+        print(f"Expected slices: {expected_slices}")
+        existing_slices = len([f for f in os.listdir(self.save_dir) if f.startswith(pat_id)])
+        print(f"Existing slices: {existing_slices}")
+        if existing_slices >= expected_slices:
+            print(f"Slices already exist for {pat_id}, skipping resampling and slicing.")
+            return True
+        return False
+    
     def _process_pat_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]], 
@@ -342,7 +356,7 @@ class remindDataset(Dataset):
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline}
+                "baseline": baseline, "tumor_path": triplet["tumor_path"]}
 
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, transform=None):
@@ -366,6 +380,7 @@ class aertsDataset(Dataset):
                             pat_id = root.split("/")[-1]
                             print(f"Processing {pat_id}")
                             preop_nifti = nib.load(os.path.join(root, filename))
+                            
                             postop_nifti = nib.load(os.path.join(root.replace("preop", "postop"), 
                                                                 filename.replace("preop", "postop")))
 
@@ -374,6 +389,8 @@ class aertsDataset(Dataset):
                                     tumor = nib.load(os.path.join(f"{raw_tumor_dir}/{pat_id}/anat/{pat_id}_space_T1_label-tumor.nii"))
                                     tumor_resampled = resample_to_img(tumor, preop_nifti, interpolation='nearest')
                                     tumor_norm = normalize_nifti(tumor_resampled)
+                                    assert tumor_norm.max() <= 1.0, f"max: {tumor_norm.max()}"
+
                                 except FileNotFoundError:
                                     print(f"Tumor not found for {pat_id}")
                                     tumor_norm = None
@@ -383,7 +400,7 @@ class aertsDataset(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
-                            
+
                             # Convert 3D images to 2D slices
                             
                             images_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
@@ -399,13 +416,24 @@ class aertsDataset(Dataset):
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
+    
+    def _slices_already_exist(self, pat_id: str, preop_nifti: nib.Nifti1Image) -> bool:
+        """Check if the expected (max) number of slices already exists for the given pat_id."""
+        expected_slices = sum(preop_nifti.shape) * 2 if "-CON" in pat_id else sum(preop_nifti.shape) * 3
+        print(f"Expected slices: {expected_slices}")
+        existing_slices = len([f for f in os.listdir(self.save_dir) if f.startswith(pat_id)])
+        print(f"Existing slices: {existing_slices}")
+        if existing_slices >= expected_slices:
+            print(f"Slices already exist for {pat_id}, skipping resampling and slicing.")
+            return True
+        return False
     def _process_con_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]]):
         """Process control patient (CON) slices and save them."""
         for (pre_slice_and_index, post_slice_and_index) in  zip(images_pre, images_post):
-            pre_slice_padded = pad_slice(pre_slice_and_index[0])
-            post_slice_padded = pad_slice(post_slice_and_index[0])
+            pre_slice_padded = pad_slice(downsize_if_needed_array(pre_slice_and_index[0]))
+            post_slice_padded = pad_slice(downsize_if_needed_array(post_slice_and_index[0]))
 
             pre_slice_index= pre_slice_and_index[1]
             post_slice_index= post_slice_and_index[1]
@@ -416,7 +444,7 @@ class aertsDataset(Dataset):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', 1)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_slice_index, 'post', 1)
                 self.data.append({"pre_path": pre_path, "post_path": post_path, "label": 1, "pat_id": pat_id,
-                                  "index_pre": pre_slice_index, "index_post": post_slice_index})
+                                  "index_pre": pre_slice_index, "index_post": post_slice_index, "tumor_path": ""})
 
     def _process_pat_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
@@ -485,7 +513,7 @@ class aertsDataset(Dataset):
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline}
+                "baseline": baseline, "tumor_path": triplet["tumor_path"]}
 
 
                 
