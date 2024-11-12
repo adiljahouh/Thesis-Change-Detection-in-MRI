@@ -170,6 +170,16 @@ def find_matching_file(directory, image_id):
             if image_id in file:
                 return os.path.join(root, file)
     return None
+def is_preop_the_target_shape(preop_shape: Tuple[int, int, int], postop_shape: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    # Calculate the aspect ratios for each dimension
+    preop_aspect_ratio = np.std([preop_shape[0] / preop_shape[1], preop_shape[1] / preop_shape[2], preop_shape[2] / preop_shape[0]])
+    postop_aspect_ratio = np.std([postop_shape[0] / postop_shape[1], postop_shape[1] / postop_shape[2], postop_shape[2] / postop_shape[0]])
+
+    # Choose the shape with the aspect ratio closest to 1
+    if preop_aspect_ratio < postop_aspect_ratio:
+        return True
+    else:
+        return False
 
 def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, mask_slice: np.ndarray, pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str, color='hot') -> str:
     """Save the comparison image with tumor overlay, pre slice, and post slice."""
@@ -551,7 +561,9 @@ class aertsDataset(Dataset):
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             if label == 1:
                 continue
-            if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
+            #NOTE: since we are NOT using remind for control pairs (label 1) we don't need to check for high info
+            # because sometimes this filters too strongly since the images are heavily padded so we loosen the percentage minimum
+            if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.005) and slice_has_high_info(post_slice_padded, value_minimum=0.15, percentage_minimum=0.005):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_slice_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, tumor_slice_index, 'tumor', label)
@@ -563,7 +575,6 @@ class aertsDataset(Dataset):
     def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):
         """Save the 2D slice as a numpy file and return the file path."""
         brain_axis = convert_tuple_to_string(index)
-        ##TODO: remove label from this
         filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npz"
         save_path = os.path.join(self.save_dir, filename)
         if not os.path.exists(save_path):
