@@ -171,7 +171,7 @@ def find_matching_file(directory, image_id):
                 return os.path.join(root, file)
     return None
 
-def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, mask_slice: np.ndarray, pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str) -> str:
+def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, mask_slice: np.ndarray, pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str, color='hot') -> str:
     """Save the comparison image with tumor overlay, pre slice, and post slice."""
     brain_axis = convert_tuple_to_string(index)
     filename = f"{pat_id}_slice_{brain_axis}_comparison.png"
@@ -186,7 +186,7 @@ def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndar
 
     # First image: pre slice with tumor overlay
     ax[0].imshow(pre_slice, cmap='gray')
-    ax[0].imshow(tumor_overlay_normalized, cmap='hot', alpha=1)
+    ax[0].imshow(tumor_overlay_normalized, cmap=color, alpha=1)
     ax[0].axis('off')
     ax[0].set_title('Pre Slice with Tumor Overlay')
 
@@ -364,7 +364,7 @@ class remindDataset(Dataset):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
-                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir)
+                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir, 'jet')
             
                 self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                   "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
@@ -467,6 +467,9 @@ class aertsDataset(Dataset):
                     if filename.endswith(image_id):
                         try:
                             pat_id = root.split("/")[-1]
+                            if pat_id == "sub-PAT24":
+                                print("skippging pat24 since it has a bad tumor")
+                                continue
                             print(f"Processing {pat_id}")
                             if self.load_slices:
                                 print(f"Loading existing slices for {pat_id} instead of processing...")
