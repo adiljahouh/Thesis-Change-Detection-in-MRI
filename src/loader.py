@@ -30,6 +30,7 @@ def balance_dataset(subject_images, label_key='label'):
 
     similar_pairs = [x for x in subject_images if x[label_key] == 1]
     dissimilar_pairs = [x for x in subject_images if x[label_key] == 0]
+    print(f"dissimalar pairs: {len(dissimilar_pairs)}", f" ||  similar pairs: {len(similar_pairs)}")
     num_similar_pairs = len(similar_pairs)
     num_dissimilar_pairs = len(dissimilar_pairs)
 
@@ -274,8 +275,6 @@ class remindDataset(Dataset):
                                 continue
                             preop_nifti = nib.load(os.path.join(root_path, filename))
                             post_op_path = root_path.replace("Preop", "Intraop")
-            
-                            # Find the matching filename in the post_op directory
                             matching_filename = find_matching_file(post_op_path, image_id)
                             
                             if matching_filename:
@@ -286,13 +285,20 @@ class remindDataset(Dataset):
                                 continue
                             tumor = nib.load(os.path.join(root_path.replace("T1_converted", "tumor_converted"), 
                                                           "1.nii.gz"))
-                            assert preop_nifti != None and postop_nifti != None and tumor != None
                             
-                            if nib.aff2axcodes(preop_nifti.affine) != ('R', 'A', 'S'):
-                                preop_nifti = reorient_to_standard(preop_nifti)
+                            assert preop_nifti != None and postop_nifti != None and tumor != None
+                            if is_preop_the_target_shape(preop_nifti.shape, postop_nifti.shape):
+                                print(f"Resampling to preop shape {preop_nifti.shape}, compared to postop shape {postop_nifti.shape}")
+                                if nib.aff2axcodes(preop_nifti.affine) != ('R', 'A', 'S'):
+                                    preop_nifti = reorient_to_standard(preop_nifti)
+                                postop_nifti = resample_to_img(source_img=postop_nifti, target_img=preop_nifti, interpolation='nearest')
+                                tumor_resampled = resample_to_img(source_img=tumor, target_img=preop_nifti, interpolation='nearest')
+                            else:
+                                if nib.aff2axcodes(postop_nifti.affine) != ('R', 'A', 'S'):
+                                    postop_nifti = reorient_to_standard(postop_nifti)
+                                preop_nifti = resample_to_img(source_img=preop_nifti, target_img=postop_nifti, interpolation='nearest')
+                                tumor_resampled = resample_to_img(source_img=tumor, target_img=postop_nifti, interpolation='nearest')
 
-                            postop_nifti = resample_to_img(source_img=postop_nifti, target_img=preop_nifti, interpolation='nearest')
-                            tumor_resampled = resample_to_img(source_img=tumor, target_img=preop_nifti, interpolation='nearest')
                             assert nib.aff2axcodes(preop_nifti.affine) == nib.aff2axcodes(postop_nifti.affine) == nib.aff2axcodes(tumor_resampled.affine) == ('R', 'A', 'S'), "ArithmeticError: Affine mismatch"
                             tumor_norm = normalize_nifti(tumor_resampled)
                             preop_nifti_norm = normalize_nifti(preop_nifti)
@@ -357,7 +363,6 @@ class remindDataset(Dataset):
         for (pre_slice_and_index, post_slice_and_index, mask_slice_and_index) in  zip(images_pre, images_post, mask_slices):
             pre_slice_padded = pad_slice(downsize_if_needed_array(pre_slice_and_index[0]))
             post_slice_padded = pad_slice(downsize_if_needed_array(post_slice_and_index[0]))
-            ## DO i need to pad and downsize the tumor too?
             mask_slice_and_index = pad_slice(downsize_if_needed_array(mask_slice_and_index[0])), mask_slice_and_index[1]
             pre_index = pre_slice_and_index[1]
             post_index = post_slice_and_index[1]
@@ -367,10 +372,12 @@ class remindDataset(Dataset):
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
-            #TODO: remove the label from this condition
+            #NOTE: skipping control pairs
             if label == 1:
                 continue
-            if slice_has_high_info(pre_slice_padded) and slice_has_high_info(post_slice_padded):
+            ##NOTE: we are not using remind for control pairs so we don't need to check for high info
+            ## because sometimes this filters too strongly since the images are heavily padded so we loosen the percentage minimum
+            if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.001) and slice_has_high_info(post_slice_padded, percentage_minimum=0.15, value_minimum=0.001):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
