@@ -566,8 +566,8 @@ class aertsDataset(Dataset):
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
-            if label == 1:
-                continue
+            # if label == 1:
+            #     continue
             #NOTE: since we are NOT using remind for control pairs (label 1) we don't need to check for high info
             # because sometimes this filters too strongly since the images are heavily padded so we loosen the percentage minimum
             if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.005) and slice_has_high_info(post_slice_padded, value_minimum=0.15, percentage_minimum=0.005):
