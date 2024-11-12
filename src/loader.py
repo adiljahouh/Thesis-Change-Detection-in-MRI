@@ -185,7 +185,7 @@ def is_preop_the_target_shape(preop_shape: Tuple[int, int, int], postop_shape: T
 def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, mask_slice: np.ndarray, pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str, color='hot') -> str:
     """Save the comparison image with tumor overlay, pre slice, and post slice."""
     brain_axis = convert_tuple_to_string(index)
-    filename = f"{pat_id}_slice_{brain_axis}_comparison.png"
+    filename = f"{pat_id}_slice_{brain_axis}_{label}.png"
     save_path = os.path.join(save_dir, 'overview', filename)
 
     # Create the tumor overlay on the pre slice
@@ -566,11 +566,13 @@ class aertsDataset(Dataset):
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
-            # if label == 1:
-            #     continue
+            if label == 1:
+                percentage_min = 0.12
+            else:
+                percentage_min = 0.005
             #NOTE: since we are NOT using remind for control pairs (label 1) we don't need to check for high info
             # because sometimes this filters too strongly since the images are heavily padded so we loosen the percentage minimum
-            if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.005) and slice_has_high_info(post_slice_padded, value_minimum=0.15, percentage_minimum=0.005):
+            if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=percentage_min) and slice_has_high_info(post_slice_padded, value_minimum=0.15, percentage_minimum=percentage_min):
                 pre_path = self._save_slice(pre_slice_padded, pat_id, pre_slice_index, 'pre', label)
                 post_path = self._save_slice(post_slice_padded, pat_id, post_slice_index, 'post', label)
                 tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, tumor_slice_index, 'tumor', label)
