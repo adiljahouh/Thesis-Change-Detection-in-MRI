@@ -1,0 +1,1 @@
+rsync -av ../data/2D/ u50@145.38.193.83:/home/u50/data/mri_data_and_models/2D/

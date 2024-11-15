@@ -1,0 +1,1 @@
+rsync -av --exclude='*.dcm' --exclude='*.json' --exclude='ReMIND-Unused/' /home/adil/Documents/TUE/preparationPhase/myProject/data/ReMIND_dataset/ReMIND-Manifest-Sept-2023/ReMIND/ u50@145.38.193.83:/home/u50/data/mri_data_and_models/ReMIND_dataset/ReMIND-Manifest-Sept-2023/ReMIND
