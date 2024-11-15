@@ -154,7 +154,7 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
     
     for epoch in range(epochs):
         epoch_train_loss = 0.0
-        epoch_val_loss = 0.0
+        total_train_samples = 0
         for index, batch in enumerate(train_loader):
             ## each batch is a dict with pre, post, label etc. and collated (merged) values from
             ## each value in the batch
@@ -191,9 +191,12 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
             loss.backward()
             optimizer.step()
             epoch_train_loss += loss.item()
+            total_train_samples += pre_batch.size(0)
             
         # Validation loop
         siamese_net.eval()  # switch to evaluation mode
+        epoch_val_loss = 0.0
+        total_val_samples = 0
         with torch.no_grad():
             for index, batch in enumerate(val_loader):
 
@@ -215,11 +218,12 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                     loss_3 = criterion(third_conv[0], third_conv[1], label_batch)
                     loss: torch.Tensor = loss_1 + loss_2 + loss_3
                 epoch_val_loss += loss.item()
+                total_val_samples += pre_batch.size(0)
         
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
         avg_val_loss = epoch_val_loss / len(val_loader)
-        print(f"Epoch {epoch+1}/{epochs}, Train Loss: {epoch_train_loss:.4f}, Val Loss: {epoch_val_loss:.4f}")
+        #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
         print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average Val Loss: {avg_val_loss:.4f}')
         
         # Check for improvement in validation loss
@@ -296,9 +300,6 @@ if __name__ == "__main__":
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
-    # print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
-    # print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
-
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of total pairs after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
