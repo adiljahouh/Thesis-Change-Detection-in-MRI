@@ -374,18 +374,27 @@ class remindDataset(Dataset):
             label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             #NOTE: skipping control pairs
             if label == 1:
-                continue
+                if slice_has_high_info(pre_slice_padded, 0.15, 0.15) and slice_has_high_info(post_slice_padded, 0.15, 0.15):
+                    pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
+                    post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
+                    tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
+                    pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir)
+                
+                    self.data.append({"pre_path": pre_path, "post_path": post_path, 
+                                    "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
+                                    "index_pre": pre_index, "index_post": post_index})
+            else:
             ##NOTE: we are not using remind for control pairs so we don't need to check for high info
             ## because sometimes this filters too strongly since the images are heavily padded so we loosen the percentage minimum
-            if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.001) and slice_has_high_info(post_slice_padded, percentage_minimum=0.15, value_minimum=0.001):
-                pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
-                post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
-                tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
-                pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir, 'jet')
-            
-                self.data.append({"pre_path": pre_path, "post_path": post_path, 
-                                  "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
-                                  "index_pre": pre_index, "index_post": post_index})
+                if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.001) and slice_has_high_info(post_slice_padded, percentage_minimum=0.15, value_minimum=0.001):
+                    pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
+                    post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
+                    tumor_path = self._save_slice(mask_slice_and_index[0], pat_id, mask_index, 'tumor', label)
+                    pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir, 'jet')
+                
+                    self.data.append({"pre_path": pre_path, "post_path": post_path, 
+                                    "tumor_path": tumor_path, "label": label, "pat_id": pat_id,
+                                    "index_pre": pre_index, "index_post": post_index})
 
 
     def _save_slice(self, slice_array: ndarray, pat_id: str, index: Tuple, slice_type: str, label: int):

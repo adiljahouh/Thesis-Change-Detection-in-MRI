@@ -219,8 +219,8 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
         avg_val_loss = epoch_val_loss / len(val_loader)
-        
-        print(f'Epoch [{epoch+1}/{epochs}], Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}')
+        print(f"Epoch {epoch+1}/{epochs}, Train Loss: {epoch_train_loss:.4f}, Val Loss: {epoch_val_loss:.4f}")
+        print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average Val Loss: {avg_val_loss:.4f}')
         
         # Check for improvement in validation loss
         if avg_val_loss < best_loss:
@@ -251,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
+    parser.add_argument("--slice_dir", type=str, default='./data/2D/', help="location for slices to be saved and loaded")
     parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="TCL", help=
                         "Type of loss function to use (constractive or thresholded constractive)")
     parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
@@ -282,12 +283,12 @@ if __name__ == "__main__":
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50)])
         aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
-                  raw_tumor_dir=args.tumor_dir, save_dir='./data/2D/',
+                  raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
                   tumor_sensitivity=0.30,transform=transforms, load_slices=args.load_slices)
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
-                    image_ids=['t1_aligned_stripped'], save_dir='./data/2D/',
+                    image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transforms, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiamese()
