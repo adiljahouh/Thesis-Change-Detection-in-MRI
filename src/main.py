@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiamese
+from network import SimpleSiamese, complexSiamese, complexSiameseNoPool
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import ShiftImage, aertsDataset, remindDataset, balance_dataset
 import os
@@ -279,7 +279,7 @@ if __name__ == "__main__":
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
                   save_dir='./data/2D/',
                   transform=Compose([
-                    T.ToTensor()]))        
+                    T.ToTensor()]), load_slices=args.load_slices)        
         model_type = SimpleSiamese()
     elif args.model == 'MLO':
         ## TODO: change back to shifted, but we just want to optimize the model for now

@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 class SimpleSiamese(nn.Module):
     def __init__(self):
@@ -101,11 +98,51 @@ class complexSiamese(nn.Module):
         output2_conv6 = F.relu(self.conv6(output2_pool4))
         output2_conv7 = F.relu(self.conv7(output2_conv6))
         output2_pool5 = F.max_pool2d(output2_conv7, kernel_size=2, stride=2)
-        # output2 = output2.view(output2.size(0), -1)  # Flatten to (batch_size, 128*32*32)
-        # output2 = self.dropout(output2)
-        # output2 = self.fc1(output2)
 
         return [output1_pool3, output2_pool3], [output1_pool4, output2_pool4], [output1_pool5, output2_pool5]
+
+class complexSiameseNoPool(nn.Module):
+    def __init__(self):
+        super(complexSiameseNoPool, self).__init__()
+        # Define the architecture for the Siamese network
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)        
+        self.bn1 = nn.BatchNorm2d(16)
+        
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)    
+        self.bn3 = nn.BatchNorm2d(64)
+        
+        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        # Same output channels, just to refine the features later on
+        self.conv5 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm2d(128)
+        
+        self.conv6 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.conv7 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.bn5 = nn.BatchNorm2d(256)
+
+    def forward(self, input1, input2):
+        # Forward pass through the Siamese network for input1
+        output1_conv1 = F.relu(self.bn1(self.conv1(input1)))
+        output1_conv2 = F.relu(self.bn2(self.conv2(output1_conv1)))
+        output1_conv3 = F.relu(self.bn3(self.conv3(output1_conv2)))
+        output1_conv4 = F.relu(self.conv4(output1_conv3))
+        output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
+        output1_conv6 = F.relu(self.conv6(output1_conv5))
+        output1_conv7 = F.relu(self.conv7(output1_conv6))
+
+        # Forward pass through the Siamese network for input2
+        output2_conv1 = F.relu(self.bn1(self.conv1(input2)))
+        output2_conv2 = F.relu(self.bn2(self.conv2(output2_conv1)))
+        output2_conv3 = F.relu(self.bn3(self.conv3(output2_conv2)))
+        output2_conv4 = F.relu(self.conv4(output2_conv3))
+        output2_conv5 = F.relu(self.bn4(self.conv5(output2_conv4)))
+        output2_conv6 = F.relu(self.conv6(output2_conv5))
+        output2_conv7 = F.relu(self.conv7(output2_conv6))
+
+        return [output1_conv3, output2_conv3], [output1_conv5, output2_conv5], [output1_conv7, output2_conv7]
 
 class l2normalization(nn.Module):
     def __init__(self,scale):
