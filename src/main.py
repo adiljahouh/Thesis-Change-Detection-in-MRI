@@ -272,28 +272,38 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
-    if args.model == 'SLO':
-        ## Always call T.ToTensor()
-        subject_images = aertsDataset(proc_preop=args.aerts_dir, 
-                  raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.16,
-                  save_dir='./data/2D/',
-                  transform=Compose([
-                    T.ToTensor()]), load_slices=args.load_slices)        
-        model_type = SimpleSiamese()
-    elif args.model == 'MLO':
-        ## TODO: change back to shifted, but we just want to optimize the model for now
-        transforms = Compose([
+    if args.loss == 'CL':
+        criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+        transform=Compose([
+                    T.ToTensor()])
+    elif args.loss == 'TCL':
+        criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
+        transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50)])
+            
+    if args.model == 'SLO':
+        ## Always call T.ToTensor()
         aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
-                  raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
-                  tumor_sensitivity=0.30,transform=transforms, load_slices=args.load_slices)
+                  raw_tumor_dir=args.tumor_dir,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.30,
+                  save_dir='./data/2D/',
+                  transform=transform, load_slices=args.load_slices) 
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=args.skip, tumor_sensitivity=0.30, transform=transforms, load_slices=args.load_slices)
+                    skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
+        subject_images = ConcatDataset([aertsImages, remindImages])       
+        model_type = SimpleSiamese()
+    elif args.model == 'MLO':
+        aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
+                  raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
+                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
+                  tumor_sensitivity=0.30,transform=transform, load_slices=args.load_slices)
+        print("Aerts dataset loaded")
+        remindImages = remindDataset(preop_dir=args.remind_dir, 
+                    image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
+                    skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiamese()
     pass
@@ -304,10 +314,6 @@ if __name__ == "__main__":
     print(f"Total number of total pairs after balancing: {len(subject_images)}")
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     
-    if args.loss == 'CL':
-        criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
-    elif args.loss == 'TCL':
-        criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
 
     ## collates the values into one tensor per key
