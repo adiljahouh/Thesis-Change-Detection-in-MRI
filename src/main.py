@@ -116,12 +116,12 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 labels_list.append(label)
                 filename = (
                     f"slice_{batch['pat_id'][batch_index]}_"
-                    f"{'axial' if batch['index_post'][0][batch_index] != -1 else ''}_"
+                    f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
                     f"{batch['index_post'][0][batch_index] if batch['index_post'][0][batch_index] != -1 else ''}"
-                    f"{'coronal' if batch['index_post'][1][batch_index] != -1 else ''}_"
+                    f"{'coronal_' if batch['index_post'][1][batch_index] != -1 else ''}"
                     f"{batch['index_post'][1][batch_index] if batch['index_post'][1][batch_index] != -1 else ''}"
-                    f"{'sagittal' if batch['index_post'][2][batch_index] != -1 else ''}_"
-                    f"{batch['index_post'][2][batch_index] if batch['index_post'][2][batch_index] != -1 else ''}.jpg"
+                    f"{'sagittal_' if batch['index_post'][2][batch_index] != -1 else ''}"
+                    f"{batch['index_post'][2][batch_index] if batch['index_post'][2][batch_index] != -1 else ''}_{label}.jpg"
                 )
 
                 # Save the heatmap
@@ -130,15 +130,22 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 save_path = f'{save_dir}/{filename}'
                 pre_image = np.rot90(np.squeeze(batch['pre'][batch_index]))
                 post_image = np.rot90(np.squeeze(batch['post'][batch_index]))
+                if label == 0:
+                    pre_non_transform = np.rot90(np.load(batch["pre_path"][batch_index])['data'])
+                    tumor = np.rot90(np.load(batch["tumor_path"][batch_index])['data'])
+                else:
+                    pre_non_transform = None
+                    tumor = None
 
                 if model_type == 'SLO':
-                    merge_images(pre_image, post_image, np.rot90(distance_map_2d), np.rot90(np.squeeze(baseline)), output_path=save_path,
-                                    title="Left to right; Preop, Postop, Output_conv, Baseline")
+                    merge_images((pre_image, "pre"), (post_image, "post"), (np.rot90(distance_map_2d), "First Layer"),
+                                 np.rot90(np.squeeze(baseline)), output_path=save_path,
+                                 tumor=tumor, pre_non_transform=pre_non_transform)
                 elif model_type == 'MLO':
-                    merge_images(pre_image, post_image, np.rot90(distance_map_2d_conv1), 
-                                 np.rot90(distance_map_2d_conv2), np.rot90(distance_map_2d_conv3),
-                                  np.rot90(np.squeeze(baseline)), output_path=save_path,
-                                    title="Left to right; Preop, Postop, Conv1, Conv2, Conv3, Baseline")
+                    merge_images((pre_image, "Preoperative"), (post_image, "Postoperative"), (np.rot90(distance_map_2d_conv1), "First Layer"), 
+                                 (np.rot90(distance_map_2d_conv2), "Second Layer"), (np.rot90(distance_map_2d_conv3), "Third Layer"),
+                                  (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
+                                  tumor=tumor, pre_non_transform=pre_non_transform)
     return distances_list, labels_list
 
 def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 

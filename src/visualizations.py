@@ -7,7 +7,7 @@ from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from distance_measures import various_distance
 from loader import normalize_np_array
-def merge_images(*args, output_path, title, **kwargs):
+def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
     
@@ -17,7 +17,11 @@ def merge_images(*args, output_path, title, **kwargs):
         **kwargs: Additional keyword arguments (currently not used but can be extended).
     """
     # Number of images
-    num_images = len(args)
+    tumor_overlay_normalized = None
+    num_images = len(args) + 1
+    if tumor is not None:
+        tumor_overlay = np.ma.masked_where(tumor == 0, tumor)
+        tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
     
     # Create a figure with a number of subplots equal to the number of images
     fig, axs = plt.subplots(1, num_images, figsize=(num_images * 3, 4))
@@ -27,15 +31,30 @@ def merge_images(*args, output_path, title, **kwargs):
         axs = [axs]
     
     # Display each image on a separate subplot
-    for i, img in enumerate(args):
+    for i, (img, title) in enumerate(args):
         if i < 2:
             axs[i].imshow(img, cmap="gray")  # First two images use grayscale colormap
+            axs[i].set_title(title)
         else:
             axs[i].imshow(img, cmap="jet")   # Subsequent images use jet colormap
+            axs[i].set_title(title)
         axs[i].axis('off')
-    
+    if tumor is not None:
+        axs[-1].imshow(pre_non_transform, cmap='gray')
+        axs[-1].imshow(tumor_overlay_normalized, cmap='jet', alpha=1)
+    else:
+        blank_image = np.zeros_like(img, dtype=np.float32)  # Ensure the size matches other images
+        axs[-1].imshow(blank_image, cmap="gray")
+        axs[-1].text(
+            0.5, 0.5, 
+            "Image not available\n(Control slice)", 
+            ha="center", va="center", 
+            transform=axs[-1].transAxes, 
+            fontsize=10, color="red"
+        )
+    axs[-1].axis('off')
+    axs[-1].set_title('Doctor Overlay tumor')
     # Adjust spacing between subplots
-    plt.suptitle(title)
     plt.tight_layout()
     
     # Save the merged image
@@ -92,8 +111,6 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
     # print("shape: ", c, h, w)
-    # TODO: check that hte loss is normalized
-    # TODO: Create pre pre pairs to make sure output is correct
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
     distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
@@ -102,7 +119,6 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
     ## torch upsamle expects b,c,h,w
     ## normalize it after to 0 1
     
-    ## TODO: remove this, numpy to torch to numpy
     similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
     normalized_distance_map = normalize_np_array(similar_distance_map_rz.data.cpu().numpy()[0][0])
     try:

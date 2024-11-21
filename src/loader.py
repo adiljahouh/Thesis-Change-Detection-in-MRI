@@ -217,6 +217,15 @@ def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndar
     plt.close(fig)
 
     return save_path
+
+def return_relative_tumor_overlay(mask_slice: np.ndarray) -> str:
+    """save tumor mask relative to the pre image"""
+
+    # Create the tumor overlay on the pre slice
+    tumor_overlay = np.ma.masked_where(mask_slice == 0, mask_slice)
+    tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
+    return tumor_overlay_normalized
+
 def get_index_tuple(index: int, orientation: str) -> Tuple[int, int, int]:
     """Convert index to a tuple based on orientation."""
     if orientation == 'axial':
@@ -404,9 +413,7 @@ class remindDataset(Dataset):
         filename = f"{pat_id}_slice_{brain_axis}_{slice_type}_label_{label}.npz"
         save_path = os.path.join(self.save_dir, filename)
         if not os.path.exists(save_path):
-            np.savez_compressed(save_path, data=slice_array)
-            
-            #plt.imsave(save_path + '.png', slice_array, cmap='gray')
+            np.savez_compressed(save_path, data=slice_array)           
         return save_path
     
     
@@ -429,7 +436,7 @@ class remindDataset(Dataset):
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline, "tumor_path": triplet["tumor_path"]}
+                "baseline": baseline, "tumor_path": triplet["tumor_path"], "pre_path": triplet["pre_path"]}
 
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
@@ -621,7 +628,7 @@ class aertsDataset(Dataset):
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline, "tumor_path": triplet["tumor_path"]}
+                "baseline": baseline, "tumor_path": triplet["tumor_path"], "pre_path": triplet["pre_path"]}
 
 
                 
