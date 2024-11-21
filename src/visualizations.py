@@ -53,7 +53,7 @@ def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
             fontsize=10, color="red"
         )
     axs[-1].axis('off')
-    axs[-1].set_title('Doctor Overlay tumor')
+    axs[-1].set_title('Tumor Segmentation')
     # Adjust spacing between subplots
     plt.tight_layout()
     
