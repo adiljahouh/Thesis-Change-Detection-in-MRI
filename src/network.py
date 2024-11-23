@@ -105,41 +105,47 @@ class complexSiameseNoPool(nn.Module):
     def __init__(self):
         super(complexSiameseNoPool, self).__init__()
         # Define the architecture for the Siamese network
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)        
-        self.bn1 = nn.BatchNorm2d(16)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)        
+        self.bn1 = nn.BatchNorm2d(32)
         
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
         
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)    
-        self.bn3 = nn.BatchNorm2d(64)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)    
+        self.bn3 = nn.BatchNorm2d(128)
         
-        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
         # Same output channels, just to refine the features later on
-        self.conv5 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(128)
+        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm2d(256)
         
-        self.conv6 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.conv7 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.bn5 = nn.BatchNorm2d(256)
+        self.conv6 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
+        self.conv7 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+        self.bn5 = nn.BatchNorm2d(512)
 
     def forward(self, input1, input2):
         # Forward pass through the Siamese network for input1
         output1_conv1 = F.relu(self.bn1(self.conv1(input1)))
-        output1_conv2 = F.relu(self.bn2(self.conv2(output1_conv1)))
+        output1_pool1 = F.max_pool2d(output1_conv1, kernel_size=2, stride=2)
+        output1_conv2 = F.relu(self.bn2(self.conv2(output1_pool1)))
         output1_conv3 = F.relu(self.bn3(self.conv3(output1_conv2)))
-        output1_conv4 = F.relu(self.conv4(output1_conv3))
+        output1_pool2 = F.max_pool2d(output1_conv3, kernel_size=2, stride=2)
+        output1_conv4 = F.relu(self.conv4(output1_pool2))
         output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
-        output1_conv6 = F.relu(self.conv6(output1_conv5))
+        output1_pool3 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2)
+        output1_conv6 = F.relu(self.conv6(output1_pool3))
         output1_conv7 = F.relu(self.conv7(output1_conv6))
 
         # Forward pass through the Siamese network for input2
         output2_conv1 = F.relu(self.bn1(self.conv1(input2)))
-        output2_conv2 = F.relu(self.bn2(self.conv2(output2_conv1)))
+        output2_pool1 = F.max_pool2d(output2_conv1, kernel_size=2, stride=2)
+        output2_conv2 = F.relu(self.bn2(self.conv2(output2_pool1)))
         output2_conv3 = F.relu(self.bn3(self.conv3(output2_conv2)))
-        output2_conv4 = F.relu(self.conv4(output2_conv3))
+        output2_pool2 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
+        output2_conv4 = F.relu(self.conv4(output2_pool2))
         output2_conv5 = F.relu(self.bn4(self.conv5(output2_conv4)))
-        output2_conv6 = F.relu(self.conv6(output2_conv5))
+        output2_pool3 = F.max_pool2d(output2_conv5, kernel_size=2, stride=2)
+        output2_conv6 = F.relu(self.conv6(output2_pool3))
         output2_conv7 = F.relu(self.conv7(output2_conv6))
 
         return [output1_conv3, output2_conv3], [output1_conv5, output2_conv5], [output1_conv7, output2_conv7]
