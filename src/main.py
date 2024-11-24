@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiamese, complexSiameseNoPool
+from network import SimpleSiamese, complexSiamese, complexSiameseNoPool, complexSiameseExtended
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import ShiftImage, aertsDataset, remindDataset, balance_dataset
 import os
@@ -312,7 +312,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = complexSiameseNoPool()
+        model_type = complexSiamese()
     pass
     # balance subject_images based on label
     
