@@ -312,7 +312,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = SiameseExtUpsampled()
+        model_type = complexSiameseExt()
     pass
     # balance subject_images based on label
     

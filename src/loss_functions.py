@@ -57,8 +57,10 @@ class ConstractiveThresholdHingeLoss(nn.Module):
         out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
         
         distance = self.various_distance(out_vec_t0,out_vec_t1)
-        
-        similar_pair = torch.clamp(distance - self.threshold,min=0.0)
+        ## in my code the margin is used for dissimilar pairs 0
+        ## and the threshold is used for similar pairs 1
+        ## This might not be the regular usage of margin and threshold
+        similar_pair = torch.clamp(distance - self.threshold,min=0.0) 
         dissimilar_pair = torch.clamp(self.margin- distance,min=0.0)
         #dissimilar_pair = torch.clamp(self.margin-(distance-self.threshold),min=0.0)
         constractive_thresh_loss =  label* torch.pow(similar_pair,2) + (1-label) * torch.pow(dissimilar_pair,2)
