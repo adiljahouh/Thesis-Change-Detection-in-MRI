@@ -60,8 +60,8 @@ class ConstractiveThresholdHingeLoss(nn.Module):
         ## in my code the margin is used for dissimilar pairs 0
         ## and the threshold is used for similar pairs 1
         ## This might not be the regular usage of margin and threshold
-        similar_pair = torch.clamp(distance - self.threshold,min=0.0) 
-        dissimilar_pair = torch.clamp(self.margin- distance,min=0.0)
+        similar_pair = torch.clamp(distance - self.threshold,min=0.0)  # dont require similar pairs to overfit and be loss of 0
+        dissimilar_pair = torch.clamp(self.margin- distance,min=0.0) # push dissimalar pairs to  be greater than margin
         #dissimilar_pair = torch.clamp(self.margin-(distance-self.threshold),min=0.0)
         constractive_thresh_loss =  label* torch.pow(similar_pair,2) + (1-label) * torch.pow(dissimilar_pair,2)
         # if 1 (simillar) constractive loss = margin - distance
