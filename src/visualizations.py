@@ -16,6 +16,7 @@ def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
         output_path (str): Path where the merged image will be saved.
         **kwargs: Additional keyword arguments (currently not used but can be extended).
     """
+    # TODO: use tuple to overlay the tumor mask on the pre trasnformed image
     # Number of images
     tumor_overlay_normalized = None
     num_images = len(args) + 1
@@ -41,7 +42,7 @@ def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
         axs[i].axis('off')
     if tumor is not None:
         axs[-1].imshow(pre_non_transform, cmap='gray')
-        axs[-1].imshow(tumor_overlay_normalized, cmap='jet', alpha=1)
+        axs[-1].imshow(tumor_overlay_normalized, cmap='Reds', alpha=1) # tumor should be red
     else:
         blank_image = np.zeros_like(img, dtype=np.float32)  # Ensure the size matches other images
         axs[-1].imshow(blank_image, cmap="gray")
@@ -110,12 +111,13 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
 
     interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
-    # print("shape: ", c, h, w)
+    # remember the c, h, w -> flatten
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
     distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
     similar_distance_map = distance.view(h,w).data.cpu().numpy()
-    ## create a 4 dim torch by adding 2 axis to h,w
+    ## create a 4 dim torch by adding back h, w axis post distance calc 
+    
     ## torch upsamle expects b,c,h,w
     ## normalize it after to 0 1
     
@@ -130,9 +132,10 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
         save_path = "./debug/similar_distance_map_rz_failed.txt"
         os.makedirs("./debug", exist_ok=True)
         np.savetxt(save_path, similar_distance_map)
-
+    ## NOTE: I do not use the cv2, i just use the normalized_distance_map
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
-    return similar_dis_map_colorize, normalized_distance_map
+    _ = similar_dis_map_colorize
+    return _, normalized_distance_map
 
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
