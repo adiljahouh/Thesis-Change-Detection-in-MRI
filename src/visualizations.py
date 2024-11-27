@@ -17,7 +17,7 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filte
         **kwargs: Additional keyword arguments (currently not used but can be extended).
     """
     tumor_overlay_normalized = None
-    num_images = len(args) + 1
+    num_images = len(args) + 2
     if tumor is not None:
         tumor_overlay = np.ma.masked_where(tumor == 0, tumor)
         tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
@@ -31,16 +31,22 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filte
     
     # Display each image on a separate subplot
     for i, (img, title) in enumerate(args):
+        axs[i].axis('off')
         if i < 2:
             axs[i].imshow(img, cmap="gray")  # First two images use grayscale colormap
             axs[i].set_title(title)
         else:
-            if filter:
-                img = filter_array_on_threshold(img, 0.2)
-            axs[i].imshow(args[0], cmap="gray")  # Subsequent images use the first image as reference
-            axs[i].imshow(img, cmap="jet", alpha=0.5)   # Subsequent overlays use jet colormap
+            if filter and "Baseline" not in title:
+                #TODO: only imshow overlay values > 0 
+                img = filter_array_on_threshold(img, 0.8)
+                img = np.ma.masked_where(img == 0, img)
+                axs[i].imshow(args[0][0], cmap="gray")
+            # Subsequent images use the first image as reference
+            axs[i].imshow(img, cmap="jet", alpha=1)   # Subsequent overlays use jet colormap
+            # this is also the baseline though
             axs[i].set_title(title)
-        axs[i].axis('off')
+    axs[-2].imshow(args[2][0], cmap='jet')
+    axs[-2].set_title('Distance Map conv 1')
     if tumor is not None:
         axs[-1].imshow(pre_non_transform, cmap='gray')
         axs[-1].imshow(tumor_overlay_normalized, cmap='jet', alpha=1) # tumor should be red

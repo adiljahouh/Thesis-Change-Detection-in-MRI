@@ -138,13 +138,11 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 else:
                     pre_non_transform = None
                     tumor = None
-
                 if model_type == 'SLO':
                     merge_and_overlay_images((pre_image, "pre"), (post_image, "post"), (np.rot90(distance_map_2d), "First Layer"),
                                  np.rot90(np.squeeze(baseline)), output_path=save_path,
                                  tumor=tumor, pre_non_transform=pre_non_transform)
                 elif model_type == 'MLO':
-                    
                     merge_and_overlay_images((pre_image, "Preoperative"), (post_image, "Postoperative"), (np.rot90(distance_map_2d_conv1), "First Layer"), 
                                  (np.rot90(distance_map_2d_conv2), "Second Layer"), (np.rot90(distance_map_2d_conv3), "Third Layer"),
                                   (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
