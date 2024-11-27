@@ -290,9 +290,10 @@ if __name__ == "__main__":
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),
-                    T.RandomVerticalFlip(),
-                    T.RandomHorizontalFlip(),
-                    RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)]
+                    # T.RandomVerticalFlip(),
+                    # T.RandomHorizontalFlip(),
+                    # RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)
+                    ]
         )
             
     if args.model == 'SLO':

@@ -42,7 +42,7 @@ def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
         axs[i].axis('off')
     if tumor is not None:
         axs[-1].imshow(pre_non_transform, cmap='gray')
-        axs[-1].imshow(tumor_overlay_normalized, cmap='Reds', alpha=1) # tumor should be red
+        axs[-1].imshow(tumor_overlay_normalized, cmap='jet', alpha=1) # tumor should be red
     else:
         blank_image = np.zeros_like(img, dtype=np.float32)  # Ensure the size matches other images
         axs[-1].imshow(blank_image, cmap="gray")
