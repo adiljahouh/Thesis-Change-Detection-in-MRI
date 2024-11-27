@@ -91,10 +91,26 @@ def convert_3d_into_2d(nifti_image: ndarray, skip: int =1) -> list[Tuple[ndarray
             slices.append((nifti_image[:, :, i], (-1, -1, i)))
     return slices
 
-def has_tumor_cells(slice_2d: ndarray, threshold=0.15):
+def array_has_significant_values(slice_2d: ndarray, threshold=0.15):
     ## checks if the slice has tumor cells by a certain value threshold
     return np.any(slice_2d >= threshold)
 
+def filter_array_on_threshold(slice_2d: ndarray, threshold=0.15) -> ndarray:
+    """
+    Keeps only the values in the slice that are above the threshold.
+
+    Args:
+        slice_2d (ndarray): Input 2D slice array.
+        threshold (float): Value threshold to consider a cell has a significant value 
+        (changes or tumor for example).
+
+    Returns:
+        ndarray: The modified array with values below the threshold set to zero.
+    """
+    # Set values below the threshold to zero in place
+    slice_2d[slice_2d < threshold] = 0
+    
+    return slice_2d
 
 def convert_tuple_to_string(index):
     if index[0] != -1:
@@ -364,7 +380,7 @@ class remindDataset(Dataset):
                 tuples do not match: {pre_index}, {post_index}, {mask_index}"
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
-            label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
+            label = 0 if array_has_significant_values(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             #NOTE: skipping control pairs
             if label == 1:
                 if slice_has_high_info(pre_slice_padded, 0.15, 0.15) and slice_has_high_info(post_slice_padded, 0.15, 0.15):
@@ -565,7 +581,7 @@ class aertsDataset(Dataset):
                 tuples do not match: {pre_slice_index}, {post_slice_index}, {tumor_slice_index}"
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
-            label = 0 if has_tumor_cells(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
+            label = 0 if array_has_significant_values(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             if label == 1:
                 percentage_min = 0.12
             else:

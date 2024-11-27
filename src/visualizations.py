@@ -6,8 +6,8 @@ import os
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from distance_measures import various_distance
-from loader import normalize_np_array
-def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
+from loader import normalize_np_array, filter_array_on_threshold
+def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filter=True, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
     
@@ -16,8 +16,6 @@ def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
         output_path (str): Path where the merged image will be saved.
         **kwargs: Additional keyword arguments (currently not used but can be extended).
     """
-    # TODO: use tuple to overlay the tumor mask on the pre trasnformed image
-    # Number of images
     tumor_overlay_normalized = None
     num_images = len(args) + 1
     if tumor is not None:
@@ -37,7 +35,10 @@ def merge_images(*args, output_path, tumor, pre_non_transform, **kwargs):
             axs[i].imshow(img, cmap="gray")  # First two images use grayscale colormap
             axs[i].set_title(title)
         else:
-            axs[i].imshow(img, cmap="jet")   # Subsequent images use jet colormap
+            if filter:
+                img = filter_array_on_threshold(img, 0.2)
+            axs[i].imshow(args[0], cmap="gray")  # Subsequent images use the first image as reference
+            axs[i].imshow(img, cmap="jet", alpha=0.5)   # Subsequent overlays use jet colormap
             axs[i].set_title(title)
         axs[i].axis('off')
     if tumor is not None:
@@ -135,6 +136,8 @@ def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return normalized_distance_map
 
+def overlay_thresholded_dist_map_over_preop(preop: np.ndarray, dist_map: np.ndarray, threshold: float, save_dir: str, filename: str):
+    pass
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
     plt.figure()
