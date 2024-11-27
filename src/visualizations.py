@@ -106,9 +106,8 @@ def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     print(optimal_threshold)
     return optimal_threshold
 
-def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
+def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
                                         mode='bilinear'):
-
     interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
     # remember the c, h, w -> flatten
@@ -134,8 +133,7 @@ def single_layer_similar_heatmap_visual(output_t0: torch.Tensor,output_t1: torch
         np.savetxt(save_path, similar_distance_map)
     ## NOTE: I do not use the cv2, i just use the normalized_distance_map
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
-    _ = similar_dis_map_colorize
-    return _, normalized_distance_map
+    return normalized_distance_map
 
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure

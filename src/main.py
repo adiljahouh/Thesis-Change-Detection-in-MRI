@@ -100,16 +100,16 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 if model_type == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
                     
-                    _, distance_map_2d_conv1 = single_layer_similar_heatmap_visual(
+                    distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    _, distance_map_2d_conv2 = single_layer_similar_heatmap_visual(
+                    distance_map_2d_conv2 = return_upsampled_norm_distance_map(
                     second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    _, distance_map_2d_conv3 = single_layer_similar_heatmap_visual(
+                    distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
                 elif model_type == 'SLO':
                     dist = distance[batch_index]
-                    _, distance_map_2d = single_layer_similar_heatmap_visual(output1[batch_index], 
+                    distance_map_2d = return_upsampled_norm_distance_map(output1[batch_index], 
                     output2[batch_index], dist_flag='l2', mode='bilinear')
                     print(f"Pair has a distance of: {dist.item()}, label: {label}")
 
