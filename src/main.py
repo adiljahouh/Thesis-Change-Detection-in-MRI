@@ -1,8 +1,9 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, SiameseExtUpsampled, complexSiameseExt
+from network import SimpleSiamese, complexSiameseExt
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
-from loader import ShiftImage, aertsDataset, remindDataset, balance_dataset
+from loader import aertsDataset, remindDataset, balance_dataset
+from transformations import ShiftImage, RotateImage
 import os
 from visualizations import *
 import argparse
@@ -11,7 +12,7 @@ import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
 from torchvision import transforms as T
-from torchvision.transforms import Compose
+from torchvision.transforms import Compose,InterpolationMode 
 
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -287,7 +288,10 @@ if __name__ == "__main__":
         criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
         transform = Compose([
                     T.ToTensor(),
-                    ShiftImage(max_shift_x=50, max_shift_y=50)])
+                    ShiftImage(max_shift_x=50, max_shift_y=50),
+                    T.RandomVerticalFlip(),
+                    T.RandomHorizontalFlip(),
+                    T.RandomRotation(60, InterpolationMode=InterpolationMode.BILINEAR, fill=None, expand=True)])
             
     if args.model == 'SLO':
         ## Always call T.ToTensor()

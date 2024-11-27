@@ -8,9 +8,7 @@ from typing import Tuple
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 import random
-import torch
 from scipy.ndimage import shift, zoom
-import kornia.geometry.transform as kornia_transform
 from matplotlib import pyplot as plt
 def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
     diff = np.abs(pre - post)
@@ -235,20 +233,6 @@ def get_index_tuple(index: int, orientation: str) -> Tuple[int, int, int]:
     elif orientation == 'sagittal':
         return (-1, -1, index)
     return (-1, -1, -1)
-
-class ShiftImage:
-    def __init__(self, max_shift_x, max_shift_y):
-        self.max_shift_x = max_shift_x
-        self.max_shift_y = max_shift_y
-
-    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
-        # Ensure the tensor is 3D
-        shift_x = torch.randint(-self.max_shift_x, self.max_shift_x + 1, (1,)).double()
-        shift_y = torch.randint(-self.max_shift_y, self.max_shift_y + 1, (1,)).double()
-
-        # Create translation tensor
-        translation = torch.tensor([[shift_x.item(), shift_y.item()]]).double()
-        return kornia_transform.translate(tensor.unsqueeze(0).double(), translation, mode='bilinear', padding_mode='border', align_corners=True).squeeze(0).float()
 
 class remindDataset(Dataset):
     def __init__(self, preop_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices=False, transform=None):
