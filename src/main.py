@@ -12,7 +12,8 @@ import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
 from torchvision import transforms as T
-from torchvision.transforms import Compose,InterpolationMode 
+from torchvision.transforms import Compose
+import random 
 
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
@@ -291,7 +292,8 @@ if __name__ == "__main__":
                     ShiftImage(max_shift_x=50, max_shift_y=50),
                     T.RandomVerticalFlip(),
                     T.RandomHorizontalFlip(),
-                    T.RandomRotation(60, InterpolationMode=InterpolationMode.BILINEAR, fill=None, expand=True)])
+                    RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)]
+        )
             
     if args.model == 'SLO':
         ## Always call T.ToTensor()

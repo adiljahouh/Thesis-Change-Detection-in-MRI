@@ -27,16 +27,10 @@ class RotateImage:
         if not isinstance(img, torch.Tensor):
             raise TypeError("Input must be a tensor")
         
-        # Add a batch dimension if needed (Kornia expects a batch of tensors)
-        if img.ndim == 3:  # [C, H, W]
-            img = img.unsqueeze(0)  # Add batch dimension [B, C, H, W]
+        # # Add a batch dimension if needed (Kornia expects a batch of tensors)
+        # if img.ndim == 3:  # [C, H, W]
+        #     img = img.unsqueeze(0)  # Add batch dimension [B, C, H, W]
         
-        rotated_img = kornia_transform.rotate(
+        return kornia_transform.rotate(
             img, self.angle, self.center, self.mode, self.padding_mode, self.align_corners
         )
-        
-        # Remove batch dimension if it was added
-        if rotated_img.shape[0] == 1:
-            rotated_img = rotated_img.squeeze(0)
-
-        return rotated_img
