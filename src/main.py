@@ -297,7 +297,6 @@ if __name__ == "__main__":
         )
             
     if args.model == 'SLO':
-        ## Always call T.ToTensor()
         aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
                   raw_tumor_dir=args.tumor_dir,
                   image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.30,
