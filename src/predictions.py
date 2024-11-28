@@ -34,7 +34,7 @@ if __name__ == "__main__":
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
     parser.add_argument("--slice_dir", type=str, default='./data/2D/', help="location for slices to be saved and loaded")
-    parser.add_argument("--folder_name", type=str, default='model', help="Name of the folder to save the results")
+    parser.add_argument("--folder_name", type=str, default='inference', help="Name of the folder to save the results")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -87,8 +87,8 @@ if __name__ == "__main__":
     
     ## using validation split to avoid overfitting
     test_loader = DataLoader(subject_images, batch_size=16, shuffle=False)
-    model_params =  args.folder_name
-    save_dir = f'./results/{model_params}/{args.mode}'
+    model_params =  args.model_path
+    save_dir = os.path.join(os.path.dirname(args.model_path), args.folder_name)
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
 
     model_type.load_state_dict(torch.load(args.model_path))

@@ -141,8 +141,19 @@ def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return normalized_distance_map
 
-def overlay_thresholded_dist_map_over_preop(preop: np.ndarray, dist_map: np.ndarray, threshold: float, save_dir: str, filename: str):
-    pass
+def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=1.0):
+    """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
+    # Compute high-frequency details
+    blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)  # You can tune the kernel size
+    high_freq_details = base_image - blurred_image
+    
+    # Multiply the distance map with the high-frequency details
+    sharpened_map = distance_map * (1 + alpha * high_freq_details)
+    
+    # Normalize the sharpened map to ensure it stays within [0, 1]
+    sharpened_map = normalize_np_array(sharpened_map)
+    
+    return sharpened_map
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
     plt.figure()
