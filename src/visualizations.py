@@ -6,7 +6,9 @@ import os
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from distance_measures import various_distance
-from loader import normalize_np_array, filter_array_on_threshold
+from loader import normalize_np_array
+from matplotlib.axes import Axes
+
 def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filter=True, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
@@ -24,7 +26,7 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filte
     
     # Create a figure with a number of subplots equal to the number of images
     fig, axs = plt.subplots(1, num_images, figsize=(num_images * 3, 4))
-    
+    axs: list[Axes]
     # If only one subplot is created, axs will not be an array
     if num_images == 1:
         axs = [axs]
@@ -37,13 +39,10 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filte
             axs[i].set_title(title)
         else:
             if filter and "Baseline" not in title:
-                #TODO: only imshow overlay values > 0 
-                img = filter_array_on_threshold(img, 0.8)
-                img = np.ma.masked_where(img == 0, img)
-                axs[i].imshow(args[0][0], cmap="gray")
-            # Subsequent images use the first image as reference
-            axs[i].imshow(img, cmap="jet", alpha=1)   # Subsequent overlays use jet colormap
-            # this is also the baseline though
+                # if conv layer, filter out noise
+                img = np.ma.masked_where(img < 0.7, img)
+                axs[i].imshow(args[0][0], cmap="gray") #preop underlay
+            axs[i].imshow(img, cmap="jet", alpha=1, vmin=0, vmax=1)   # Subsequent overlays use jet colormap
             axs[i].set_title(title)
     axs[-2].imshow(args[2][0], cmap='jet')
     axs[-2].set_title('Distance Map conv 1')

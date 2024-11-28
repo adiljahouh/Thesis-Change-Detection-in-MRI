@@ -318,7 +318,6 @@ if __name__ == "__main__":
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
         model_type = complexSiameseExt()
-    pass
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
