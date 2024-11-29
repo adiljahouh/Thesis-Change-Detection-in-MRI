@@ -9,7 +9,7 @@ from distance_measures import various_distance
 from loader import normalize_np_array
 from matplotlib.axes import Axes
 
-def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filter=True, **kwargs):
+def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
     
@@ -19,7 +19,7 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filte
         **kwargs: Additional keyword arguments (currently not used but can be extended).
     """
     tumor_overlay_normalized = None
-    num_images = len(args) + 2
+    num_images = len(args) + 1
     if tumor is not None:
         tumor_overlay = np.ma.masked_where(tumor == 0, tumor)
         tumor_overlay_normalized = tumor_overlay / np.max(tumor_overlay) if np.max(tumor_overlay) > 0 else tumor_overlay
@@ -34,18 +34,11 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, filte
     # Display each image on a separate subplot
     for i, (img, title) in enumerate(args):
         axs[i].axis('off')
+        axs[i].set_title(title)
         if i < 2:
             axs[i].imshow(img, cmap="gray")  # First two images use grayscale colormap
-            axs[i].set_title(title)
         else:
-            if filter and "Baseline" not in title:
-                # if conv layer, filter out noise
-                img = np.ma.masked_where(img < 0.7, img)
-                axs[i].imshow(args[0][0], cmap="gray") #preop underlay
-            axs[i].imshow(img, cmap="jet", alpha=1, vmin=0, vmax=1)   # Subsequent overlays use jet colormap
-            axs[i].set_title(title)
-    axs[-2].imshow(args[2][0], cmap='jet')
-    axs[-2].set_title('Distance Map conv 1')
+            axs[i].imshow(img, cmap="jet", alpha=1)   # Subsequent overlays use jet colormap
     if tumor is not None:
         axs[-1].imshow(pre_non_transform, cmap='gray')
         axs[-1].imshow(tumor_overlay_normalized, cmap='jet', alpha=1) # tumor should be red
@@ -80,7 +73,9 @@ def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
 def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     # # Invert distances because lower distance indicates more similarity
     try:
+        print(distances[0])
         scores = [d.cpu().item() for d in distances]
+        print(scores[0])
         scores = [-s for s in scores]
     except AttributeError:
         scores = [-s for s in distances]
@@ -141,19 +136,56 @@ def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.
     similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return normalized_distance_map
 
-def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=1.0):
+def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=6.0, beta=0.2, threshold=0.15):
     """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
-    # Compute high-frequency details
-    blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)  # You can tune the kernel size
-    high_freq_details = base_image - blurred_image
+    assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
+    assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
+    assert base_image.max() <= 1.0, f"max: {base_image.max()}"
+    assert base_image.min() >= 0.0, f"min: {base_image.min()}"
+
+    # Create a binary mask where base image values are above the threshold
+    mask = (base_image > threshold).astype(np.float32)
     
-    # Multiply the distance map with the high-frequency details
+    # Blur the base image and calculate high-frequency details
+    blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
+    high_freq_details = base_image - blurred_image
+
+    # Compute sharpened map for high-value regions
     sharpened_map = distance_map * (1 + alpha * high_freq_details)
     
-    # Normalize the sharpened map to ensure it stays within [0, 1]
-    sharpened_map = normalize_np_array(sharpened_map)
+    # Add contribution from the base image in low-value regions
+    enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
+
+    # Apply the mask to filter the distance map
+    enhanced_map = mask * enhanced_map + (1 - mask) * base_image
+
+    # Normalize the final result to keep it within [0, 1]
+    # enhanced_map = normalize_np_array(enhanced_map)
     
-    return sharpened_map
+    return enhanced_map
+
+def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=4.0, beta=0.5):
+    """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
+    assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
+    assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
+    assert base_image.max() <= 1.0, f"max: {base_image.max()}"
+    assert base_image.min() >= 0.0, f"min: {base_image.min()}"
+
+    # Blur the base image and calculate high-frequency details
+    blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
+    high_freq_details = base_image - blurred_image
+
+    # Compute sharpened map for high-value regions
+    sharpened_map = distance_map * (1 + alpha * high_freq_details)
+    
+    # Add contribution from the base image in low-value regions
+    enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
+
+
+    # Normalize the final result to keep it within [0, 1]
+    enhanced_map = normalize_np_array(enhanced_map)
+    
+    return enhanced_map
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
     plt.figure()

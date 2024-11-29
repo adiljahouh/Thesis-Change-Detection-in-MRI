@@ -94,5 +94,10 @@ if __name__ == "__main__":
     model_type.load_state_dict(torch.load(args.model_path))
     
     distances, labels = predict(model_type, test_loader, save_dir, device, model_type=args.model)
-
-    thresholds = generate_roc_curve(distances, labels, save_dir)
+    if args.model == 'SLO':
+        thresholds = generate_roc_curve(distances, labels, save_dir)
+    elif args.model == 'MLO':
+        # take the conv distance distance from each tuple
+        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
+        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
+        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")

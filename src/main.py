@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import numpy as np
 from torch.optim.optimizer import Optimizer
 from torchvision import transforms as T
+from numpy import ndarray
 from torchvision.transforms import Compose
 import random 
 
@@ -95,22 +96,32 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
             
             # Iterate over the batch
             for batch_index in range(pre_batch.size(0)):
+                pre_image: ndarray = np.squeeze(batch['pre'][batch_index].data.cpu().numpy())
+                post_image: ndarray = np.squeeze(batch['post'][batch_index].data.cpu().numpy())
                 baseline = batch['baseline'][batch_index]
                 label = labels[batch_index].item()  # Get the label for the i-th pair
                 if model_type == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
-                    
+                                            
                     distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv2 = return_upsampled_norm_distance_map(
                     second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    
+                    conv1_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=pre_image)
+                    conv2_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=pre_image)
+
+                    conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
+                    conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
+                    
                     print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
                 elif model_type == 'SLO':
                     dist = distance[batch_index]
                     distance_map_2d = return_upsampled_norm_distance_map(output1[batch_index], 
                     output2[batch_index], dist_flag='l2', mode='bilinear')
+                    conv_sharpened = multiplicative_sharpening_and_filter(distance_map_2d, base_image=pre_image)
                     print(f"Pair has a distance of: {dist.item()}, label: {label}")
 
 
@@ -130,8 +141,6 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
-                pre_image = np.rot90(np.squeeze(batch['pre'][batch_index]))
-                post_image = np.rot90(np.squeeze(batch['post'][batch_index]))
                 if label == 0:
                     pre_non_transform = np.rot90(np.load(batch["pre_path"][batch_index])['data'])
                     tumor = np.rot90(np.load(batch["tumor_path"][batch_index])['data'])
@@ -139,12 +148,12 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     pre_non_transform = None
                     tumor = None
                 if model_type == 'SLO':
-                    merge_and_overlay_images((pre_image, "pre"), (post_image, "post"), (np.rot90(distance_map_2d), "First Layer"),
+                    merge_and_overlay_images((np.rot90(pre_image), "pre"), (np.rot90(post_image), "post"), (np.rot90(conv_sharpened), "First Layer"),
                                  np.rot90(np.squeeze(baseline)), output_path=save_path,
                                  tumor=tumor, pre_non_transform=pre_non_transform)
                 elif model_type == 'MLO':
-                    merge_and_overlay_images((pre_image, "Preoperative"), (post_image, "Postoperative"), (np.rot90(distance_map_2d_conv1), "First Layer"), 
-                                 (np.rot90(distance_map_2d_conv2), "Second Layer"), (np.rot90(distance_map_2d_conv3), "Third Layer"),
+                    merge_and_overlay_images((np.rot90(pre_image), "Preoperative"), (np.rot90(post_image), "Postoperative"), (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
+                                 (np.rot90(conv1_sharpened_post), "First layer post"), (np.rot90(conv2_sharpened_pre), "Second layer pre"),(np.rot90(conv2_sharpened_post), "Second layer post") , (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
                                   (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
                                   tumor=tumor, pre_non_transform=pre_non_transform)
     return distances_list, labels_list
@@ -346,7 +355,7 @@ if __name__ == "__main__":
     if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)
     elif args.model == 'MLO':
-        # take the first distance from each tuple
+        # take the conv distance distance from each tuple
         thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
         thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
         thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")
