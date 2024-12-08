@@ -221,8 +221,8 @@ class complexSiameseExtDil(nn.Module):
         output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
         output1_conv3 = F.relu(self.bn3(self.conv3(output1_pool2)))
         
-        output1_drop = self.dropout(output1_conv3)
-        output1_conv4 = F.relu(self.conv4(output1_drop))
+        # output1_drop = self.dropout(output1_conv3)
+        output1_conv4 = F.relu(self.conv4(output1_conv3))
         output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
         output1_pool4 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2)
         
@@ -242,11 +242,9 @@ class complexSiameseExtDil(nn.Module):
         output2_conv2 = F.relu(self.bn2(self.conv2(output2_conv1)))
         output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
         output2_conv3 = F.relu(self.bn3(self.conv3(output2_pool2)))
-        # apply dropout 
-        output2_drop = self.dropout(output2_conv3)
-        # output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
+                # output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
         
-        output2_conv4 = F.relu(self.conv4(output2_drop))
+        output2_conv4 = F.relu(self.conv4(output2_conv3))
         output2_conv5 = F.relu(self.bn4(self.conv5(output2_conv4)))
         output2_pool4 = F.max_pool2d(output2_conv5, kernel_size=2, stride=2)
     
