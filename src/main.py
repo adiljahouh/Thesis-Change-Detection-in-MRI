@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiameseExt
+from network import SimpleSiamese, complexSiameseExt, complexSiameseExtDil
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
@@ -67,7 +67,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
 
             labels = batch['label'].to(device)
             if model_type == 'SLO':
-                output1, output2 = siamese_net(pre_batch, post_batch)
+                output1, output2 = siamese_net(pre_batch, post_batch, mode='test')
                 output1: torch.Tensor
                 output2: torch.Tensor
                 flattened_batch_t0 = output1.view(output1.size(0), -1)  
@@ -79,7 +79,7 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 first_conv: torch.Tensor
                 second_conv: torch.Tensor
                 third_conv: torch.Tensor
-                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
 
                 flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
                 flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
@@ -326,7 +326,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = complexSiameseExt()
+        model_type = complexSiameseExtDil()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")

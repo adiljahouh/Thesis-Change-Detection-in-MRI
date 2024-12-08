@@ -73,9 +73,7 @@ def get_baseline_np(pre: np.ndarray, post: np.ndarray) -> np.ndarray:
 def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     # # Invert distances because lower distance indicates more similarity
     try:
-        print(distances[0])
         scores = [d.cpu().item() for d in distances]
-        print(scores[0])
         scores = [-s for s in scores]
     except AttributeError:
         scores = [-s for s in distances]
@@ -160,7 +158,7 @@ def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: n
     enhanced_map = mask * enhanced_map + (1 - mask) * base_image
 
     # Normalize the final result to keep it within [0, 1]
-    # enhanced_map = normalize_np_array(enhanced_map)
+    enhanced_map = normalize_np_array(enhanced_map)
     
     return enhanced_map
 
