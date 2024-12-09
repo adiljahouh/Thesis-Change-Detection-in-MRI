@@ -177,7 +177,8 @@ class complexSiameseExt(nn.Module):
             return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
         elif mode == 'test':
             # return before the pooling layer to visualize them
-            return [output1_pool4, output2_pool4], [self.fuse_features(output1_pool4, output1_pool5), self.fuse_features(output2_pool4, output2_pool5)], [output1_pool6, output2_pool6]
+            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
+            #return [output1_conv5, output2_conv5], [output1_conv7, output2_conv7], [output1_conv8, output2_conv8]
 
 class complexSiameseExtDil(nn.Module):
     def __init__(self):
