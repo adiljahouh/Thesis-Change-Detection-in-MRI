@@ -335,6 +335,7 @@ if __name__ == "__main__":
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
     
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
+    #optimizer = optim.SGD(model_type.parameters(), lr=0.01, momentum=0.9)
 
     ## collates the values into one tensor per key
     train_loader = DataLoader(train_subject_images, batch_size=args.batch_size, shuffle=False)

@@ -130,9 +130,9 @@ class complexSiameseExt(nn.Module):
         # self.fc1 = nn.Linear(131072, 128)  # Adjust input size based on input dimensions
         # self.fc1 = nn.Linear(128 * 32 * 32, 128)  # Output size is 128, adjust if needed
 
-    def fuse_features(self, low_level, high_level):
-        high_level_upsampled = F.interpolate(high_level, size=low_level.size()[2:], mode='bilinear', align_corners=False)
-        return torch.cat([low_level, high_level_upsampled], dim=1)  # Concatenate along channel dimension
+    # def fuse_features(self, low_level, high_level):
+    #     high_level_upsampled = F.interpolate(high_level, size=low_level.size()[2:], mode='bilinear', align_corners=False)
+    #     return torch.cat([low_level, high_level_upsampled], dim=1)  # Concatenate along channel dimension
 
     def forward(self, input1, input2, mode='train'):
         # Forward pass through the Siamese network
