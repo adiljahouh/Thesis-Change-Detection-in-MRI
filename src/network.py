@@ -130,10 +130,6 @@ class complexSiameseExt(nn.Module):
         # self.fc1 = nn.Linear(131072, 128)  # Adjust input size based on input dimensions
         # self.fc1 = nn.Linear(128 * 32 * 32, 128)  # Output size is 128, adjust if needed
 
-    # def fuse_features(self, low_level, high_level):
-    #     high_level_upsampled = F.interpolate(high_level, size=low_level.size()[2:], mode='bilinear', align_corners=False)
-    #     return torch.cat([low_level, high_level_upsampled], dim=1)  # Concatenate along channel dimension
-
     def forward(self, input1, input2, mode='train'):
         # Forward pass through the Siamese network
         output1_conv1 = F.relu(self.bn1(self.conv1(input1)))
@@ -173,12 +169,8 @@ class complexSiameseExt(nn.Module):
         output2_conv8 = F.relu(self.conv8(output2_pool5))
         output2_conv9 = F.relu(self.bn6(self.conv9(output2_conv8)))
         output2_pool6 = F.max_pool2d(output2_conv9, kernel_size=2, stride=2)
-        if mode == 'train':
-            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
-        elif mode == 'test':
-            # return before the pooling layer to visualize them
-            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
-            #return [output1_conv5, output2_conv5], [output1_conv7, output2_conv7], [output1_conv8, output2_conv8]
+
+        return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
 
 class complexSiameseExtDil(nn.Module):
     def __init__(self):
