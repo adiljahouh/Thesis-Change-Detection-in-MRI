@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiameseExt, complexSiameseExtDil
+from network import SimpleSiamese, complexSiameseExt, testDeepSiamese
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
@@ -77,8 +77,8 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 first_conv: torch.Tensor
                 second_conv: torch.Tensor
                 third_conv: torch.Tensor
+                # these are all batches
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
-
                 flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
                 flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
                 distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)
@@ -100,21 +100,22 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                 label = labels[batch_index].item()  # Get the label for the i-th pair
                 if model_type == 'MLO':
                     dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
-                                            
-                    distance_map_2d_conv1 = return_upsampled_norm_distance_map(
-                    first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    distance_map_2d_conv2 = return_upsampled_norm_distance_map(
-                    second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    distance_map_2d_conv3 = return_upsampled_norm_distance_map(
-                    third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    
-                    conv1_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=pre_image)
-                    conv2_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=pre_image)
-
-                    conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
-                    conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
-                    
                     print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
+                    # tumor maps should only be calculated for dissimilar pairs
+                    if label == 0:       
+                        distance_map_2d_conv1 = return_upsampled_norm_distance_map(
+                        first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                        distance_map_2d_conv2 = return_upsampled_norm_distance_map(
+                        second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                        distance_map_2d_conv3 = return_upsampled_norm_distance_map(
+                        third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                        
+                        conv1_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=pre_image)
+                        conv2_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=pre_image)
+
+                        conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
+                        conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
+                        
                 elif model_type == 'SLO':
                     dist = distance[batch_index]
                     distance_map_2d = return_upsampled_norm_distance_map(output1[batch_index], 
@@ -326,7 +327,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = complexSiameseExt()
+        model_type = testDeepSiamese()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")

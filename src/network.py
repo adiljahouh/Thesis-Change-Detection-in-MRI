@@ -4,6 +4,11 @@ import torch.nn.functional as F
 
 class SimpleSiamese(nn.Module):
     def __init__(self):
+        """
+            Siamese network with a simple architecture
+            used for Single layer output so will not be accurate for complex tasks
+            also can be inefficient for noise and 
+        """
         super(SimpleSiamese, self).__init__()
         # Define the architecture for the Siamese network
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
@@ -116,9 +121,9 @@ class complexSiameseExt(nn.Module):
             return [output1_conv3, output2_conv3], [output1_conv4, output2_conv4], [output1_pool6, output2_pool6]
 
 
-class complexSiameseExtDil(nn.Module):
+class testDeepSiamese(nn.Module):
     def __init__(self):
-        super(complexSiameseExtDil, self).__init__()
+        super(testDeepSiamese, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)        
         self.bn1 = nn.BatchNorm2d(32)
         
@@ -141,25 +146,16 @@ class complexSiameseExtDil(nn.Module):
         self.conv8 = nn.Conv2d(512, 1024, kernel_size=3, padding=1)
         self.conv9 = nn.Conv2d(1024, 1024, kernel_size=3, padding=1)
         self.bn6 = nn.BatchNorm2d(1024)
-        self.dropout = nn.Dropout(p=0.5)    
-        
-        # self.fc1 = nn.Linear(131072, 128)  # Adjust input size based on input dimensions
-        # self.fc1 = nn.Linear(128 * 32 * 32, 128)  # Output size is 128, adjust if needed
-
-    def fuse_features(self, low_level, high_level):
-        high_level_upsampled = F.interpolate(high_level, size=low_level.size()[2:], mode='bilinear', align_corners=False)
-        return torch.cat([low_level, high_level_upsampled], dim=1)  # Concatenate along channel dimension
-
     def forward(self, input1, input2, mode='train'):
         # Forward pass through the Siamese network
         output1_conv1 = F.relu(self.bn1(self.conv1(input1)))
         # output1_pool1 = F.max_pool2d(output1_conv1, kernel_size=2, stride=2)
         output1_conv2 = F.relu(self.bn2(self.conv2(output1_conv1)))
-        output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
-        output1_conv3 = F.relu(self.bn3(self.conv3(output1_pool2)))
+        # output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
+        output1_conv3 = F.relu(self.bn3(self.conv3(output1_conv2)))
+        output1_pool3 = F.max_pool2d(output1_conv3, kernel_size=2, stride=2)
         
-        # output1_drop = self.dropout(output1_conv3)
-        output1_conv4 = F.relu(self.conv4(output1_conv3))
+        output1_conv4 = F.relu(self.conv4(output1_pool3))
         output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
         output1_pool4 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2)
         
@@ -170,18 +166,16 @@ class complexSiameseExtDil(nn.Module):
         output1_conv9 = F.relu(self.bn6(self.conv9(output1_conv8)))
         output1_pool6 = F.max_pool2d(output1_conv9, kernel_size=2, stride=2)
         
-        #########
-        ####@@@@#
-        #########
+        #######
         
         output2_conv1 = F.relu(self.bn1(self.conv1(input2)))
         # output2_pool1 = F.max_pool2d(output2_conv1, kernel_size=2, stride=2)
         output2_conv2 = F.relu(self.bn2(self.conv2(output2_conv1)))
-        output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
-        output2_conv3 = F.relu(self.bn3(self.conv3(output2_pool2)))
-                # output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
+        # output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
+        output2_conv3 = F.relu(self.bn3(self.conv3(output2_conv2)))
+        output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
         
-        output2_conv4 = F.relu(self.conv4(output2_conv3))
+        output2_conv4 = F.relu(self.conv4(output2_pool3))
         output2_conv5 = F.relu(self.bn4(self.conv5(output2_conv4)))
         output2_pool4 = F.max_pool2d(output2_conv5, kernel_size=2, stride=2)
     
@@ -195,7 +189,7 @@ class complexSiameseExtDil(nn.Module):
             return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
         elif mode == 'test':
             # return before the pooling layer to visualize them
-            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
+            return [output1_conv5, output2_conv5], [output1_conv7, output2_conv7], [output1_pool6, output2_pool6]
 
 class l2normalization(nn.Module):
     def __init__(self,scale):
