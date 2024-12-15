@@ -14,8 +14,6 @@ from torch.optim.optimizer import Optimizer
 from torchvision import transforms as T
 from numpy import ndarray
 from torchvision.transforms import Compose
-import random 
-
 ## segmentated data https://openneuro.org/datasets/ds001226/versions/5.0.0
 
 ## warp ants on raw/ses-preop skull data
@@ -152,6 +150,8 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                                  np.rot90(np.squeeze(baseline)), output_path=save_path,
                                  tumor=tumor, pre_non_transform=pre_non_transform)
                 elif model_type == 'MLO':
+                    if label == 1:
+                        continue
                     merge_and_overlay_images((np.rot90(pre_image), "Preoperative"), (np.rot90(post_image), "Postoperative"), (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
                                  (np.rot90(conv1_sharpened_post), "First layer post"), (np.rot90(conv2_sharpened_pre), "Second layer pre"),(np.rot90(conv2_sharpened_post), "Second layer post") , (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
                                   (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
