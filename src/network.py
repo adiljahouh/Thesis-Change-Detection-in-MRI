@@ -118,78 +118,8 @@ class complexSiameseExt(nn.Module):
             return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
         elif mode == 'test':
             # return before the pooling layer to visualize them
-            return [output1_conv3, output2_conv3], [output1_conv4, output2_conv4], [output1_pool6, output2_pool6]
+            return [output1_conv3, output2_conv3], [output1_pool4, output2_pool4], [output1_conv4, output2_conv4]
 
-
-class testDeepSiamese(nn.Module):
-    def __init__(self):
-        super(testDeepSiamese, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)        
-        self.bn1 = nn.BatchNorm2d(32)
-        
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-        
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)    
-        self.bn3 = nn.BatchNorm2d(128)
-        
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        ## same output channels, just to refine the features later on
-        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(256)
-        
-        self.conv6 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
-        self.conv7 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-    
-        self.bn5 = nn.BatchNorm2d(512)
-        
-        self.conv8 = nn.Conv2d(512, 1024, kernel_size=3, padding=1)
-        self.conv9 = nn.Conv2d(1024, 1024, kernel_size=3, padding=1)
-        self.bn6 = nn.BatchNorm2d(1024)
-    def forward(self, input1, input2, mode='train'):
-        # Forward pass through the Siamese network
-        output1_conv1 = F.relu(self.bn1(self.conv1(input1)))
-        output1_pool1 = F.max_pool2d(output1_conv1, kernel_size=2, stride=2)
-        output1_conv2 = F.relu(self.bn2(self.conv2(output1_pool1)))
-        output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
-        output1_conv3 = F.relu(self.bn3(self.conv3(output1_pool2)))
-        output1_pool3 = F.max_pool2d(output1_conv3, kernel_size=2, stride=2)
-        
-        output1_conv4 = F.relu(self.conv4(output1_pool3))
-        output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
-        output1_pool4 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2)
-        
-        output1_conv6 = F.relu(self.conv6(output1_pool4))
-        output1_conv7 = F.relu(self.bn5(self.conv7(output1_conv6)))
-        output1_pool5 = F.max_pool2d(output1_conv7, kernel_size=2, stride=2)
-        output1_conv8 = F.relu(self.conv8(output1_pool5))
-        output1_conv9 = F.relu(self.bn6(self.conv9(output1_conv8)))
-        output1_pool6 = F.max_pool2d(output1_conv9, kernel_size=2, stride=2)
-        
-        #######
-        
-        output2_conv1 = F.relu(self.bn1(self.conv1(input2)))
-        output2_pool1 = F.max_pool2d(output2_conv1, kernel_size=2, stride=2)
-        output2_conv2 = F.relu(self.bn2(self.conv2(output2_pool1)))
-        output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
-        output2_conv3 = F.relu(self.bn3(self.conv3(output2_pool2)))
-        output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
-        
-        output2_conv4 = F.relu(self.conv4(output2_pool3))
-        output2_conv5 = F.relu(self.bn4(self.conv5(output2_conv4)))
-        output2_pool4 = F.max_pool2d(output2_conv5, kernel_size=2, stride=2)
-    
-        output2_conv6 = F.relu(self.conv6(output2_pool4))
-        output2_conv7 = F.relu(self.bn5(self.conv7(output2_conv6)))
-        output2_pool5 = F.max_pool2d(output2_conv7, kernel_size=2, stride=2)
-        output2_conv8 = F.relu(self.conv8(output2_pool5))
-        output2_conv9 = F.relu(self.bn6(self.conv9(output2_conv8)))
-        output2_pool6 = F.max_pool2d(output2_conv9, kernel_size=2, stride=2)
-        if mode == 'train':
-            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
-        elif mode == 'test':
-            # return before the pooling layer to visualize them
-            return [output1_conv5, output2_conv5], [output1_pool4, output2_pool4], [output1_pool6, output2_pool6]
 class DeepLab(nn.Module):
     def __init__(self):
         super(DeepLab, self).__init__()
@@ -235,6 +165,80 @@ class DeepLab(nn.Module):
             embedding_output = F.relu(self.bn_embedding(self.embedding_conv(dilated5_output)))
             
             return [layer1_output, dilated4_output, embedding_output]
+        
+        # Siamese branches
+        output1 = siamese_branch(input1)
+        output2 = siamese_branch(input2)
+        
+        if mode == 'train':
+            return [output1[0], output2[0]], [output1[1], output2[1]], [output1[2], output2[2]]
+        elif mode == 'test':
+            return [output1[0], output2[0]], [output1[1], output2[1]], [output1[2], output2[2]]
+
+class DeepLabExtended(nn.Module):
+    def __init__(self):
+        super(DeepLabExtended, self).__init__()
+        
+        # Initial layers
+        self.dropout = nn.Dropout(p=0.5)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        
+        # Additional refinement layers before dilated layers
+        self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.bn3_1 = nn.BatchNorm2d(256)
+        
+        self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.bn3_2 = nn.BatchNorm2d(256)
+
+        # Dilated convolution layers
+        self.dilated_conv4_1 = nn.Conv2d(256, 512, kernel_size=3, dilation=2, padding=2)
+        self.bn4_1 = nn.BatchNorm2d(512)
+        
+        self.dilated_conv4_2 = nn.Conv2d(512, 512, kernel_size=3, dilation=2, padding=2)
+        self.bn4_2 = nn.BatchNorm2d(512)
+        
+        self.dilated_conv5_1 = nn.Conv2d(512, 1024, kernel_size=3, dilation=4, padding=4)
+        self.bn5_1 = nn.BatchNorm2d(1024)
+        
+        self.dilated_conv5_2 = nn.Conv2d(1024, 1024, kernel_size=3, dilation=4, padding=4)
+        self.bn5_2 = nn.BatchNorm2d(1024)
+        
+        # Final embedding layers
+        self.embedding_conv = nn.Conv2d(1024, 1024, kernel_size=1)
+        self.bn_embedding = nn.BatchNorm2d(1024)
+
+    def forward(self, input1, input2, mode='train'):
+        def siamese_branch(input):
+            # Initial layers
+            layer1_output = F.relu(self.bn1(self.conv1(input)))
+            pool1_output = F.max_pool2d(layer1_output, kernel_size=2, stride=2)
+            
+            layer2_output = F.relu(self.bn2(self.conv2(pool1_output)))
+            pool2_output = F.max_pool2d(layer2_output, kernel_size=2, stride=2)
+            
+            layer3_output = F.relu(self.bn3(self.conv3(pool2_output)))
+            layer3_1_output = F.relu(self.bn3_1(self.conv3_1(layer3_output)))
+            pool3_output = F.max_pool2d(layer3_1_output, kernel_size=2, stride=2)
+            layer3_2_output = F.relu(self.bn3_2(self.conv3_2(pool3_output)))
+            pool3_output = F.max_pool2d(layer3_2_output, kernel_size=2, stride=2)
+            # Dilated convolutions
+            dilated4_1_output = F.relu(self.bn4_1(self.dilated_conv4_1(pool3_output)))
+            dilated4_2_output = F.relu(self.bn4_2(self.dilated_conv4_2(dilated4_1_output)))
+            pool_4_output = F.max_pool2d(dilated4_2_output, kernel_size=2, stride=2)
+            dilated5_1_output = F.relu(self.bn5_1(self.dilated_conv5_1(pool_4_output)))
+            dilated5_2_output = F.relu(self.bn5_2(self.dilated_conv5_2(dilated5_1_output)))
+            pool_5_output = F.max_pool2d(dilated5_2_output, kernel_size=2, stride=2)
+            # Embedding layer
+            embedding_output = F.relu(self.bn_embedding(self.embedding_conv(pool_5_output)))
+            
+            return [pool2_output, pool_4_output, embedding_output]
         
         # Siamese branches
         output1 = siamese_branch(input1)

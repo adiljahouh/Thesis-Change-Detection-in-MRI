@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiameseExt, testDeepSiamese, DeepLab
+from network import SimpleSiamese, complexSiameseExt, DeepLab, DeepLabExtended
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
@@ -113,10 +113,12 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                         
                         conv1_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=pre_image)
                         conv2_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=pre_image)
-
+                        conv3_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=pre_image)
+                        
                         conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
                         conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
-                        
+                        conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
+
                 elif model_type == 'SLO':
                     dist = distance[batch_index]
                     distance_map_2d = return_upsampled_norm_distance_map(output1[batch_index], 
@@ -155,8 +157,15 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                     if label == 1:
                         continue
                     merge_and_overlay_images((np.rot90(pre_image), "Preoperative"), (np.rot90(post_image), "Postoperative"), (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
-                                 (np.rot90(conv1_sharpened_post), "First layer post"), (np.rot90(conv2_sharpened_pre), "Second layer pre"),(np.rot90(conv2_sharpened_post), "Second layer post") , (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
-                                  (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
+                                 (np.rot90(conv1_sharpened_post), "First layer post"), 
+                                 (np.rot90(conv2_sharpened_pre), "Second layer pre"),
+                                 (np.rot90(conv2_sharpened_post), "Second layer post"),
+                                 (np.rot90(conv3_sharpened_pre), "Third layer pre"),
+                                 (np.rot90(conv3_sharpened_post), "Third layer post"),
+                                 (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), 
+                                 (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
+                                 (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
+                                (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
                                   tumor=tumor, pre_non_transform=pre_non_transform)
     return distances_list, labels_list
 
@@ -328,7 +337,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = DeepLab()
+        model_type = complexSiameseExt()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
