@@ -118,7 +118,8 @@ class complexSiameseExt(nn.Module):
             return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
         elif mode == 'test':
             # return before the pooling layer to visualize them
-            return [output1_conv3, output2_conv3], [output1_pool4, output2_pool4], [output1_conv4, output2_conv4]
+            #return [output1_conv3, output2_conv3], [output1_pool4, output2_pool4], [output1_conv4, output2_conv4]
+            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
 
 class DeepLab(nn.Module):
     def __init__(self):
@@ -175,76 +176,117 @@ class DeepLab(nn.Module):
         elif mode == 'test':
             return [output1[0], output2[0]], [output1[1], output2[1]], [output1[2], output2[2]]
 
+import torch
+import torch.nn as nn
+
 class DeepLabExtended(nn.Module):
     def __init__(self):
         super(DeepLabExtended, self).__init__()
         
         # Initial layers
-        self.dropout = nn.Dropout(p=0.5)
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-        
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-        
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
-        
-        # Additional refinement layers before dilated layers
-        self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.bn3_1 = nn.BatchNorm2d(256)
-        
-        self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.bn3_2 = nn.BatchNorm2d(256)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 256x256 -> 128x128
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 128x128 -> 64x64
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 64x64 -> 32x32
+        )
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=1, padding=1, ceil_mode=True)  # Keep 32x32
+        )
+        self.conv5 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, dilation=2, padding=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, dilation=2, padding=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, dilation=2, padding=2),
+            nn.ReLU(inplace=True),
+        )
 
-        # Dilated convolution layers
-        self.dilated_conv4_1 = nn.Conv2d(256, 512, kernel_size=3, dilation=2, padding=2)
-        self.bn4_1 = nn.BatchNorm2d(512)
-        
-        self.dilated_conv4_2 = nn.Conv2d(512, 512, kernel_size=3, dilation=2, padding=2)
-        self.bn4_2 = nn.BatchNorm2d(512)
-        
-        self.dilated_conv5_1 = nn.Conv2d(512, 1024, kernel_size=3, dilation=4, padding=4)
-        self.bn5_1 = nn.BatchNorm2d(1024)
-        
-        self.dilated_conv5_2 = nn.Conv2d(1024, 1024, kernel_size=3, dilation=4, padding=4)
-        self.bn5_2 = nn.BatchNorm2d(1024)
-        
-        # Final embedding layers
-        self.embedding_conv = nn.Conv2d(1024, 1024, kernel_size=1)
-        self.bn_embedding = nn.BatchNorm2d(1024)
+        # Multi-scale contexts
+        self.fc6_1 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=6, padding=6),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc7_1 = nn.Sequential(
+            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc6_2 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=12, padding=12),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc7_2 = nn.Sequential(
+            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc6_3 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=18, padding=18),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc7_3 = nn.Sequential(
+            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc6_4 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=24, padding=24),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.fc7_4 = nn.Sequential(
+            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=0.5)
+        )
+        self.embedding_layer = nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=1)
 
-    def forward(self, input1, input2, mode='train'):
-        def siamese_branch(input):
-            # Initial layers
-            layer1_output = F.relu(self.bn1(self.conv1(input)))
-            pool1_output = F.max_pool2d(layer1_output, kernel_size=2, stride=2)
-            
-            layer2_output = F.relu(self.bn2(self.conv2(pool1_output)))
-            pool2_output = F.max_pool2d(layer2_output, kernel_size=2, stride=2)
-            
-            layer3_output = F.relu(self.bn3(self.conv3(pool2_output)))
-            layer3_1_output = F.relu(self.bn3_1(self.conv3_1(layer3_output)))
-            pool3_output = F.max_pool2d(layer3_1_output, kernel_size=2, stride=2)
-            layer3_2_output = F.relu(self.bn3_2(self.conv3_2(pool3_output)))
-            pool3_output = F.max_pool2d(layer3_2_output, kernel_size=2, stride=2)
-            # Dilated convolutions
-            dilated4_1_output = F.relu(self.bn4_1(self.dilated_conv4_1(pool3_output)))
-            dilated4_2_output = F.relu(self.bn4_2(self.dilated_conv4_2(dilated4_1_output)))
-            pool_4_output = F.max_pool2d(dilated4_2_output, kernel_size=2, stride=2)
-            dilated5_1_output = F.relu(self.bn5_1(self.dilated_conv5_1(pool_4_output)))
-            dilated5_2_output = F.relu(self.bn5_2(self.dilated_conv5_2(dilated5_1_output)))
-            pool_5_output = F.max_pool2d(dilated5_2_output, kernel_size=2, stride=2)
-            # Embedding layer
-            embedding_output = F.relu(self.bn_embedding(self.embedding_conv(pool_5_output)))
-            
-            return [pool2_output, pool_4_output, embedding_output]
-        
-        # Siamese branches
-        output1 = siamese_branch(input1)
-        output2 = siamese_branch(input2)
-        
-        if mode == 'train':
-            return [output1[0], output2[0]], [output1[1], output2[1]], [output1[2], output2[2]]
-        elif mode == 'test':
-            return [output1[0], output2[0]], [output1[1], output2[1]], [output1[2], output2[2]]
+    def forward_branch(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        conv3_feature = self.conv3(x)
+        conv4_feature = self.conv4(conv3_feature)
+        conv5_feature = self.conv5(conv4_feature)
+        fc6_1 = self.fc6_1(conv5_feature)
+        fc7_1 = self.fc7_1(fc6_1)
+        fc6_2 = self.fc6_2(conv5_feature)
+        fc7_2 = self.fc7_2(fc6_2)
+        fc6_3 = self.fc6_3(conv5_feature)
+        fc7_3 = self.fc7_3(fc6_3)
+        fc6_4 = self.fc6_4(conv5_feature)
+        fc7_4 = self.fc7_4(fc6_4)
+        fc_feature = fc7_1 + fc7_2 + fc7_3 + fc7_4
+        embedding_feature = self.embedding_layer(fc_feature)
+        return conv5_feature, fc_feature, embedding_feature
+
+    def forward(self, x1, x2):
+        out1 = self.forward_branch(x1)
+        out2 = self.forward_branch(x2)
+        return [out1[0], out2[0]], [out1[1], out2[1]], [out1[2], out2[2]]
