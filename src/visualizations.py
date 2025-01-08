@@ -107,8 +107,11 @@ def generate_roc_curve(distances, labels, save_dir, extra_title=""):
 
 def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
                                         mode='bilinear'):
-    interp = nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
+
+    interp = nn.Upsample(size=[256,256], mode=mode)
+    # interp = nn.Upsample(size=[h,w], mode=mode) # if we want to keep the original size
+
     # remember the c, h, w -> flatten
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
     out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
@@ -149,16 +152,19 @@ def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: n
     high_freq_details = base_image - blurred_image
 
     # Compute sharpened map for high-value regions
-    sharpened_map = distance_map * (1 + alpha * high_freq_details)
-    
-    # Add contribution from the base image in low-value regions
-    enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
+    try:
+        sharpened_map = distance_map * (1 + alpha * high_freq_details)
+        
+        # Add contribution from the base image in low-value regions
+        enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
 
-    # Apply the mask to filter the distance map
-    enhanced_map = mask * enhanced_map + (1 - mask) * base_image
+        # Apply the mask to filter the distance map
+        enhanced_map = mask * enhanced_map + (1 - mask) * base_image
 
-    # Normalize the final result to keep it within [0, 1]
-    enhanced_map = normalize_np_array(enhanced_map)
+        # Normalize the final result to keep it within [0, 1]
+        enhanced_map = normalize_np_array(enhanced_map)
+    except ValueError as e:
+        return distance_map
     
     return enhanced_map
 

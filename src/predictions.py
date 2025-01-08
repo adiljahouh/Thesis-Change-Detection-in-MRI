@@ -1,5 +1,5 @@
 import torch
-from network import SimpleSiamese, complexSiameseExt
+from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
 
 from loader import balance_dataset, control_pairs, aertsDataset, remindDataset
 import os
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=50, tumor_sensitivity=0.30, transform=transform, load_slices=True)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = complexSiameseExt()
+        model_type = DeepLabExtended()
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced

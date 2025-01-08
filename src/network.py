@@ -185,88 +185,88 @@ class DeepLabExtended(nn.Module):
         
         # Initial layers
         self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=64, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 256x256 -> 128x128
         )
         self.conv2 = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 128x128 -> 64x64
         )
         self.conv3 = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 64x64 -> 32x32
+        )
+        self.conv4 = nn.Sequential(
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # Downscale 64x64 -> 32x32
-        )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=1, padding=1, ceil_mode=True)  # Keep 32x32
         )
         self.conv5 = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, dilation=2, padding=2),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, dilation=2, padding=2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, dilation=2, padding=2),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, dilation=2, padding=2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, dilation=2, padding=2),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, dilation=2, padding=2),
             nn.ReLU(inplace=True),
         )
 
         # Multi-scale contexts
         self.fc6_1 = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=6, padding=6),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=6, padding=6),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc7_1 = nn.Sequential(
-            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=1),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc6_2 = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=12, padding=12),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=12, padding=12),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc7_2 = nn.Sequential(
-            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=1),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc6_3 = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=18, padding=18),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=18, padding=18),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc7_3 = nn.Sequential(
-            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=1),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc6_4 = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, dilation=24, padding=24),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=24, padding=24),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
         self.fc7_4 = nn.Sequential(
-            nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=1),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=1),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
-        self.embedding_layer = nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=1)
+        self.embedding_layer = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1)
 
     def forward_branch(self, x):
         x = self.conv1(x)
@@ -285,8 +285,17 @@ class DeepLabExtended(nn.Module):
         fc_feature = fc7_1 + fc7_2 + fc7_3 + fc7_4
         embedding_feature = self.embedding_layer(fc_feature)
         return conv5_feature, fc_feature, embedding_feature
-
-    def forward(self, x1, x2):
+    # def normalize(self, x, scale = 1.0, dim = 1):
+    #     return scale * x * x.pow(2).sum(dim).clamp(min=1e-12).rsqrt().expand_as(x)
+    def normalize(self, x, scale=1.0, dim=1):
+        norm = x.pow(2).sum(dim=dim, keepdim=True).clamp(min=1e-12).rsqrt()
+        return scale * x * norm
+    def forward(self, x1, x2, mode='train'):
         out1 = self.forward_branch(x1)
         out2 = self.forward_branch(x2)
-        return [out1[0], out2[0]], [out1[1], out2[1]], [out1[2], out2[2]]
+        if mode == 'train':
+            return [self.normalize(out1[0]), self.normalize(out2[0])], [self.normalize(out1[1]), self.normalize(out2[1])], [self.normalize(out1[2]), self.normalize(out2[2])]
+        elif mode == 'test':
+            # return before the pooling layer to visualize them
+            #return [output1_conv3, output2_conv3], [output1_pool4, output2_pool4], [output1_conv4, output2_conv4]
+            return [self.normalize(out1[0]), self.normalize(out2[0])], [self.normalize(out1[1]), self.normalize(out2[1])], [self.normalize(out1[2]), self.normalize(out2[2])]
