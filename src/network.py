@@ -227,7 +227,7 @@ class DeepLabExtended(nn.Module):
 
         # Multi-scale contexts
         self.fc6_1 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=6, padding=6),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=3, padding=3),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
@@ -237,7 +237,7 @@ class DeepLabExtended(nn.Module):
             nn.Dropout2d(p=0.5)
         )
         self.fc6_2 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=12, padding=12),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=6, padding=6),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
@@ -247,7 +247,7 @@ class DeepLabExtended(nn.Module):
             nn.Dropout2d(p=0.5)
         )
         self.fc6_3 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=18, padding=18),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=9, padding=9),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
@@ -257,7 +257,7 @@ class DeepLabExtended(nn.Module):
             nn.Dropout2d(p=0.5)
         )
         self.fc6_4 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=24, padding=24),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=12, padding=12),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=0.5)
         )
@@ -282,9 +282,10 @@ class DeepLabExtended(nn.Module):
         fc7_3 = self.fc7_3(fc6_3)
         fc6_4 = self.fc6_4(conv5_feature)
         fc7_4 = self.fc7_4(fc6_4)
+        # print(fc7_1.shape, fc7_2.shape, fc7_3.shape, fc7_4.shape)
         fc_feature = fc7_1 + fc7_2 + fc7_3 + fc7_4
         embedding_feature = self.embedding_layer(fc_feature)
-        return conv5_feature, fc_feature, embedding_feature
+        return conv4_feature, conv5_feature, fc_feature
     # def normalize(self, x, scale = 1.0, dim = 1):
     #     return scale * x * x.pow(2).sum(dim).clamp(min=1e-12).rsqrt().expand_as(x)
     def normalize(self, x, scale=1.0, dim=1):
