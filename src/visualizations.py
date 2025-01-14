@@ -105,6 +105,21 @@ def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     print(optimal_threshold)
     return optimal_threshold
 
+def return_upsampled_distance_map_batch(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str, mode='bilinear'):
+    batch_size, c, h, w = output_t0.shape
+
+    interp = nn.Upsample(size=[256, 256], mode=mode)
+
+    # Flatten the spatial dimensions
+    out_t0_rz = output_t0.view(batch_size, c, h * w).transpose(1, 2)
+    out_t1_rz = output_t1.view(batch_size, c, h * w).transpose(1, 2)
+
+    # Calculate the distance for each batch
+    distance = various_distance(out_t0_rz, out_t1_rz, dist_flag=dist_flag)
+    similar_distance_map = distance.view(batch_size, h, w).cpu().numpy()
+    similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
+
+    return similar_distance_map_rz.data.cpu().numpy()
 def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
                                         mode='bilinear'):
     c, h, w = output_t0.data.shape

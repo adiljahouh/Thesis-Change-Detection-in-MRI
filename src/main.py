@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiameseExt, DeepLab, DeepLabExtended
-from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss
+from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
+from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss, eval_feature_map
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
 import os
@@ -183,7 +183,9 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
     for epoch in range(epochs):
         epoch_train_loss = 0.0
         total_train_samples = 0
+        print("dong")
         for index, batch in enumerate(train_loader):
+            print(batch.keys())
             ## each batch is a dict with pre, post, label etc. and collated (merged) values from
             ## each value in the batch
             batch: dict[str, torch.Tensor]
@@ -231,7 +233,7 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                 batch: dict[str, torch.Tensor]
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
-
+                tumor_batch = torch.Tensor = batch['tumor'].float().to(device)
                 # pre_batch = pre_batch.unsqueeze(1)
                 # post_batch = post_batch.unsqueeze(1)
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
@@ -241,10 +243,15 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                     loss: torch.Tensor = criterion(output1, output2, label_batch)
                 elif args.model == 'MLO':
                     first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                    loss_1 = criterion(first_conv[0], first_conv[1], label_batch)
-                    loss_2 = criterion(second_conv[0], second_conv[1], label_batch)
-                    loss_3 = criterion(third_conv[0], third_conv[1], label_batch)
-                    loss: torch.Tensor = loss_1 + loss_2 + loss_3
+                    ## TODO: replace this with other conditions 
+                    distance_map = return_upsampled_distance_map_batch(first_conv[0], first_conv[1], dist_flag='l2', mode='bilinear')
+                    print('distance map shape ', distance_map.shape)
+                    bin_map = distance_map[0][0]
+                    print('binmap shape')
+                    print(bin_map.shape)
+                    print('tumor shape', tumor_batch[0].shape)
+                    FN, FP, posNum, negNum = eval_feature_map(tumor_batch[0], bin_map, 1)
+                    print(FN, FP, posNum, negNum)
                 epoch_val_loss += loss.item()
                 total_val_samples += pre_batch.size(0)
         
