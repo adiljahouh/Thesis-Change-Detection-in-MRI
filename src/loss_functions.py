@@ -75,35 +75,35 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra):
         prob is the binary image feature map
         cl_index is set to 1?
     """
-    randint = np.random.randint(0, 1000)
+    # randint = np.random.randint(0, 1000)
     thresh = np.array(range(0, 256))/255.0 
     significant_tumor_pixels = tumor_seg[:,:] > seg_value_index ## 0.30 check for tumor pixels
     all_tumor_pixels = tumor_seg[:, :] != 0 # full segmentation area
-    has_tumor_pixels = np.any(all_tumor_pixels)
-    if not has_tumor_pixels:
-        print(f"No tumor pixels found for {extra}")
-    # Visualize inputs
-    import matplotlib.pyplot as plt
-    import os
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    # has_tumor_pixels = np.any(all_tumor_pixels)
+    # if not has_tumor_pixels:
+    #     print(f"No tumor pixels found for {extra}")
+    # # Visualize inputs
+    # import matplotlib.pyplot as plt
+    # import os
+    # fig, axs = plt.subplots(1, 3, figsize=(18, 6))
     
-    axs[0].imshow(tumor_seg, cmap="gray")
-    axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
-    axs[0].axis("off")
+    # axs[0].imshow(tumor_seg, cmap="gray")
+    # axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
+    # axs[0].axis("off")
         
-    axs[1].imshow(significant_tumor_pixels, cmap="gray")
-    axs[1].set_title("significant tumor pixels")
-    axs[1].axis("off")
+    # axs[1].imshow(significant_tumor_pixels, cmap="gray")
+    # axs[1].set_title("significant tumor pixels")
+    # axs[1].axis("off")
     
-    axs[2].imshow(feature_map, cmap="grey")
-    axs[2].set_title("Feature Map")
-    axs[2].axis("off")
+    # axs[2].imshow(feature_map, cmap="grey")
+    # axs[2].set_title("Feature Map")
+    # axs[2].axis("off")
     
-    # Save visualizations
-    vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
-    plt.tight_layout()
-    plt.savefig(vis_path, bbox_inches="tight")
-    plt.close(fig)
+    # # Save visualizations
+    # vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
+    # plt.tight_layout()
+    # plt.savefig(vis_path, bbox_inches="tight")
+    # plt.close(fig)
     
 
 

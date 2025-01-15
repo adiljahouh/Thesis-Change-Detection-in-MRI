@@ -4,6 +4,8 @@
 *.log
 *.csv
 *.tsv
+*.png
+*.jpg
 data/*
 data/2D/*
 data/raw/*

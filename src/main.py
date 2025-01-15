@@ -242,7 +242,6 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     loss: torch.Tensor = criterion(output1, output2, label_batch)
                 elif args.model == 'MLO':
                     first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-
                     for batch_index in range(pre_batch.size(0)):
                         if batch['label'][batch_index].item() == 0:
                             distance_map = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
@@ -315,7 +314,6 @@ if __name__ == "__main__":
                     T.ToTensor()])
     elif args.loss == 'TCL':
         criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
-        #TODO: uncomment shiftimage
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),
