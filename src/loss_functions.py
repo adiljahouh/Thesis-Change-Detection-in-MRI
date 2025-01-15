@@ -107,12 +107,11 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra):
     
 
 
-    FN, FP, posNum, negNum = evalExp(significant_tumor_pixels, feature_map,
-                                     thresh, validMap=None,
-                                     segmentation_area=all_tumor_pixels)
+    FN, FP, posNum, negNum = evalExp(all_tumor_pixels, feature_map,
+                                     thresh)
     return FN, FP, posNum, negNum
 
-def evalExp(significant_tumor_pixels, feature_map, thres, validMap = None, segmentation_area=None):
+def evalExp(significant_tumor_pixels, feature_map, thres):
     '''
     Does the basic pixel based evaluation!
     :param truthy_tumor_pixels: pixels over the threshold we use to tag images
@@ -124,35 +123,25 @@ def evalExp(significant_tumor_pixels, feature_map, thres, validMap = None, segme
 
     assert len(feature_map.shape) == 2, 'Wrong size of input prob map'
     assert len(significant_tumor_pixels.shape) == 2, 'Wrong size of input prob map'
-    thresInf = np.concatenate(([-np.Inf], thres, [np.Inf]))
-    
-    if np.any(segmentation_area)!=None:
-        validMap=segmentation_area
-        
-    if np.any(validMap)!=None:
-        fnArray = feature_map[(significant_tumor_pixels == True) & (validMap == True)]
-    else:
-        fnArray = feature_map[(significant_tumor_pixels == True)]
-    #f = np.histogram(fnArray,bins=thresInf)
+    thresInf = np.concatenate(([-np.Inf], thres, [np.Inf])) 
+    fnArray = feature_map[(significant_tumor_pixels == True)] # pixels in fm where tumor is located
+    ## array of probabilities of tumor pixels [0.8, 0.9, 0.7, 0.6, 0.5]
     fnHist = np.histogram(fnArray,bins=thresInf)[0]
-
+    ## these are not technically false negatives, but true postives
+    ## we put them in bins to see at what threshold they are detected as true positives in fm
     fnCum = np.cumsum(fnHist)
+    ## cumsum makes converts the bins to count the amount of FN at each threshold
     FN = fnCum[0:0+len(thres)]
     
-    if validMap.any()!=None:
-        fpArray = feature_map[(significant_tumor_pixels == False) & (validMap == True)]
-    else:
-        fpArray = feature_map[(significant_tumor_pixels == False)]
+    fpArray = feature_map[(significant_tumor_pixels == False)] # pixels in fm where tumor is not located
     
     fpHist  = np.histogram(fpArray, bins=thresInf)[0]
     fpCum = np.flipud(np.cumsum(np.flipud(fpHist)))
     FP = fpCum[1:1+len(thres)]
 
-    # count labels and protos
-    if np.any(validMap)!=None:
-        posNum = np.sum((significant_tumor_pixels == True) & (validMap == True))
-        negNum = np.sum((significant_tumor_pixels == False) & (validMap == True))
-    else:
-        posNum = np.sum(significant_tumor_pixels == True)
-        negNum = np.sum(significant_tumor_pixels == False)
+    posNum = np.sum(significant_tumor_pixels == True)
+    negNum = np.sum(significant_tumor_pixels == False)
+    ## return the number of false negatives, false positives per threshold
+    # number of positive pixels, number of negative pixels
+    print(len(FN), len(FP), posNum, negNum)
     return FN, FP, posNum, negNum
