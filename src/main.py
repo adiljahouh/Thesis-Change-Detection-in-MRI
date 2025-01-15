@@ -1,4 +1,4 @@
-import torch
+import torch as torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
 from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss, eval_feature_map
@@ -46,7 +46,7 @@ from torchvision.transforms import Compose
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
-def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=torch.device('cuda'), model_type='SLO'):
+def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, device=torch.device('cuda'), model_type='SLO'):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -169,7 +169,8 @@ def predict(siamese_net: nn.Module, test_loader: DataLoader, base_dir, device=to
                                   tumor=tumor, pre_non_transform=pre_non_transform)
     return distances_list, labels_list
 
-def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
+def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
+          train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
           save_dir='./results/unassigned', device=torch.device('cuda')):
     
     siamese_net.to(device)
@@ -183,9 +184,7 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
     for epoch in range(epochs):
         epoch_train_loss = 0.0
         total_train_samples = 0
-        print("dong")
         for index, batch in enumerate(train_loader):
-            print(batch.keys())
             ## each batch is a dict with pre, post, label etc. and collated (merged) values from
             ## each value in the batch
             batch: dict[str, torch.Tensor]
@@ -233,7 +232,7 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                 batch: dict[str, torch.Tensor]
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
-                tumor_batch = torch.Tensor = batch['tumor'].float().to(device)
+                tumor_batch: torch.Tensor = batch['tumor'].float().to(device)
                 # pre_batch = pre_batch.unsqueeze(1)
                 # post_batch = post_batch.unsqueeze(1)
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
@@ -243,15 +242,15 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
                     loss: torch.Tensor = criterion(output1, output2, label_batch)
                 elif args.model == 'MLO':
                     first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                    ## TODO: replace this with other conditions 
-                    distance_map = return_upsampled_distance_map_batch(first_conv[0], first_conv[1], dist_flag='l2', mode='bilinear')
-                    print('distance map shape ', distance_map.shape)
-                    bin_map = distance_map[0][0]
-                    print('binmap shape')
-                    print(bin_map.shape)
-                    print('tumor shape', tumor_batch[0].shape)
-                    FN, FP, posNum, negNum = eval_feature_map(tumor_batch[0], bin_map, 1)
-                    print(FN, FP, posNum, negNum)
+
+                    for batch_index in range(pre_batch.size(0)):
+                        if batch['label'][batch_index].item() == 0:
+                            distance_map = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                                                                        dist_flag='l2', mode='bilinear')
+                            bin_map = distance_map[0][0]
+                            FN, FP, posNum, negNum = eval_feature_map(tumor_batch.cpu().numpy()[0][0], bin_map.data.cpu().numpy(), 0.30)
+                            print(FN, FP, posNum, negNum)
+                        
                 epoch_val_loss += loss.item()
                 total_val_samples += pre_batch.size(0)
         
@@ -267,6 +266,7 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
             consecutive_no_improvement = 0
             # Save the best model
             save_path = os.path.join(save_dir, "model.pth")
+
             torch.save(siamese_net.state_dict(), save_path)
             print(f'Saved best model to {save_path}')
         else:
@@ -277,6 +277,8 @@ def train(siamese_net: nn.Module, optimizer: Optimizer, criterion: nn.Module, tr
     return best_loss           
 
 if __name__ == "__main__":
+    interp = torch.nn.Upsample(size=(256, 256), mode='bilinear')
+
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
     parser.add_argument('--model', type=str, choices=['SLO', 'MLO'],
                              help='Type of model architecture to use (custom or VGG16-based).', 

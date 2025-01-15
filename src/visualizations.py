@@ -1,4 +1,3 @@
-import torch.nn as nn
 import torch
 import numpy as np
 import cv2
@@ -8,6 +7,7 @@ import matplotlib.pyplot as plt
 from distance_measures import various_distance
 from loader import normalize_np_array
 from matplotlib.axes import Axes
+interp = torch.nn.Upsample(size=(256, 256), mode='bilinear')
 
 def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, **kwargs):
     """
@@ -105,27 +105,25 @@ def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     print(optimal_threshold)
     return optimal_threshold
 
-def return_upsampled_distance_map_batch(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str, mode='bilinear'):
-    batch_size, c, h, w = output_t0.shape
+def return_upsampled_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
+                                        mode='bilinear') -> torch.Tensor:
 
-    interp = nn.Upsample(size=[256, 256], mode=mode)
-
-    # Flatten the spatial dimensions
-    out_t0_rz = output_t0.view(batch_size, c, h * w).transpose(1, 2)
-    out_t1_rz = output_t1.view(batch_size, c, h * w).transpose(1, 2)
-
-    # Calculate the distance for each batch
-    distance = various_distance(out_t0_rz, out_t1_rz, dist_flag=dist_flag)
-    similar_distance_map = distance.view(batch_size, h, w).cpu().numpy()
-    similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
-
-    return similar_distance_map_rz.data.cpu().numpy()
-def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
-                                        mode='bilinear'):
+    # interp = torch.nn.Upsample(size=[256,256], mode=mode)
     c, h, w = output_t0.data.shape
 
-    interp = nn.Upsample(size=[256,256], mode=mode)
-    # interp = nn.Upsample(size=[h,w], mode=mode) # if we want to keep the original size
+    # remember the c, h, w -> flatten
+    out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
+    out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
+    distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
+    similar_distance_map = distance.view(h,w).data.cpu().numpy()
+    similar_distance_map_rz = interp(torch.from_numpy(similar_distance_map[np.newaxis, np.newaxis, :]))
+    return similar_distance_map_rz
+
+def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
+                                        mode='bilinear'):
+
+    # interp = torch.nn.Upsample(size=[256,256], mode=mode)
+    c, h, w = output_t0.data.shape
 
     # remember the c, h, w -> flatten
     out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
@@ -205,6 +203,7 @@ def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, 
     enhanced_map = normalize_np_array(enhanced_map)
     
     return enhanced_map
+
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
     plt.figure()

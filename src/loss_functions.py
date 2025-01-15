@@ -69,70 +69,87 @@ class ConstractiveThresholdHingeLoss(nn.Module):
 
 
 
-def eval_feature_map(gt_image, prob,cl_index):
+def eval_feature_map(tumor_seg, feature_map, seg_value_index):
     """
         gt image is the ground truth image
         prob is the binary image feature map
         cl_index is set to 1?
     """
+    randint = np.random.randint(0, 1000)
     thresh = np.array(range(0, 256))/255.0 
-    cl_gt = gt_image[:,:] == cl_index ## Makes boolean map if the value is 1
-    valid_gt = gt_image[:,:] != 255 # makes boolean map if the value is not 255
+    significant_tumor_pixels = tumor_seg[:,:] > seg_value_index ## 0.30 check for tumor pixels
+    all_tumor_pixels = tumor_seg[:, :] != 0 # full segmentation area
+    
+    # Visualize inputs
+    import matplotlib.pyplot as plt
+    import os
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    axs[0].imshow(all_tumor_pixels, cmap="gray")
+    axs[0].set_title("All tumor pixels")
+    axs[0].axis("off")
+        
+    axs[1].imshow(significant_tumor_pixels, cmap="gray")
+    axs[1].set_title("significant tumor pixels")
+    axs[1].axis("off")
+    
+    axs[2].imshow(feature_map, cmap="grey")
+    axs[2].set_title("Feature Map")
+    axs[2].axis("off")
+    
+    # Save visualizations
+    vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
+    plt.tight_layout()
+    plt.savefig(vis_path, bbox_inches="tight")
+    plt.close(fig)
+    
 
-    FN, FP, posNum, negNum = evalExp(cl_gt, prob,
+
+    FN, FP, posNum, negNum = evalExp(significant_tumor_pixels, feature_map,
                                      thresh, validMap=None,
-                                     validArea=valid_gt)
+                                     segmentation_area=all_tumor_pixels)
     return FN, FP, posNum, negNum
 
-def evalExp(gtBin, cur_prob, thres, validMap = None, validArea=None):
+def evalExp(significant_tumor_pixels, feature_map, thres, validMap = None, segmentation_area=None):
     '''
     Does the basic pixel based evaluation!
-    :param gtBin: Boolean mask if the pixel is 1 = true in ground truth
-    :param cur_prob: the base feature map
+    :param truthy_tumor_pixels: pixels over the threshold we use to tag images
+    :param feature_map: the base feature map
     :param thres: array going up to 1
     :param validMap:
-    :param validArea: boolean mask where its not 255 = true
+    :param segmentation_area: boolean mask where its not 255 = true
     '''
 
-    assert len(cur_prob.shape) == 2, 'Wrong size of input prob map'
-    assert len(gtBin.shape) == 2, 'Wrong size of input prob map'
+    assert len(feature_map.shape) == 2, 'Wrong size of input prob map'
+    assert len(significant_tumor_pixels.shape) == 2, 'Wrong size of input prob map'
     thresInf = np.concatenate(([-np.Inf], thres, [np.Inf]))
     
-    #Merge validMap with validArea
+    if np.any(segmentation_area)!=None:
+        validMap=segmentation_area
+        
     if np.any(validMap)!=None:
-        if np.any(validArea)!=None:
-            validMap = (validMap == True) & (validArea == True)
-    elif np.any(validArea)!=None:
-        validMap=validArea
-
-    # histogram of false negatives
-    if np.any(validMap)!=None:
-        #valid_array = cur_prob[(validMap == False)]
-        fnArray = cur_prob[(gtBin == True) & (validMap == True)]
+        fnArray = feature_map[(significant_tumor_pixels == True) & (validMap == True)]
     else:
-        fnArray = cur_prob[(gtBin == True)]
+        fnArray = feature_map[(significant_tumor_pixels == True)]
     #f = np.histogram(fnArray,bins=thresInf)
     fnHist = np.histogram(fnArray,bins=thresInf)[0]
-    fn_list = list(fnHist)
+
     fnCum = np.cumsum(fnHist)
     FN = fnCum[0:0+len(thres)]
     
     if validMap.any()!=None:
-        fpArray = cur_prob[(gtBin == False) & (validMap == True)]
+        fpArray = feature_map[(significant_tumor_pixels == False) & (validMap == True)]
     else:
-        fpArray = cur_prob[(gtBin == False)]
+        fpArray = feature_map[(significant_tumor_pixels == False)]
     
     fpHist  = np.histogram(fpArray, bins=thresInf)[0]
     fpCum = np.flipud(np.cumsum(np.flipud(fpHist)))
     FP = fpCum[1:1+len(thres)]
 
     # count labels and protos
-    #posNum = fnArray.shape[0]
-    #negNum = fpArray.shape[0]
     if np.any(validMap)!=None:
-        posNum = np.sum((gtBin == True) & (validMap == True))
-        negNum = np.sum((gtBin == False) & (validMap == True))
+        posNum = np.sum((significant_tumor_pixels == True) & (validMap == True))
+        negNum = np.sum((significant_tumor_pixels == False) & (validMap == True))
     else:
-        posNum = np.sum(gtBin == True)
-        negNum = np.sum(gtBin == False)
+        posNum = np.sum(significant_tumor_pixels == True)
+        negNum = np.sum(significant_tumor_pixels == False)
     return FN, FP, posNum, negNum

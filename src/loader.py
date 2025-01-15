@@ -424,7 +424,7 @@ class remindDataset(Dataset):
         triplet = self.data[idx]
         pre_slice = np.load(triplet["pre_path"])['data']
         post_slice = np.load(triplet["post_path"])['data']
-        tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else "" 
+        tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice)  
         baseline = get_baseline_np(pre_slice, post_slice)
         assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
 
@@ -432,8 +432,7 @@ class remindDataset(Dataset):
         if self.transform:
             pre_slice = self.transform(pre_slice)
             post_slice = self.transform(post_slice)
-            if isinstance(tumor_slice, np.ndarray):
-                tumor_slice = self.transform(tumor_slice)
+            tumor_slice = self.transform(tumor_slice)
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
@@ -616,7 +615,7 @@ class aertsDataset(Dataset):
         triplet = self.data[idx]
         pre_slice = np.load(triplet["pre_path"])['data']
         post_slice = np.load(triplet["post_path"])['data']
-        tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else "" 
+        tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
 
         baseline = get_baseline_np(pre_slice, post_slice)
         assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
@@ -626,17 +625,12 @@ class aertsDataset(Dataset):
         if self.transform:
             pre_slice = self.transform(pre_slice)
             post_slice = self.transform(post_slice)
-            if isinstance(tumor_slice, np.ndarray):
-                tumor_slice = self.transform(tumor_slice)
+            tumor_slice = self.transform(tumor_slice)
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
                 "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"]}
         
-        # return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
-        #         "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-        #         "baseline": baseline, "tumor": tumor, "pre_path": triplet["pre_path"]}
-
 
                 
 
