@@ -69,7 +69,7 @@ class ConstractiveThresholdHingeLoss(nn.Module):
 
 
 
-def eval_feature_map(tumor_seg, feature_map, seg_value_index):
+def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra):
     """
         gt image is the ground truth image
         prob is the binary image feature map
@@ -79,13 +79,16 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index):
     thresh = np.array(range(0, 256))/255.0 
     significant_tumor_pixels = tumor_seg[:,:] > seg_value_index ## 0.30 check for tumor pixels
     all_tumor_pixels = tumor_seg[:, :] != 0 # full segmentation area
-    
+    has_tumor_pixels = np.any(all_tumor_pixels)
+    if not has_tumor_pixels:
+        print(f"No tumor pixels found for {extra}")
     # Visualize inputs
     import matplotlib.pyplot as plt
     import os
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-    axs[0].imshow(all_tumor_pixels, cmap="gray")
-    axs[0].set_title("All tumor pixels")
+    
+    axs[0].imshow(tumor_seg, cmap="gray")
+    axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
     axs[0].axis("off")
         
     axs[1].imshow(significant_tumor_pixels, cmap="gray")

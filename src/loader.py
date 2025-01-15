@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from nilearn.image import resample_to_img
 from numpy import ndarray
 from typing import Tuple
+import torch
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 import random
@@ -380,7 +381,7 @@ class remindDataset(Dataset):
                 tuples do not match: {pre_index}, {post_index}, {mask_index}"
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
-            label = 0 if slice_has_high_info(mask_slice_and_index[0], threshold=self.tumor_sensitivity, percentage_minimum=0.05) else 1
+            label = 0 if array_has_significant_values(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             #NOTE: skipping control pairs
             if label == 1:
                 if slice_has_high_info(pre_slice_padded, 0.15, 0.15) and slice_has_high_info(post_slice_padded, 0.15, 0.15):
@@ -436,7 +437,7 @@ class remindDataset(Dataset):
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"]}
+                "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
 
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
@@ -581,7 +582,7 @@ class aertsDataset(Dataset):
                 tuples do not match: {pre_slice_index}, {post_slice_index}, {tumor_slice_index}"
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
-            label = 0 if slice_has_high_info(mask_slice_and_index[0], threshold=self.tumor_sensitivity, percentage_minimum=0.05) else 1
+            label = 0 if array_has_significant_values(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
             if label == 1:
                 percentage_min = 0.12
             else:
@@ -616,7 +617,6 @@ class aertsDataset(Dataset):
         pre_slice = np.load(triplet["pre_path"])['data']
         post_slice = np.load(triplet["post_path"])['data']
         tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
-
         baseline = get_baseline_np(pre_slice, post_slice)
         assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
         # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
@@ -629,7 +629,7 @@ class aertsDataset(Dataset):
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"]}
+                "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
         
 
                 
