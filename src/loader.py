@@ -380,7 +380,7 @@ class remindDataset(Dataset):
                 tuples do not match: {pre_index}, {post_index}, {mask_index}"
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
-            label = 0 if array_has_significant_values(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
+            label = 0 if slice_has_high_info(mask_slice_and_index[0], threshold=self.tumor_sensitivity, percentage_minimum=0.05) else 1
             #NOTE: skipping control pairs
             if label == 1:
                 if slice_has_high_info(pre_slice_padded, 0.15, 0.15) and slice_has_high_info(post_slice_padded, 0.15, 0.15):
@@ -581,7 +581,7 @@ class aertsDataset(Dataset):
                 tuples do not match: {pre_slice_index}, {post_slice_index}, {tumor_slice_index}"
                 
             assert pre_slice_padded.shape == post_slice_padded.shape  == (256, 256), f"Shapes do not match: {pre_slice_padded.shape}, {post_slice_padded.shape}"
-            label = 0 if array_has_significant_values(mask_slice_and_index[0], threshold=self.tumor_sensitivity) else 1
+            label = 0 if slice_has_high_info(mask_slice_and_index[0], threshold=self.tumor_sensitivity, percentage_minimum=0.05) else 1
             if label == 1:
                 percentage_min = 0.12
             else:
