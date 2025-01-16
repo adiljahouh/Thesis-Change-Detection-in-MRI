@@ -251,7 +251,8 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                             #                                             dist_flag='l2', mode='bilinear')
                             distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
                                                                         dist_flag='l2', mode='bilinear')
-                            f1_score, validation = eval_feature_map(tumor_batch.cpu().numpy()[batch_index][0], distance_map_3.data.cpu().numpy()[0][0], 0.30, extra=batch['tumor_path'][batch_index])
+                            f1_score, validation = eval_feature_map(tumor_batch.cpu().numpy()[batch_index][0], distance_map_3.data.cpu().numpy()[0][0], 0.30, 
+                                                                    beta=0.8)
                             batch_f1_scores += f1_score
                 batch_f1_scores /= pre_batch.size(0) 
                 print(f"Batch f1 score: {batch_f1_scores}")                                   

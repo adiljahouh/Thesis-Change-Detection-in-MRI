@@ -69,7 +69,22 @@ class ConstractiveThresholdHingeLoss(nn.Module):
 
 
 
-def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra, beta=0.8):
+def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
+    # Calculate precision, recall, and beta-weighted F-score for each threshold
+    tp = posNum - FN  # True positives at each threshold
+    precision = tp / (tp + FP + 1e-10)  # Avoid division by zero
+    recall = tp / (posNum + 1e-10)  # Avoid division by zero
+
+    betasq = beta**2
+    F = (1 + betasq) * (precision * recall) / ((betasq * precision) + recall + 1e-10)
+
+    # Find the best threshold based on F-score
+    best_index = F.argmax()
+    best_f1 = F[best_index]
+    best_threshold = thresh[best_index]
+    return best_f1, best_threshold
+
+def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
     """
        tumor seg is the ground rtuth
         prob is the binary image feature map
@@ -82,23 +97,10 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra, beta=0.8):
     significant_tumor_pixels = tumor_seg[:,:] > seg_value_index ## 0.30 check for tumor pixels
     all_tumor_pixels = tumor_seg[:, :] != 0 # full segmentation area
     
-    
-    FN, FP, posNum, negNum = evalExp(all_tumor_pixels, feature_map,
+     
+    FN, FP, posNum, negNum = calc_fn_fp_per_thresh(all_tumor_pixels, feature_map,
                                      thresh)
-    
-        # Calculate precision, recall, and beta-weighted F-score for each threshold
-    tp = posNum - FN  # True positives at each threshold
-    precision = tp / (tp + FP + 1e-10)  # Avoid division by zero
-    recall = tp / (posNum + 1e-10)  # Avoid division by zero
-
-    betasq = beta**2
-    F = (1 + betasq) * (precision * recall) / ((betasq * precision) + recall + 1e-10)
-
-    # Find the best threshold based on F-score
-    best_index = F.argmax()
-    best_f1 = F[best_index]
-    best_threshold = thresh[best_index]
-
+    best_f1, best_threshold = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
     # has_tumor_pixels = np.any(all_tumor_pixels)
     # if not has_tumor_pixels:
     #     print(f"No tumor pixels found for {extra}")
@@ -130,7 +132,7 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra, beta=0.8):
     
     return best_f1, best_threshold
 
-def evalExp(significant_tumor_pixels, feature_map, thres):
+def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
     '''
     Does the basic pixel based evaluation!
     :param truthy_tumor_pixels: pixels over the threshold we use to tag images
