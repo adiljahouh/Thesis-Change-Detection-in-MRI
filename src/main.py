@@ -179,6 +179,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
     
     print("\nStarting training...")
     best_loss = float('inf')
+    best_f1_score = float('-inf')
     consecutive_no_improvement = 0
     
     for epoch in range(epochs):
@@ -226,9 +227,10 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
         siamese_net.eval()  # switch to evaluation mode
         epoch_val_loss = 0.0
         total_val_samples = 0
+        epoch_f1_scores = 0.0
         with torch.no_grad():
             for index, batch in enumerate(val_loader):
-
+                batch_f1_scores = 0.0
                 batch: dict[str, torch.Tensor]
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
@@ -244,24 +246,29 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                     for batch_index in range(pre_batch.size(0)):
                         if batch['label'][batch_index].item() == 0:
-                            distance_map = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                            
+                            # distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                            #                                             dist_flag='l2', mode='bilinear')
+                            # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                            #                                             dist_flag='l2', mode='bilinear')
+                            distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
                                                                         dist_flag='l2', mode='bilinear')
-                            bin_map = distance_map[0][0]
-                            FN, FP, posNum, negNum = eval_feature_map(tumor_batch.cpu().numpy()[batch_index][0], bin_map.data.cpu().numpy(), 0.30, extra=batch['tumor_path'][batch_index])
+                            f1_score, validation = eval_feature_map(tumor_batch.cpu().numpy()[batch_index][0], distance_map_3.data.cpu().numpy()[0][0], 0.30, extra=batch['tumor_path'][batch_index])
+                            batch_f1_scores += f1_score
                             # print(FN, FP, posNum, negNum)
                         
-                epoch_val_loss += loss.item()
+                epoch_f1_scores += batch_f1_scores
                 total_val_samples += pre_batch.size(0)
         
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
-        avg_val_loss = epoch_val_loss / len(val_loader)
+        avg_f1_score = epoch_f1_scores / len(val_loader)
         #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
-        print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average Val Loss: {avg_val_loss:.4f}')
+        print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average f1 score: {avg_f1_score:.4f}')
         
         # Check for improvement in validation loss
-        if avg_val_loss < best_loss:
-            best_loss = avg_val_loss
+        if avg_f1_score > best_f1_score:
+            best_f1_score = avg_f1_score
             consecutive_no_improvement = 0
             # Save the best model
             save_path = os.path.join(save_dir, "model.pth")
@@ -365,7 +372,7 @@ if __name__ == "__main__":
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
     save_dir = f'./results/{model_params}/train_test'
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-    best_loss = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
+    _ = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, device=device)
 
