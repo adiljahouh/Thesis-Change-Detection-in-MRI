@@ -35,6 +35,11 @@ class ConstractiveLoss(nn.Module):
     
 class ConstractiveThresholdHingeLoss(nn.Module):
 
+    """
+    This is a loss function that is used to train a siamese network
+    The loss function is a combination of a threshold and a margin
+    we expect two tensors and a label to be passed to the forward function
+    """
     def __init__(self,hingethresh=0.0,margin=2.0, dist_flag='l2'):
         super(ConstractiveThresholdHingeLoss, self).__init__()
         self.threshold = hingethresh

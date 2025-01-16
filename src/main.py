@@ -255,12 +255,10 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                                                                     beta=0.8)
                             batch_f1_scores += f1_score
                 batch_f1_scores /= pre_batch.size(0) 
-                print(f"Batch f1 score: {batch_f1_scores}")                                   
                 epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
         avg_f1_score = epoch_f1_scores / len(val_loader)
-        print(f"average should be{avg_f1_score}")
         #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
         print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average f1 score: {avg_f1_score:.4f}')
         
