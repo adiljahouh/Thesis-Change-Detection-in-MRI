@@ -69,47 +69,66 @@ class ConstractiveThresholdHingeLoss(nn.Module):
 
 
 
-def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra):
+def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra, beta=0.8):
     """
-        gt image is the ground truth image
+       tumor seg is the ground rtuth
         prob is the binary image feature map
-        cl_index is set to 1?
+        seg_value_index: what do we consider tumor at what thresh
+        beta is the for the f1 score, lower = more emphasis on reducing false positives
+        since we are looking for partial changes maybe we should use a lower beta
     """
     # randint = np.random.randint(0, 1000)
     thresh = np.array(range(0, 256))/255.0 
     significant_tumor_pixels = tumor_seg[:,:] > seg_value_index ## 0.30 check for tumor pixels
     all_tumor_pixels = tumor_seg[:, :] != 0 # full segmentation area
-    # has_tumor_pixels = np.any(all_tumor_pixels)
-    # if not has_tumor_pixels:
-    #     print(f"No tumor pixels found for {extra}")
-    # # Visualize inputs
-    # import matplotlib.pyplot as plt
-    # import os
-    # fig, axs = plt.subplots(1, 3, figsize=(18, 6))
     
-    # axs[0].imshow(tumor_seg, cmap="gray")
-    # axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
-    # axs[0].axis("off")
-        
-    # axs[1].imshow(significant_tumor_pixels, cmap="gray")
-    # axs[1].set_title("significant tumor pixels")
-    # axs[1].axis("off")
     
-    # axs[2].imshow(feature_map, cmap="grey")
-    # axs[2].set_title("Feature Map")
-    # axs[2].axis("off")
-    
-    # # Save visualizations
-    # vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
-    # plt.tight_layout()
-    # plt.savefig(vis_path, bbox_inches="tight")
-    # plt.close(fig)
-    
-
-
     FN, FP, posNum, negNum = evalExp(all_tumor_pixels, feature_map,
                                      thresh)
-    return FN, FP, posNum, negNum
+    
+        # Calculate precision, recall, and beta-weighted F-score for each threshold
+    tp = posNum - FN  # True positives at each threshold
+    precision = tp / (tp + FP + 1e-10)  # Avoid division by zero
+    recall = tp / (posNum + 1e-10)  # Avoid division by zero
+
+    betasq = beta**2
+    F = (1 + betasq) * (precision * recall) / ((betasq * precision) + recall + 1e-10)
+
+    # Find the best threshold based on F-score
+    best_index = F.argmax()
+    best_f1 = F[best_index]
+    best_threshold = thresh[best_index]
+
+    has_tumor_pixels = np.any(all_tumor_pixels)
+    if not has_tumor_pixels:
+        print(f"No tumor pixels found for {extra}")
+    # Visualize inputs
+    import matplotlib.pyplot as plt
+    import os
+    randint = np.random.randint(0, 1000)
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    
+    axs[0].imshow(tumor_seg, cmap="gray")
+    axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
+    axs[0].axis("off")
+        
+    axs[1].imshow(significant_tumor_pixels, cmap="gray")
+    axs[1].set_title("significant tumor pixels")
+    axs[1].axis("off")
+    
+    axs[2].imshow(feature_map, cmap="grey")
+    axs[2].imshow(significant_tumor_pixels, cmap="jet", alpha=0.5)
+    axs[2].set_title(f"Feature Map {best_f1:.2f} at {best_threshold:.2f}")
+    axs[2].axis("off")
+    
+    
+    # Save visualizations
+    vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
+    plt.tight_layout()
+    plt.savefig(vis_path, bbox_inches="tight")
+    plt.close(fig)
+    
+    return best_f1, best_threshold
 
 def evalExp(significant_tumor_pixels, feature_map, thres):
     '''
@@ -127,7 +146,11 @@ def evalExp(significant_tumor_pixels, feature_map, thres):
     fnArray = feature_map[(significant_tumor_pixels == True)] # pixels in fm where tumor is located
     ## array of probabilities of tumor pixels [0.8, 0.9, 0.7, 0.6, 0.5]
     fnHist = np.histogram(fnArray,bins=thresInf)[0]
-    ## these are not technically false negatives, but true postives
+    ## turns it into counts per bins(thresholds!) so for bin 0.0 we have 0 FN, 
+    # for bin 1.0 we need to sum all bins
+    # and then we see that everything is a FN
+    
+    
     ## we put them in bins to see at what threshold they are detected as true positives in fm
     fnCum = np.cumsum(fnHist)
     ## cumsum makes converts the bins to count the amount of FN at each threshold
