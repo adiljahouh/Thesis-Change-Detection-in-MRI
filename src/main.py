@@ -225,8 +225,6 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             
         # Validation loop
         siamese_net.eval()  # switch to evaluation mode
-        epoch_val_loss = 0.0
-        total_val_samples = 0
         epoch_f1_scores = 0.0
         with torch.no_grad():
             for index, batch in enumerate(val_loader):
@@ -255,14 +253,13 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                                                                         dist_flag='l2', mode='bilinear')
                             f1_score, validation = eval_feature_map(tumor_batch.cpu().numpy()[batch_index][0], distance_map_3.data.cpu().numpy()[0][0], 0.30, extra=batch['tumor_path'][batch_index])
                             batch_f1_scores += f1_score
-                            # print(FN, FP, posNum, negNum)
-                        
-                epoch_f1_scores += batch_f1_scores
-                total_val_samples += pre_batch.size(0)
-        
+                batch_f1_scores /= pre_batch.size(0) 
+                print(f"Batch f1 score: {batch_f1_scores}")                                   
+                epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
         avg_f1_score = epoch_f1_scores / len(val_loader)
+        print(f"average should be{avg_f1_score}")
         #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
         print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average f1 score: {avg_f1_score:.4f}')
         
@@ -352,7 +349,7 @@ if __name__ == "__main__":
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
         subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = DeepLabExtended()
+        model_type = complexSiameseExt()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")

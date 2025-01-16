@@ -99,34 +99,34 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, extra, beta=0.8):
     best_f1 = F[best_index]
     best_threshold = thresh[best_index]
 
-    has_tumor_pixels = np.any(all_tumor_pixels)
-    if not has_tumor_pixels:
-        print(f"No tumor pixels found for {extra}")
-    # Visualize inputs
-    import matplotlib.pyplot as plt
-    import os
-    randint = np.random.randint(0, 1000)
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    # has_tumor_pixels = np.any(all_tumor_pixels)
+    # if not has_tumor_pixels:
+    #     print(f"No tumor pixels found for {extra}")
+    # # Visualize inputs
+    # import matplotlib.pyplot as plt
+    # import os
+    # randint = np.random.randint(0, 1000)
+    # fig, axs = plt.subplots(1, 3, figsize=(18, 6))
     
-    axs[0].imshow(tumor_seg, cmap="gray")
-    axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
-    axs[0].axis("off")
+    # axs[0].imshow(tumor_seg, cmap="gray")
+    # axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
+    # axs[0].axis("off")
         
-    axs[1].imshow(significant_tumor_pixels, cmap="gray")
-    axs[1].set_title("significant tumor pixels")
-    axs[1].axis("off")
+    # axs[1].imshow(significant_tumor_pixels, cmap="gray")
+    # axs[1].set_title("significant tumor pixels")
+    # axs[1].axis("off")
     
-    axs[2].imshow(feature_map, cmap="grey")
-    axs[2].imshow(significant_tumor_pixels, cmap="jet", alpha=0.5)
-    axs[2].set_title(f"Feature Map {best_f1:.2f} at {best_threshold:.2f}")
-    axs[2].axis("off")
+    # axs[2].imshow(feature_map, cmap="grey")
+    # axs[2].imshow(significant_tumor_pixels, cmap="jet", alpha=0.5)
+    # axs[2].set_title(f"Feature Map {best_f1:.2f} at {best_threshold:.2f}")
+    # axs[2].axis("off")
     
     
-    # Save visualizations
-    vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
-    plt.tight_layout()
-    plt.savefig(vis_path, bbox_inches="tight")
-    plt.close(fig)
+    # # Save visualizations
+    # vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
+    # plt.tight_layout()
+    # plt.savefig(vis_path, bbox_inches="tight")
+    # plt.close(fig)
     
     return best_f1, best_threshold
 
@@ -166,5 +166,4 @@ def evalExp(significant_tumor_pixels, feature_map, thres):
     negNum = np.sum(significant_tumor_pixels == False)
     ## return the number of false negatives, false positives per threshold
     # number of positive pixels, number of negative pixels
-    print(len(FN), len(FP), posNum, negNum)
     return FN, FP, posNum, negNum
