@@ -115,11 +115,11 @@ class complexSiameseExt(nn.Module):
         output2_conv9 = F.relu(self.bn6(self.conv9(output2_conv8)))
         output2_pool6 = F.max_pool2d(output2_conv9, kernel_size=2, stride=2)
         if mode == 'train':
-            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
+            return [output1_pool3, output2_pool3], [output1_pool4, output2_pool4], [output1_pool6, output2_pool6]
         elif mode == 'test':
             # return before the pooling layer to visualize them
             #return [output1_conv3, output2_conv3], [output1_pool4, output2_pool4], [output1_conv4, output2_conv4]
-            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_pool6, output2_pool6]
+            return [output1_pool3, output2_pool3], [output1_pool4, output2_pool4], [output1_pool6, output2_pool6]
 
 class DeepLab(nn.Module):
     def __init__(self):

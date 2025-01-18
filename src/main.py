@@ -209,34 +209,17 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             elif args.model == 'MLO':
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 # TODO: tumor shift check and check control pair handling
-                batch_index = 0
-
-                # Load the pre and post images and their corresponding tumor images
-                # Convert tensors to numpy arrays
-                pre_image = np.rot90(np.squeeze(pre_batch[batch_index].cpu().numpy()))
-                post_image = np.rot90(np.squeeze(post_batch[batch_index].cpu().numpy()))
-                pre_tumor = np.rot90(np.squeeze(pre_tumor_batch[batch_index].cpu().numpy()))
-                post_tumor = np.rot90(np.squeeze(post_tumor_batch[batch_index].cpu().numpy()))
-                current_work_dir = os.getcwd()
-                output_path = os.path.join(current_work_dir, "src/tests/output_image.png")
-
-                # Visualize the images
-                visualize_multiple_images(
-                    (pre_image, "Pre Image"),
-                    (pre_tumor, "Pre Tumor"),
-                    (post_image, "Post Image"),
-                    (post_tumor, "Post Tumor"),
-                    output_path=output_path
-                )
-                #####
-                ####
-                return
-                tumor_resized_to_first_conv = resize_tumor_to_label_dim(pre_tumor_batch, first_conv[0])
-                tumor_resized_to_second_conv = resize_tumor_to_label_dim(pre_tumor_batch, second_conv[0])
-                tumor_resized_to_third_conv = resize_tumor_to_label_dim(pre_tumor_batch, third_conv[0])
-                loss_1 = criterion(first_conv[0], first_conv[1], pre_tumor_batch)
-                loss_2 = criterion(second_conv[0], second_conv[1], pre_tumor_batch)
-                loss_3 = criterion(third_conv[0], third_conv[1], pre_tumor_batch)
+                print(first_conv[0].shape, second_conv[0].shape)
+                print(first_conv[0].shape[:2], second_conv[0].shape[:2])
+                tumor_resized_to_first_conv = resize_tumor_to_label_dim(
+                    pre_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
+                tumor_resized_to_second_conv = resize_tumor_to_label_dim(
+                    pre_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
+                tumor_resized_to_third_conv = resize_tumor_to_label_dim(
+                    pre_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
+                loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
+                loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
+                loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
                 loss: torch.Tensor = loss_1 + loss_2 + loss_3
 
             loss.backward()

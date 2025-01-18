@@ -76,17 +76,8 @@ class contrastiveThresholdLoss(nn.Module):
         return torch.mean(constractive_thresh_loss)
 
 def resize_tumor_to_label_dim(label, size):
-
-    label = np.expand_dims(label,axis=0)
-    label_resized = np.zeros((1,label.shape[0],size[0],size[1]))
-    interp = nn.Upsample(size=(size[0], size[1]),mode='bilinear')
-    #interp = nn.Upsample(size=(size[0], size[1]),mode='bilinear',align_corners=True)
-    #labelVar = torch.from_numpy(label).float()
-    labelVar = torch.from_numpy(label).float()
-    label_resized[:, :,:,:] = interp(labelVar).data.numpy()
-    label_resized = np.array(label_resized, dtype=np.int32)
-    return torch.from_numpy(np.squeeze(label_resized,axis=0)).float()
-
+    interp = nn.Upsample(size=size,mode='bilinear')
+    return interp(label)
 class contrastiveThresholdMaskLoss(nn.Module):
     """
     This is a loss function that is used to train a siamese network
