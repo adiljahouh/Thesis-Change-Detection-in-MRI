@@ -209,14 +209,14 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             elif args.model == 'MLO':
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 # TODO: tumor shift check and check control pair handling
-                print(first_conv[0].shape, second_conv[0].shape)
-                print(first_conv[0].shape[:2], second_conv[0].shape[:2])
                 tumor_resized_to_first_conv = resize_tumor_to_label_dim(
                     pre_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
                 tumor_resized_to_second_conv = resize_tumor_to_label_dim(
                     pre_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
                 tumor_resized_to_third_conv = resize_tumor_to_label_dim(
                     pre_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
+                ## pre tumors used for loss function but USE BOTH
+                ## THen visualize it before passing it to the loss function
                 loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
                 loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
                 loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
