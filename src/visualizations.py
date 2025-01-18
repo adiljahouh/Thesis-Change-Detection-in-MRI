@@ -9,7 +9,7 @@ from loader import normalize_np_array
 from matplotlib.axes import Axes
 interp = torch.nn.Upsample(size=(256, 256), mode='bilinear')
 
-def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, **kwargs):
+def visualize_multiple_fmaps_and_tumor_baselines(*args, output_path, tumor, pre_non_transform, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
     
@@ -61,8 +61,41 @@ def merge_and_overlay_images(*args, output_path, tumor, pre_non_transform, **kwa
     plt.savefig(output_path)
     plt.close(fig)
 
-# Example usage
 
+def visualize_multiple_images(*args, output_path, **kwargs):
+    """
+    Merges and visualizes a variable number of images in a single figure.
+    
+    Args:
+        *args: Variable number of image arrays (2D or 3D).
+        output_path (str): Path where the merged image will be saved.
+        **kwargs: Additional keyword arguments (currently not used but can be extended).
+    """
+    num_images = len(args) // 2
+    
+    # Create a figure with a number of subplots equal to the number of image pairs
+    fig, axs = plt.subplots(1, num_images, figsize=(num_images * 3, 4))
+    axs: list[Axes]
+    # If only one subplot is created, axs will not be an array
+    if num_images == 1:
+        axs = [axs]
+    
+    # Display each pair of images on a separate subplot
+    for i in range(0, len(args), 2):
+        base_img, base_title = args[i]
+        overlay_img, overlay_title = args[i + 1]
+        
+        axs[i // 2].axis('off')
+        axs[i // 2].set_title(f"{base_title} + {overlay_title}")
+        axs[i // 2].imshow(base_img, cmap="gray")
+        axs[i // 2].imshow(overlay_img, cmap="jet", alpha=0.5)
+    
+    # Adjust spacing between subplots
+    plt.tight_layout()
+    
+    # Save the merged image
+    plt.savefig(output_path)
+    plt.close(fig)
 def get_baseline_torch(pre: torch.Tensor, post: torch.Tensor) -> np.ndarray:  
     diff = torch.abs(pre - post)
     return diff.data.cpu().numpy()

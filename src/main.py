@@ -1,7 +1,8 @@
 import torch as torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
-from loss_functions import ConstractiveLoss, ConstractiveThresholdHingeLoss, eval_feature_map
+from loss_functions import contrastiveLoss, contrastiveThresholdLoss, \
+    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_label_dim
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
 import os
@@ -58,10 +59,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
-            # Add channel dimension (greyscale image)
-            ## if len(pre_batch.size()) == 3:
-            # pre_batch = pre_batch.unsqueeze(1)
-            # post_batch = post_batch.unsqueeze(1)
             
 
             labels = batch['label'].to(device)
@@ -145,18 +142,18 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 save_path = f'{save_dir}/{filename}'
                 if label == 0:
                     pre_non_transform = np.rot90(np.load(batch["pre_path"][batch_index])['data'])
-                    tumor = np.rot90(np.load(batch["tumor_path"][batch_index])['data'])
+                    tumor = np.rot90(np.load(batch["pre_tumor"][batch_index])['data'])
                 else:
                     pre_non_transform = None
                     tumor = None
                 if model_type == 'SLO':
-                    merge_and_overlay_images((np.rot90(pre_image), "pre"), (np.rot90(post_image), "post"), (np.rot90(conv_sharpened), "First Layer"),
+                    visualize_multiple_fmaps_and_tumor_baselines((np.rot90(pre_image), "pre"), (np.rot90(post_image), "post"), (np.rot90(conv_sharpened), "First Layer"),
                                  np.rot90(np.squeeze(baseline)), output_path=save_path,
                                  tumor=tumor, pre_non_transform=pre_non_transform)
                 elif model_type == 'MLO':
                     if label == 1:
                         continue
-                    merge_and_overlay_images((np.rot90(pre_image), "Preoperative"), (np.rot90(post_image), "Postoperative"), (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
+                    visualize_multiple_fmaps_and_tumor_baselines((np.rot90(pre_image), "Preoperative"), (np.rot90(post_image), "Postoperative"), (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
                                  (np.rot90(conv1_sharpened_post), "First layer post"), 
                                  (np.rot90(conv2_sharpened_pre), "Second layer pre"),
                                  (np.rot90(conv2_sharpened_post), "Second layer post"),
@@ -195,27 +192,51 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             
             pre_batch = batch['pre'].float().to(device)
             post_batch = batch['post'].float().to(device)
-
-            ## add channel dimension because its just collated(merged) 2D numpy arrays
+            pre_tumor_batch = batch['pre_tumor'].to(device)
+            post_tumor_batch = batch['post_tumor'].to(device)
             
-            # pre_batch = pre_batch.unsqueeze(1)
-            # post_batch = post_batch.unsqueeze(1)
 
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             siamese_net.train()  # switch to training mode
 
             optimizer.zero_grad()
-            label_batch = batch['label'].to(device)
 
             if args.model == 'SLO':
+                label_batch = batch['label'].to(device)
+
                 output1, output2 = siamese_net(pre_batch, post_batch)
                 loss: torch.Tensor = criterion(output1, output2, label_batch)
             elif args.model == 'MLO':
-
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                loss_1 = criterion(first_conv[0], first_conv[1], label_batch)
-                loss_2 = criterion(second_conv[0], second_conv[1], label_batch)
-                loss_3 = criterion(third_conv[0], third_conv[1], label_batch)
+                # TODO: tumor shift check and check control pair handling
+                batch_index = 0
+
+                # Load the pre and post images and their corresponding tumor images
+                # Convert tensors to numpy arrays
+                pre_image = np.rot90(np.squeeze(pre_batch[batch_index].cpu().numpy()))
+                post_image = np.rot90(np.squeeze(post_batch[batch_index].cpu().numpy()))
+                pre_tumor = np.rot90(np.squeeze(pre_tumor_batch[batch_index].cpu().numpy()))
+                post_tumor = np.rot90(np.squeeze(post_tumor_batch[batch_index].cpu().numpy()))
+                current_work_dir = os.getcwd()
+                output_path = os.path.join(current_work_dir, "src/tests/output_image.png")
+
+                # Visualize the images
+                visualize_multiple_images(
+                    (pre_image, "Pre Image"),
+                    (pre_tumor, "Pre Tumor"),
+                    (post_image, "Post Image"),
+                    (post_tumor, "Post Tumor"),
+                    output_path=output_path
+                )
+                #####
+                ####
+                return
+                tumor_resized_to_first_conv = resize_tumor_to_label_dim(pre_tumor_batch, first_conv[0])
+                tumor_resized_to_second_conv = resize_tumor_to_label_dim(pre_tumor_batch, second_conv[0])
+                tumor_resized_to_third_conv = resize_tumor_to_label_dim(pre_tumor_batch, third_conv[0])
+                loss_1 = criterion(first_conv[0], first_conv[1], pre_tumor_batch)
+                loss_2 = criterion(second_conv[0], second_conv[1], pre_tumor_batch)
+                loss_3 = criterion(third_conv[0], third_conv[1], pre_tumor_batch)
                 loss: torch.Tensor = loss_1 + loss_2 + loss_3
 
             loss.backward()
@@ -232,9 +253,8 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 batch: dict[str, torch.Tensor]
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
-                tumor_batch: torch.Tensor = batch['tumor'].float().to(device)
-                # pre_batch = pre_batch.unsqueeze(1)
-                # post_batch = post_batch.unsqueeze(1)
+                tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
+
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 label_batch = batch['label'].to(device)
                 if args.model == 'SLO':
@@ -312,11 +332,11 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     if args.loss == 'CL':
-        criterion = ConstractiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+        criterion = contrastiveLoss(margin=args.margin, dist_flag=args.dist_flag)
         transform=Compose([
                     T.ToTensor()])
     elif args.loss == 'TCL':
-        criterion = ConstractiveThresholdHingeLoss(hingethresh=args.threshold, margin=args.margin)
+        criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),

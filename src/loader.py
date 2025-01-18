@@ -3,6 +3,7 @@ import os
 import nibabel as nib
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from nilearn.image import resample_to_img
+from transformations import ShiftImage
 from numpy import ndarray
 from typing import Tuple
 import torch
@@ -425,20 +426,34 @@ class remindDataset(Dataset):
         triplet = self.data[idx]
         pre_slice = np.load(triplet["pre_path"])['data']
         post_slice = np.load(triplet["post_path"])['data']
-        tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice)  
+        tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
         baseline = get_baseline_np(pre_slice, post_slice)
         assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
+        # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
 
         # Apply any transformations if necessary
+        shift_x = torch.randint(-50, 51, (1,)).item()
+        shift_y = torch.randint(-50, 51, (1,)).item()
+        shift = (shift_x, shift_y)
+        ## HACK: to get the preop tumor slice and postop tumor slice
+        ## to later use for feature map evaluation
         if self.transform:
-            pre_slice = self.transform(pre_slice)
-            post_slice = self.transform(post_slice)
-            tumor_slice = self.transform(tumor_slice)
+            for transform in self.transform.transforms:
+                if isinstance(transform, ShiftImage):
+                    pre_tumor = tumor_slice
+                    post_slice = transform(post_slice, shift=shift)
+                    tumor_slice = transform(tumor_slice, shift=shift)
+                else:
+                    pre_slice = transform(pre_slice)
+                    post_slice = transform(post_slice)
+                    tumor_slice = transform(tumor_slice)
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
-                "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
-
+                "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
+                "index_post": triplet["index_post"],
+                "baseline": baseline, "post_tumor": tumor_slice, "pre_tumor": pre_tumor,
+                "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
+        
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
         self.root = proc_preop
@@ -622,14 +637,28 @@ class aertsDataset(Dataset):
         # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
 
         # Apply any transformations if necessary
+        shift_x = torch.randint(-50, 101, (1,)).item()
+        shift_y = torch.randint(-50, 101, (1,)).item()
+        shift = (shift_x, shift_y)
+        ## HACK: to get the preop tumor slice and postop tumor slice
+        ## to later use for feature map evaluation
         if self.transform:
-            pre_slice = self.transform(pre_slice)
-            post_slice = self.transform(post_slice)
-            tumor_slice = self.transform(tumor_slice)
-
+            for transform in self.transform.transforms:
+                if isinstance(transform, ShiftImage):
+                    pre_tumor = tumor_slice
+                    post_slice = transform(post_slice, shift=shift)
+                    tumor_slice = transform(tumor_slice, shift=shift)
+                else:
+                    pre_slice = transform(pre_slice)
+                    post_slice = transform(post_slice)
+                    tumor_slice = transform(tumor_slice)
+        
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
-                "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], "index_post": triplet["index_post"],
-                "baseline": baseline, "tumor": tumor_slice, "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
+                "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
+                "index_post": triplet["index_post"],
+                "baseline": baseline, "post_tumor": tumor_slice, "pre_tumor": pre_tumor,
+                "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
+        
         
 
                 

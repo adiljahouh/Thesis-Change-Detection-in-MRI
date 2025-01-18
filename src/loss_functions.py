@@ -2,10 +2,10 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import numpy as np
-class ConstractiveLoss(nn.Module):
+class contrastiveLoss(nn.Module):
 
     def __init__(self,margin =2.0,dist_flag='l2'):
-        super(ConstractiveLoss, self).__init__()
+        super(contrastiveLoss, self).__init__()
         self.margin = margin
         self.dist_flag = dist_flag
 
@@ -33,15 +33,17 @@ class ConstractiveLoss(nn.Module):
         ## if 1 (simillar) constractive loss =  distance^2
         ## if 0 (dissimilar) constractive loss = ((margin - distance)^2)
     
-class ConstractiveThresholdHingeLoss(nn.Module):
+class contrastiveThresholdLoss(nn.Module):
 
     """
     This is a loss function that is used to train a siamese network
     The loss function is a combination of a threshold and a margin
+    
+    It does a loss function over the ENTIRE batch on LABEL basis NOT pixel basis (so no masks)
     we expect two tensors and a label to be passed to the forward function
     """
     def __init__(self,hingethresh=0.0,margin=2.0, dist_flag='l2'):
-        super(ConstractiveThresholdHingeLoss, self).__init__()
+        super(contrastiveThresholdLoss, self).__init__()
         self.threshold = hingethresh
         self.margin = margin
         self.dist_flag = dist_flag
@@ -58,6 +60,7 @@ class ConstractiveThresholdHingeLoss(nn.Module):
         return distance
     
     def forward(self,out_vec_t0,out_vec_t1,label) -> torch.Tensor:
+        # TODO: FLATTENS TO 1D POSSIBLY BAD AND SHOULD BE 2D VECTORS FOR CHANNELS
         out_vec_t0 = out_vec_t0.view(out_vec_t0.size(0), -1)  
         out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
         
@@ -72,8 +75,73 @@ class ConstractiveThresholdHingeLoss(nn.Module):
         # if 1 (simillar) constractive loss = margin - distance
         return torch.mean(constractive_thresh_loss)
 
+def resize_tumor_to_label_dim(label, size):
 
+    label = np.expand_dims(label,axis=0)
+    label_resized = np.zeros((1,label.shape[0],size[0],size[1]))
+    interp = nn.Upsample(size=(size[0], size[1]),mode='bilinear')
+    #interp = nn.Upsample(size=(size[0], size[1]),mode='bilinear',align_corners=True)
+    #labelVar = torch.from_numpy(label).float()
+    labelVar = torch.from_numpy(label).float()
+    label_resized[:, :,:,:] = interp(labelVar).data.numpy()
+    label_resized = np.array(label_resized, dtype=np.int32)
+    return torch.from_numpy(np.squeeze(label_resized,axis=0)).float()
 
+class contrastiveThresholdMaskLoss(nn.Module):
+    """
+    This is a loss function that is used to train a siamese network
+    The loss function is a combination of a threshold and a margin
+    
+    It does a loss function on pixel basis so the label is depended on the pixel
+    so we focus directly on if the featuremap overlays the ground truth tumor
+    """
+    def __init__(self,hingethresh=0.0,margin=2.0, dist_flag='l2'):
+        super(contrastiveThresholdMaskLoss, self).__init__()
+        self.threshold = hingethresh
+        self.margin = margin
+        self.dist_flag = dist_flag
+
+    def various_distance(self,out_vec_t0,out_vec_t1):
+
+        if self.dist_flag == 'l2': # Euclidean distance
+            distance = F.pairwise_distance(out_vec_t0,out_vec_t1,p=2)
+        if self.dist_flag == 'l1': # Manhattan distance
+            distance = F.pairwise_distance(out_vec_t0,out_vec_t1,p=1)
+        if self.dist_flag == 'cos':# Cosine similarity
+            similarity = F.cosine_similarity(out_vec_t0,out_vec_t1)
+            distance = 1 - 2 * similarity/np.pi
+        return distance
+    
+    def forward(self,map_t0, map_t1,ground_truth):
+        n, c, h, w = map_t0.shape
+
+        # Flatten the spatial dimensions
+        out_t0_rz = map_t0.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
+        out_t1_rz = map_t1.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
+
+        # Calculate pairwise distance
+        distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w)
+        print(distance.shape)
+        # Reshape distance to match the ground truth shape
+        distance = distance.view(n, h, w)  # Shape: (n, h, w)
+        print(distance.shape)
+        # Ensure ground truth tensor is compatible
+        print("Ground truth shape ", ground_truth.shape)
+        gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
+
+        # gt_rz = gt_rz.view(n, h, w)  # Shape: (n, h, w)
+
+        # Calculate the contrastive threshold loss
+        similar_pair = torch.clamp(distance - self.threshold, min=0.0)
+        dissimilar_pair = torch.clamp(self.margin - distance, min=0.0)
+
+        constractive_thresh_loss = torch.sum(
+            (1 - gt_rz) * torch.pow(similar_pair, 2) + gt_rz * torch.pow(dissimilar_pair, 2)
+        )
+        return constractive_thresh_loss
+    
+    
+    
 def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     # Calculate precision, recall, and beta-weighted F-score for each threshold
     tp = posNum - FN  # True positives at each threshold

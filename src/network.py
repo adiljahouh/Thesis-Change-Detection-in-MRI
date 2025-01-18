@@ -176,8 +176,6 @@ class DeepLab(nn.Module):
         elif mode == 'test':
             return [output1[0], output2[0]], [output1[1], output2[1]], [output1[2], output2[2]]
 
-import torch
-import torch.nn as nn
 
 class DeepLabExtended(nn.Module):
     def __init__(self):
