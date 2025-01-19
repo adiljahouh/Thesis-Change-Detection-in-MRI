@@ -62,33 +62,23 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             
 
             labels = batch['label'].to(device)
-            if model_type == 'SLO':
-                output1, output2 = siamese_net(pre_batch, post_batch, mode='test')
-                output1: torch.Tensor
-                output2: torch.Tensor
-                flattened_batch_t0 = output1.view(output1.size(0), -1)  
-                flattened_batch_t1 = output2.view(output2.size(0), -1)
-                assert flattened_batch_t0.size(0) == flattened_batch_t1.size(0), "Flattened batch sizes do not match"
-                distance = F.pairwise_distance(flattened_batch_t0, flattened_batch_t1, p=2)
+            first_conv: torch.Tensor
+            second_conv: torch.Tensor
+            third_conv: torch.Tensor
+            # these are all batches
+            first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
+            flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
+            flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
+            distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)
 
-            elif model_type == 'MLO':
-                first_conv: torch.Tensor
-                second_conv: torch.Tensor
-                third_conv: torch.Tensor
-                # these are all batches
-                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
-                flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
-                flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
-                distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)
+            flattened_batch_conv2_t0 = second_conv[0].view(second_conv[0].size(0), -1)
+            flattened_batch_conv2_t1 = second_conv[1].view(second_conv[1].size(0), -1)
+            distance_2 = F.pairwise_distance(flattened_batch_conv2_t0, flattened_batch_conv2_t1, p=2)
 
-                flattened_batch_conv2_t0 = second_conv[0].view(second_conv[0].size(0), -1)
-                flattened_batch_conv2_t1 = second_conv[1].view(second_conv[1].size(0), -1)
-                distance_2 = F.pairwise_distance(flattened_batch_conv2_t0, flattened_batch_conv2_t1, p=2)
-
-                flattened_batch_conv3_t0 = third_conv[0].view(third_conv[0].size(0), -1)
-                flattened_batch_conv3_t1 = third_conv[1].view(third_conv[1].size(0), -1)
-                distance_3 = F.pairwise_distance(flattened_batch_conv3_t0, flattened_batch_conv3_t1, p=2)
-                assert distance_1.size(0) == distance_2.size(0) == distance_3.size(0), "Distance sizes do not match"
+            flattened_batch_conv3_t0 = third_conv[0].view(third_conv[0].size(0), -1)
+            flattened_batch_conv3_t1 = third_conv[1].view(third_conv[1].size(0), -1)
+            distance_3 = F.pairwise_distance(flattened_batch_conv3_t0, flattened_batch_conv3_t1, p=2)
+            assert distance_1.size(0) == distance_2.size(0) == distance_3.size(0), "Distance sizes do not match"
             
             # Iterate over the batch
             for batch_index in range(pre_batch.size(0)):
@@ -96,33 +86,25 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 post_image: ndarray = np.squeeze(batch['post'][batch_index].data.cpu().numpy())
                 baseline = batch['baseline'][batch_index]
                 label = labels[batch_index].item()  # Get the label for the i-th pair
-                if model_type == 'MLO':
-                    dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
-                    # print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
-                    # tumor maps should only be calculated for dissimilar pairs
-                    if label == 0:       
-                        distance_map_2d_conv1 = return_upsampled_norm_distance_map(
-                        first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                        distance_map_2d_conv2 = return_upsampled_norm_distance_map(
-                        second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                        distance_map_2d_conv3 = return_upsampled_norm_distance_map(
-                        third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                        
-                        conv1_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=pre_image)
-                        conv2_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=pre_image)
-                        conv3_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=pre_image)
-                        
-                        conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
-                        conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
-                        conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
 
-                elif model_type == 'SLO':
-                    dist = distance[batch_index]
-                    distance_map_2d = return_upsampled_norm_distance_map(output1[batch_index], 
-                    output2[batch_index], dist_flag='l2', mode='bilinear')
-                    conv_sharpened = multiplicative_sharpening_and_filter(distance_map_2d, base_image=pre_image)
-                    print(f"Pair has a distance of: {dist.item()}, label: {label}")
-
+                dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
+                # print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
+                # tumor maps should only be calculated for dissimilar pairs
+                if label == 0:       
+                    distance_map_2d_conv1 = return_upsampled_norm_distance_map(
+                    first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    distance_map_2d_conv2 = return_upsampled_norm_distance_map(
+                    second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    distance_map_2d_conv3 = return_upsampled_norm_distance_map(
+                    third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    
+                    conv1_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=pre_image)
+                    conv2_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=pre_image)
+                    conv3_sharpened_pre = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=pre_image)
+                    
+                    conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
+                    conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
+                    conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
 
                 distances_list.append(dist)
                 labels_list.append(label)
@@ -140,31 +122,23 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                 os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                 save_path = f'{save_dir}/{filename}'
-                if model_type == 'SLO':
-                    if label == 0:
-                        pre_non_transform = np.rot90(np.load(batch["pre_path"][batch_index])['data'])
-                        tumor = np.rot90(batch["pre_tumor"][batch_index].data.cpu().numpy()) 
-                    visualize_multiple_fmaps_and_tumor_baselines((np.rot90(pre_image), "pre"), (np.rot90(post_image), "post"), (np.rot90(conv_sharpened), "First Layer"),
-                                 np.rot90(np.squeeze(baseline)), output_path=save_path,
-                                 tumor=tumor, pre_non_transform=pre_non_transform)
-                elif model_type == 'MLO':
-                    if label == 0:
-                        pre_non_transform = np.rot90(pre_image)
-                        tumor = np.rot90(batch["pre_tumor"][batch_index].data.cpu().numpy())   
-                        visualize_multiple_fmaps_and_tumor_baselines(
-                                        (np.rot90(pre_image), "Preoperative"), 
-                                        (np.rot90(post_image), "Postoperative"), 
-                                        (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
-                                        (np.rot90(conv1_sharpened_post), "First layer post"), 
-                                        (np.rot90(conv2_sharpened_pre), "Second layer pre"),
-                                        (np.rot90(conv2_sharpened_post), "Second layer post"),
-                                        (np.rot90(conv3_sharpened_pre), "Third layer pre"),
-                                        (np.rot90(conv3_sharpened_post), "Third layer post"),
-                                        (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), 
-                                        (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
-                                        (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
-                                        (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
-                                        tumor=np.rot90(np.squeeze(tumor)), pre_non_transform=pre_non_transform)
+                if label == 0:
+                    pre_non_transform = np.rot90(pre_image)
+                    tumor = np.rot90(batch["pre_tumor"][batch_index].data.cpu().numpy())   
+                    visualize_multiple_fmaps_and_tumor_baselines(
+                                    (np.rot90(pre_image), "Preoperative"), 
+                                    (np.rot90(post_image), "Postoperative"), 
+                                    (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
+                                    (np.rot90(conv1_sharpened_post), "First layer post"), 
+                                    (np.rot90(conv2_sharpened_pre), "Second layer pre"),
+                                    (np.rot90(conv2_sharpened_post), "Second layer post"),
+                                    (np.rot90(conv3_sharpened_pre), "Third layer pre"),
+                                    (np.rot90(conv3_sharpened_post), "Third layer post"),
+                                    (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), 
+                                    (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
+                                    (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
+                                    (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
+                                    tumor=np.rot90(np.squeeze(tumor)), pre_non_transform=pre_non_transform)
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
@@ -201,32 +175,24 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             siamese_net.train()  # switch to training mode
 
             optimizer.zero_grad()
-
-            if args.model == 'SLO':
-                label_batch = batch['label'].to(device)
-
-                output1, output2 = siamese_net(pre_batch, post_batch)
-                loss: torch.Tensor = criterion(output1, output2, label_batch)
-            elif args.model == 'MLO':
-                batch_index = 0
-                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                # TODO: tumor shift check and check control pair handling
-
-                # Resize tumor to match the dimensions of the convolutional layers
-                tumor_resized_to_first_conv = resize_tumor_to_label_dim(
-                    pre_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
-                tumor_resized_to_second_conv = resize_tumor_to_label_dim(
-                    pre_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
-                tumor_resized_to_third_conv = resize_tumor_to_label_dim(
-                    pre_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
-                ## TODO: need conv distance for each conv layer and then visualize it
-                
-                ## tumors used for loss function but USE only POST? not both -> focus on change
-                ## THen visualize it before passing it to the loss function
-                loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
-                loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
-                loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
-                loss: torch.Tensor = loss_1 + loss_2 + loss_3
+            first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+            # TODO: tumor shift check and check control pair handling
+            ## TODO: MERGE TUMORS? Or only pass post tumor to the loss function?
+            # Resize tumor to match the dimensions of the convolutional layers
+            tumor_resized_to_first_conv = resize_tumor_to_label_dim(
+                pre_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
+            tumor_resized_to_second_conv = resize_tumor_to_label_dim(
+                pre_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
+            tumor_resized_to_third_conv = resize_tumor_to_label_dim(
+                pre_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
+            ## TODO: need conv distance for each conv layer and then visualize it
+            
+            ## tumors used for loss function but USE only POST? not both -> focus on change
+            ## THen visualize it before passing it to the loss function
+            loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
+            loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
+            loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
+            loss: torch.Tensor = loss_1 + loss_2 + loss_3
 
             loss.backward()
             optimizer.step()
@@ -243,22 +209,17 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 pre_tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
 
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
-                label_batch = batch['label'].to(device)
-                if args.model == 'SLO':
-                    output1, output2 = siamese_net(pre_batch, post_batch)
-                    loss: torch.Tensor = criterion(output1, output2, label_batch)
-                elif args.model == 'MLO':
-                    first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                    for batch_index in range(pre_batch.size(0)):                            
-                        distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
-                                                                    dist_flag='l2', mode='bilinear')
-                        # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
-                        #                                             dist_flag='l2', mode='bilinear')
-                        # distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
-                        #                                             dist_flag='l2', mode='bilinear')
-                        f1_score, validation = eval_feature_map(pre_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1.data.cpu().numpy()[0][0], 0.30, 
-                                                                beta=0.8)
-                        batch_f1_scores += f1_score
+                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+                for batch_index in range(pre_batch.size(0)):                            
+                    distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                                                                dist_flag='l2', mode='bilinear')
+                    # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                    #                                             dist_flag='l2', mode='bilinear')
+                    # distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                    #                                             dist_flag='l2', mode='bilinear')
+                    f1_score, validation = eval_feature_map(pre_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1.data.cpu().numpy()[0][0], 0.30, 
+                                                            beta=0.8)
+                    batch_f1_scores += f1_score
                 batch_f1_scores /= pre_batch.size(0) 
                 epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
@@ -331,29 +292,16 @@ if __name__ == "__main__":
                     ]
         )
             
-    if args.model == 'SLO':
-        aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
-                  raw_tumor_dir=args.tumor_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, tumor_sensitivity=0.30,
-                  save_dir='./data/2D/',
-                  transform=transform, load_slices=args.load_slices) 
-        print("Aerts dataset loaded")
-        remindImages = remindDataset(preop_dir=args.remind_dir, 
-                    image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
-        subject_images = ConcatDataset([aertsImages, remindImages])       
-        model_type = SimpleSiamese()
-    elif args.model == 'MLO':
-        aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
-                  raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
-                  image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
-                  tumor_sensitivity=0.30,transform=transform, load_slices=args.load_slices)
-        print("Aerts dataset loaded")
-        remindImages = remindDataset(preop_dir=args.remind_dir, 
-                    image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
-        subject_images = ConcatDataset([aertsImages, remindImages])
-        model_type = complexSiameseExt()
+    aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
+                raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
+                image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
+                tumor_sensitivity=0.30,transform=transform, load_slices=args.load_slices)
+    print("Aerts dataset loaded")
+    remindImages = remindDataset(preop_dir=args.remind_dir, 
+                image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
+                skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
+    subject_images = ConcatDataset([aertsImages, remindImages])
+    model_type = complexSiameseExt()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
@@ -380,10 +328,7 @@ if __name__ == "__main__":
     
     distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device, model_type=args.model)
 
-    if args.model == 'SLO':
-        thresholds = generate_roc_curve(distances, labels, save_dir)
-    elif args.model == 'MLO':
-        # take the conv distance distance from each tuple
-        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
-        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
-        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")
+    # take the conv distance distance from each tuple
+    thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
+    thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
+    thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")
