@@ -58,10 +58,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
+            
+            labels = batch['label'].to(device)
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             
-
-            labels = batch['label'].to(device)
             first_conv: torch.Tensor
             second_conv: torch.Tensor
             third_conv: torch.Tensor
@@ -82,8 +82,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             
             # Iterate over the batch
             for batch_index in range(pre_batch.size(0)):
-                pre_image: ndarray = np.squeeze(batch['pre'][batch_index].data.cpu().numpy())
-                post_image: ndarray = np.squeeze(batch['post'][batch_index].data.cpu().numpy())
+                pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
+                post_image: ndarray = np.squeeze(post_batch[batch_index].data.cpu().numpy())
                 baseline = batch['baseline'][batch_index]
                 label = labels[batch_index].item()  # Get the label for the i-th pair
 
@@ -107,6 +107,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                     save_path = f'{save_dir}/{filename}'
+                    pre_tumor = np.squeeze(batch['pre_tumor'][batch_index].data.cpu().numpy())  
+
                      
                     distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
@@ -123,7 +125,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
 
-                    tumor = np.rot90(batch["pre_tumor"][batch_index].data.cpu().numpy())   
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     (np.rot90(pre_image), "Preoperative"), 
                                     (np.rot90(post_image), "Postoperative"), 
@@ -137,7 +138,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
                                     (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
                                     (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
-                                    tumor=np.rot90(np.squeeze(tumor)), pre_non_transform=np.rot90(post_image))
+                                    tumor=np.rot90(pre_tumor), pre_non_transform=np.rot90(pre_image))
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
@@ -169,7 +170,12 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             pre_tumor_batch = batch['pre_tumor'].to(device)
             post_tumor_batch = batch['post_tumor'].to(device)
             
-
+            # visualize_multiple_images((pre_batch[0].data.cpu().numpy().squeeze(), "Preoperative"), 
+            # (pre_tumor_batch[0].data.cpu().numpy().squeeze(), "Preoperative Tumor"),
+            # (post_batch[0].data.cpu().numpy().squeeze(), "Postoperative"),
+            # (post_tumor_batch[0].data.cpu().numpy().squeeze(), "Postoperative Tumor"),
+            # output_path=f"{os.getcwd()}/src/checking_tumor.png")
+            # return
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
             siamese_net.train()  # switch to training mode
 
@@ -210,13 +216,13 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 for batch_index in range(pre_batch.size(0)):                            
-                    distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
-                    # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                    # distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
                     #                                             dist_flag='l2', mode='bilinear')
+                    distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                                                                dist_flag='l2', mode='bilinear')
                     # distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
                     #                                             dist_flag='l2', mode='bilinear')
-                    f1_score, validation = eval_feature_map(pre_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1.data.cpu().numpy()[0][0], 0.30, 
+                    f1_score, validation = eval_feature_map(pre_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2.data.cpu().numpy()[0][0], 0.30, 
                                                             beta=0.8)
                     batch_f1_scores += f1_score
                 batch_f1_scores /= pre_batch.size(0) 
