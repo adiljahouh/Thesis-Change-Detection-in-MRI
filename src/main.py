@@ -90,7 +90,24 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
                 # print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
                 # tumor maps should only be calculated for dissimilar pairs
-                if label == 0:       
+                    
+                distances_list.append(dist)
+                labels_list.append(label)
+                                # Save the heatmap
+                if label == 0:  
+                    filename = (
+                        f"slice_{batch['pat_id'][batch_index]}_"
+                        f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
+                        f"{batch['index_post'][0][batch_index] if batch['index_post'][0][batch_index] != -1 else ''}"
+                        f"{'coronal_' if batch['index_post'][1][batch_index] != -1 else ''}"
+                        f"{batch['index_post'][1][batch_index] if batch['index_post'][1][batch_index] != -1 else ''}"
+                        f"{'sagittal_' if batch['index_post'][2][batch_index] != -1 else ''}"
+                        f"{batch['index_post'][2][batch_index] if batch['index_post'][2][batch_index] != -1 else ''}_{label}.jpg"
+                    )
+                    save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
+                    os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
+                    save_path = f'{save_dir}/{filename}'
+                     
                     distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv2 = return_upsampled_norm_distance_map(
@@ -106,24 +123,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
 
-                distances_list.append(dist)
-                labels_list.append(label)
-                filename = (
-                    f"slice_{batch['pat_id'][batch_index]}_"
-                    f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
-                    f"{batch['index_post'][0][batch_index] if batch['index_post'][0][batch_index] != -1 else ''}"
-                    f"{'coronal_' if batch['index_post'][1][batch_index] != -1 else ''}"
-                    f"{batch['index_post'][1][batch_index] if batch['index_post'][1][batch_index] != -1 else ''}"
-                    f"{'sagittal_' if batch['index_post'][2][batch_index] != -1 else ''}"
-                    f"{batch['index_post'][2][batch_index] if batch['index_post'][2][batch_index] != -1 else ''}_{label}.jpg"
-                )
-
-                # Save the heatmap
-                save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
-                os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-                save_path = f'{save_dir}/{filename}'
-                if label == 0:
-                    pre_non_transform = np.rot90(pre_image)
                     tumor = np.rot90(batch["pre_tumor"][batch_index].data.cpu().numpy())   
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     (np.rot90(pre_image), "Preoperative"), 
@@ -138,7 +137,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
                                     (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
                                     (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
-                                    tumor=np.rot90(np.squeeze(tumor)), pre_non_transform=pre_non_transform)
+                                    tumor=np.rot90(np.squeeze(tumor)), pre_non_transform=np.rot90(post_image))
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
