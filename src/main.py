@@ -142,7 +142,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 save_path = f'{save_dir}/{filename}'
                 if label == 0:
                     pre_non_transform = np.rot90(np.load(batch["pre_path"][batch_index])['data'])
-                    tumor = np.rot90(np.load(batch["pre_tumor"][batch_index])['data'])
+                    tumor = np.rot90(batch["pre_tumor"][batch_index].data.cpu().numpy())
                 else:
                     pre_non_transform = None
                     tumor = None
@@ -153,17 +153,20 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 elif model_type == 'MLO':
                     if label == 1:
                         continue
-                    visualize_multiple_fmaps_and_tumor_baselines((np.rot90(pre_image), "Preoperative"), (np.rot90(post_image), "Postoperative"), (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
-                                 (np.rot90(conv1_sharpened_post), "First layer post"), 
-                                 (np.rot90(conv2_sharpened_pre), "Second layer pre"),
-                                 (np.rot90(conv2_sharpened_post), "Second layer post"),
-                                 (np.rot90(conv3_sharpened_pre), "Third layer pre"),
-                                 (np.rot90(conv3_sharpened_post), "Third layer post"),
-                                 (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), 
-                                 (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
-                                 (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
-                                (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
-                                  tumor=tumor, pre_non_transform=pre_non_transform)
+                    visualize_multiple_fmaps_and_tumor_baselines(
+                                        (np.rot90(pre_image), "Preoperative"), 
+                                        (np.rot90(post_image), "Postoperative"), 
+                                        (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
+                                        (np.rot90(conv1_sharpened_post), "First layer post"), 
+                                        (np.rot90(conv2_sharpened_pre), "Second layer pre"),
+                                        (np.rot90(conv2_sharpened_post), "Second layer post"),
+                                        (np.rot90(conv3_sharpened_pre), "Third layer pre"),
+                                        (np.rot90(conv3_sharpened_post), "Third layer post"),
+                                        (np.rot90(distance_map_2d_conv1), "Conv 1 Raw"), 
+                                        (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
+                                        (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
+                                        (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
+                                        tumor=np.squeeze(tumor), pre_non_transform=pre_non_transform)
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
@@ -207,15 +210,61 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 output1, output2 = siamese_net(pre_batch, post_batch)
                 loss: torch.Tensor = criterion(output1, output2, label_batch)
             elif args.model == 'MLO':
+                batch_index = 0
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 # TODO: tumor shift check and check control pair handling
+
+                # Resize tumor to match the dimensions of the convolutional layers
+                # tumor_resized_to_first_conv = resize_tumor_to_label_dim(
+                #     post_tumor_batch[batch_index].unsqueeze(0), first_conv[0][batch_index].data.cpu().numpy().shape[1:])
+                # tumor_resized_to_second_conv = resize_tumor_to_label_dim(
+                #     post_tumor_batch[batch_index].unsqueeze(0), second_conv[0][batch_index].data.cpu().numpy().shape[1:])
+                # tumor_resized_to_third_conv = resize_tumor_to_label_dim(
+                #     post_tumor_batch[batch_index].unsqueeze(0), third_conv[0][batch_index].data.cpu().numpy().shape[1:])
+
+                # # Convert tensors to numpy arrays and squeeze the extra dimensions
+                # print(first_conv[0].shape)
+                # print(first_conv[0][batch_index].shape)
+                # first_conv_0 = return_distance_map(first_conv[0][batch_index], 
+                #                                    first_conv[1][batch_index], 'l2').squeeze()
+                # second_conv_0 = return_distance_map(second_conv[0][batch_index], 
+                #                                     second_conv[1][batch_index], 'l2').squeeze()
+                # third_conv_0 = return_distance_map(third_conv[0][batch_index], 
+                #                                    third_conv[1][batch_index], 'l2').squeeze()
+
+                # # Get the current working directory and set the output path
+                # current_work_dir = os.getcwd()
+                # output_path = os.path.join(current_work_dir, "src/tests/loss_input.jpg")
+
+                # # Visualize the images
+                # visualize_multiple_images(
+                #     (first_conv_0.data.cpu().numpy(), "First Conv"),
+                #     (tumor_resized_to_first_conv.squeeze().data.cpu().numpy(), "Tumor"),
+                #     (second_conv_0.data.cpu().numpy(), "Second Conv"),
+                #     (tumor_resized_to_second_conv.squeeze().data.cpu().numpy(), "Tumor"),
+                #     (third_conv_0.data.cpu().numpy(), "Third Conv"),
+                #     (tumor_resized_to_third_conv.squeeze().data.cpu().numpy(), "Tumor"),
+                #     output_path=output_path
+                # )
+                # loss_1 = criterion(first_conv[0][batch_index].unsqueeze(0), first_conv[1][batch_index].unsqueeze(0),
+                #                    tumor_resized_to_first_conv)
+                # loss_2 = criterion(second_conv[0][batch_index].unsqueeze(0), second_conv[1][batch_index].unsqueeze(0),
+                #                       tumor_resized_to_second_conv)
+                # loss_3 = criterion(third_conv[0][batch_index].unsqueeze(0), third_conv[1][batch_index].unsqueeze(0),
+                #                         tumor_resized_to_third_conv)
+                # print(f"Losses: {loss_1.item()}, {loss_2.item()}, {loss_3.item()}")
+                # print(f"label: {batch['label'][batch_index].item()}")
+
+                # return
                 tumor_resized_to_first_conv = resize_tumor_to_label_dim(
-                    pre_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
+                    post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
                 tumor_resized_to_second_conv = resize_tumor_to_label_dim(
-                    pre_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
+                    post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
                 tumor_resized_to_third_conv = resize_tumor_to_label_dim(
-                    pre_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
-                ## pre tumors used for loss function but USE BOTH
+                    post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
+                ## TODO: need conv distance for each conv layer and then visualize it
+                
+                ## tumors used for loss function but USE only POST? not both -> focus on change
                 ## THen visualize it before passing it to the loss function
                 loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
                 loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
@@ -236,7 +285,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 batch: dict[str, torch.Tensor]
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
-                tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
+                pre_tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
 
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 label_batch = batch['label'].to(device)
@@ -248,13 +297,13 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     for batch_index in range(pre_batch.size(0)):
                         if batch['label'][batch_index].item() == 0:
                             
-                            # distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
-                            #                                             dist_flag='l2', mode='bilinear')
+                            distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                                                                        dist_flag='l2', mode='bilinear')
                             # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
                             #                                             dist_flag='l2', mode='bilinear')
-                            distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
-                                                                        dist_flag='l2', mode='bilinear')
-                            f1_score, validation = eval_feature_map(tumor_batch.cpu().numpy()[batch_index][0], distance_map_3.data.cpu().numpy()[0][0], 0.30, 
+                            # distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                            #                                             dist_flag='l2', mode='bilinear')
+                            f1_score, validation = eval_feature_map(pre_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1.data.cpu().numpy()[0][0], 0.30, 
                                                                     beta=0.8)
                             batch_f1_scores += f1_score
                 batch_f1_scores /= pre_batch.size(0) 

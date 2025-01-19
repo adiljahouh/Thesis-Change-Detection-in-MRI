@@ -75,7 +75,7 @@ class contrastiveThresholdLoss(nn.Module):
         # if 1 (simillar) constractive loss = margin - distance
         return torch.mean(constractive_thresh_loss)
 
-def resize_tumor_to_label_dim(label, size):
+def resize_tumor_to_label_dim(label, size) -> torch.Tensor:
     interp = nn.Upsample(size=size,mode='bilinear')
     return interp(label)
 class contrastiveThresholdMaskLoss(nn.Module):
@@ -112,12 +112,9 @@ class contrastiveThresholdMaskLoss(nn.Module):
 
         # Calculate pairwise distance
         distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w)
-        print(distance.shape)
         # Reshape distance to match the ground truth shape
         distance = distance.view(n, h, w)  # Shape: (n, h, w)
-        print(distance.shape)
         # Ensure ground truth tensor is compatible
-        print("Ground truth shape ", ground_truth.shape)
         gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
 
         # gt_rz = gt_rz.view(n, h, w)  # Shape: (n, h, w)
@@ -125,7 +122,9 @@ class contrastiveThresholdMaskLoss(nn.Module):
         # Calculate the contrastive threshold loss
         similar_pair = torch.clamp(distance - self.threshold, min=0.0)
         dissimilar_pair = torch.clamp(self.margin - distance, min=0.0)
-
+        
+        ## Bit confusing but 1 values (tumor) means dissimilar pairs
+        ## as opposed to how the general label works where 1 is similar pairs
         constractive_thresh_loss = torch.sum(
             (1 - gt_rz) * torch.pow(similar_pair, 2) + gt_rz * torch.pow(dissimilar_pair, 2)
         )

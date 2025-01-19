@@ -7,9 +7,13 @@ import matplotlib.pyplot as plt
 from distance_measures import various_distance
 from loader import normalize_np_array
 from matplotlib.axes import Axes
+from typing import Tuple
+
 interp = torch.nn.Upsample(size=(256, 256), mode='bilinear')
 
-def visualize_multiple_fmaps_and_tumor_baselines(*args, output_path, tumor, pre_non_transform, **kwargs):
+def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str], 
+                                                 output_path: str, tumor: np.ndarray, 
+                                                 pre_non_transform: np.ndarray, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
     
@@ -61,8 +65,7 @@ def visualize_multiple_fmaps_and_tumor_baselines(*args, output_path, tumor, pre_
     plt.savefig(output_path)
     plt.close(fig)
 
-
-def visualize_multiple_images(*args, output_path, **kwargs):
+def visualize_multiple_images(*args: Tuple[np.ndarray, str], output_path: str, **kwargs):
     """
     Merges and visualizes a variable number of images in a single figure.
     
@@ -137,7 +140,14 @@ def generate_roc_curve(distances, labels, save_dir, extra_title=""):
     plt.close()  # Close the plot to free up memory
     print(optimal_threshold)
     return optimal_threshold
+def return_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str) -> torch.Tensor:
+    c, h, w = output_t0.data.shape
 
+    # remember the c, h, w -> flatten
+    out_t0_rz = torch.transpose(output_t0.view(c, h * w), 1, 0)
+    out_t1_rz = torch.transpose(output_t1.view(c, h * w), 1, 0)
+    distance = various_distance(out_t0_rz,out_t1_rz,dist_flag=dist_flag)
+    return distance.view(h,w)
 def return_upsampled_distance_map(output_t0: torch.Tensor,output_t1: torch.Tensor,dist_flag: str,
                                         mode='bilinear') -> torch.Tensor:
 
@@ -179,8 +189,6 @@ def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.
         save_path = "./debug/similar_distance_map_rz_failed.txt"
         os.makedirs("./debug", exist_ok=True)
         np.savetxt(save_path, similar_distance_map)
-    ## NOTE: I do not use the cv2, i just use the normalized_distance_map
-    similar_dis_map_colorize = cv2.applyColorMap(np.uint8(255 * similar_distance_map_rz.data.cpu().numpy()[0][0]), cv2.COLORMAP_JET)
     return normalized_distance_map
 
 def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=6.0, beta=0.2, threshold=0.15):
