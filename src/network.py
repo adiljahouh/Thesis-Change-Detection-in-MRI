@@ -143,7 +143,7 @@ class DeepLab(nn.Module):
         self.bn5 = nn.BatchNorm2d(1024)
         
         # Final embedding layers
-        self.embedding_conv = nn.Conv2d(1024, 1024, kernel_size=1)
+        self.embedding_conv = nn.Conv2d(1024, 512, kernel_size=1)
         self.bn_embedding = nn.BatchNorm2d(1024)
 
     def forward(self, input1, input2, mode='train'):

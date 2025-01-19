@@ -107,7 +107,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                     save_path = f'{save_dir}/{filename}'
-                    pre_tumor = np.squeeze(batch['pre_tumor'][batch_index].data.cpu().numpy())  
+                    post_tumor = np.squeeze(batch['post_tumor'][batch_index].data.cpu().numpy())  
 
                      
                     distance_map_2d_conv1 = return_upsampled_norm_distance_map(
@@ -138,7 +138,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     (np.rot90(distance_map_2d_conv2), "Conv 2 Raw"),
                                     (np.rot90(distance_map_2d_conv3), "Conv 3 Raw"),
                                     (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
-                                    tumor=np.rot90(pre_tumor), pre_non_transform=np.rot90(pre_image))
+                                    tumor=np.rot90(post_tumor), pre_non_transform=np.rot90(post_image))
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
@@ -185,11 +185,11 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             ## TODO: MERGE TUMORS? Or only pass post tumor to the loss function?
             # Resize tumor to match the dimensions of the convolutional layers
             tumor_resized_to_first_conv = resize_tumor_to_label_dim(
-                pre_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
+                post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
             tumor_resized_to_second_conv = resize_tumor_to_label_dim(
-                pre_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
+                post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
             tumor_resized_to_third_conv = resize_tumor_to_label_dim(
-                pre_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
+                post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
             ## TODO: need conv distance for each conv layer and then visualize it
             
             ## tumors used for loss function but USE only POST? not both -> focus on change
@@ -212,17 +212,17 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 pre_batch: torch.Tensor = batch['pre'].float().to(device)
                 post_batch: torch.Tensor = batch['post'].float().to(device)
                 pre_tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
-
+                post_tumor_batch: torch.Tensor = batch['post_tumor'].float().to(device)
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 for batch_index in range(pre_batch.size(0)):                            
                     # distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
                     #                                             dist_flag='l2', mode='bilinear')
-                    distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
-                    # distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                    # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
                     #                                             dist_flag='l2', mode='bilinear')
-                    f1_score, validation = eval_feature_map(pre_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2.data.cpu().numpy()[0][0], 0.30, 
+                    distance_map_3 = return_upsampled_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                                                                dist_flag='l2', mode='bilinear')
+                    f1_score, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3.data.cpu().numpy()[0][0], 0.30, 
                                                             beta=0.8)
                     batch_f1_scores += f1_score
                 batch_f1_scores /= pre_batch.size(0) 
@@ -306,7 +306,7 @@ if __name__ == "__main__":
                 image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                 skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
     subject_images = ConcatDataset([aertsImages, remindImages])
-    model_type = complexSiameseExt()
+    model_type = DeepLabExtended()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
