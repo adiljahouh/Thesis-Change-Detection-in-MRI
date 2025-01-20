@@ -451,7 +451,7 @@ class remindDataset(Dataset):
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
                 "index_post": triplet["index_post"],
-                "baseline": baseline, "post_tumor": tumor_slice, "pre_tumor": pre_tumor,
+                "baseline": baseline, "post_tumor": tumor_slice, #"pre_tumor": pre_tumor,
                 "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
         
 class aertsDataset(Dataset):
@@ -656,7 +656,7 @@ class aertsDataset(Dataset):
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
                 "index_post": triplet["index_post"],
-                "baseline": baseline, "post_tumor": tumor_slice, "pre_tumor": pre_tumor,
+                "baseline": baseline, "post_tumor": tumor_slice, #"pre_tumor": pre_tumor,
                 "pre_path": triplet["pre_path"], "tumor_path": triplet["tumor_path"]}
         
         

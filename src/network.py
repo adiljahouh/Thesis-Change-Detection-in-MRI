@@ -78,30 +78,30 @@ class complexSiameseExt(nn.Module):
     def forward(self, input1, input2, mode='train'):
         # Forward pass through the Siamese network
         output1_conv1 = F.relu(self.bn1(self.conv1(input1)))
-        output1_pool1 = F.max_pool2d(output1_conv1, kernel_size=2, stride=2)
+        output1_pool1 = F.max_pool2d(output1_conv1, kernel_size=2, stride=2) # 128
         output1_conv2 = F.relu(self.bn2(self.conv2(output1_pool1)))
-        output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
-        output1_conv3 = F.relu(self.bn3(self.conv3(output1_pool2)))
-        output1_pool3 = F.max_pool2d(output1_conv3, kernel_size=2, stride=2)
+        # output1_pool2 = F.max_pool2d(output1_conv2, kernel_size=2, stride=2)
+        output1_conv3 = F.relu(self.bn3(self.conv3(output1_conv2)))
+        output1_pool3 = F.max_pool2d(output1_conv3, kernel_size=2, stride=2) # 64
         
         output1_conv4 = F.relu(self.conv4(output1_pool3))
         output1_conv5 = F.relu(self.bn4(self.conv5(output1_conv4)))
-        output1_pool4 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2)
+        output1_pool4 = F.max_pool2d(output1_conv5, kernel_size=2, stride=2) # 32
         
         output1_conv6 = F.relu(self.conv6(output1_pool4))
         output1_conv7 = F.relu(self.bn5(self.conv7(output1_conv6)))
-        output1_pool5 = F.max_pool2d(output1_conv7, kernel_size=2, stride=2)
+        output1_pool5 = F.max_pool2d(output1_conv7, kernel_size=2, stride=2) # 16
         output1_conv8 = F.relu(self.conv8(output1_pool5))
         output1_conv9 = F.relu(self.bn6(self.conv9(output1_conv8)))
-        output1_pool6 = F.max_pool2d(output1_conv9, kernel_size=2, stride=2)
+        # output1_pool6 = F.max_pool2d(output1_conv9, kernel_size=2, stride=2)
         
         #######
         
         output2_conv1 = F.relu(self.bn1(self.conv1(input2)))
         output2_pool1 = F.max_pool2d(output2_conv1, kernel_size=2, stride=2)
         output2_conv2 = F.relu(self.bn2(self.conv2(output2_pool1)))
-        output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
-        output2_conv3 = F.relu(self.bn3(self.conv3(output2_pool2)))
+        # output2_pool2 = F.max_pool2d(output2_conv2, kernel_size=2, stride=2)
+        output2_conv3 = F.relu(self.bn3(self.conv3(output2_conv2)))
         output2_pool3 = F.max_pool2d(output2_conv3, kernel_size=2, stride=2)
         
         output2_conv4 = F.relu(self.conv4(output2_pool3))
@@ -113,13 +113,13 @@ class complexSiameseExt(nn.Module):
         output2_pool5 = F.max_pool2d(output2_conv7, kernel_size=2, stride=2)
         output2_conv8 = F.relu(self.conv8(output2_pool5))
         output2_conv9 = F.relu(self.bn6(self.conv9(output2_conv8)))
-        output2_pool6 = F.max_pool2d(output2_conv9, kernel_size=2, stride=2)
+        # output2_pool6 = F.max_pool2d(output2_conv9, kernel_size=2, stride=2)
         if mode == 'train':
-            return [output1_pool3, output2_pool3], [output1_pool4, output2_pool4], [output1_pool6, output2_pool6]
+            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_conv9, output2_conv9]
         elif mode == 'test':
             # return before the pooling layer to visualize them
-            #return [output1_conv3, output2_conv3], [output1_pool4, output2_pool4], [output1_conv4, output2_conv4]
-            return [output1_pool3, output2_pool3], [output1_pool4, output2_pool4], [output1_pool6, output2_pool6]
+            #return [output1_conv3, output2_conv3], [output1_pool5, output2_pool4], [output1_conv4, output2_conv4]
+            return [output1_pool4, output2_pool4], [output1_pool5, output2_pool5], [output1_conv9, output2_conv9]
 
 class DeepLab(nn.Module):
     def __init__(self):
