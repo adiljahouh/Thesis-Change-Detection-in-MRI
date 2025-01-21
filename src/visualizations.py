@@ -191,7 +191,7 @@ def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.
         np.savetxt(save_path, similar_distance_map)
     return normalized_distance_map
 
-def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=6.0, beta=0.2, threshold=0.15):
+def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=2.0, beta=1, threshold=0.15):
     """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
     assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
     assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
@@ -216,11 +216,12 @@ def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: n
         enhanced_map = mask * enhanced_map + (1 - mask) * base_image
 
         # Normalize the final result to keep it within [0, 1]
-        enhanced_map = normalize_np_array(enhanced_map)
+        norm_enhanced_map = normalize_np_array(enhanced_map)
     except ValueError as e:
         return distance_map
-    
-    return enhanced_map
+    print(f"enhanced_map: {enhanced_map.max()}, {enhanced_map.min()}")
+    print(f"norm_enhanced_map: {norm_enhanced_map.max()}, {norm_enhanced_map.min()}")
+    return norm_enhanced_map
 
 def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=4.0, beta=0.5):
     """Apply multiplicative sharpening by injecting high-frequency details from the base image."""

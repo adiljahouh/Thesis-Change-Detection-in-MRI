@@ -440,13 +440,15 @@ class remindDataset(Dataset):
         if self.transform:
             for transform in self.transform.transforms:
                 if isinstance(transform, ShiftImage):
-                    pre_tumor = tumor_slice
+                    # pre_tumor = tumor_slice
                     post_slice = transform(post_slice, shift=shift)
                     tumor_slice = transform(tumor_slice, shift=shift)
+                    baseline = transform(baseline, shift=shift)
                 else:
                     pre_slice = transform(pre_slice)
                     post_slice = transform(post_slice)
                     tumor_slice = transform(tumor_slice)
+                    baseline = transform(baseline)
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
@@ -645,13 +647,15 @@ class aertsDataset(Dataset):
         if self.transform:
             for transform in self.transform.transforms:
                 if isinstance(transform, ShiftImage):
-                    pre_tumor = tumor_slice
+                    # pre_tumor = tumor_slice
                     post_slice = transform(post_slice, shift=shift)
                     tumor_slice = transform(tumor_slice, shift=shift)
+                    baseline = transform(baseline, shift=shift)
                 else:
                     pre_slice = transform(pre_slice)
                     post_slice = transform(post_slice)
                     tumor_slice = transform(tumor_slice)
+                    baseline = transform(baseline)
         
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 

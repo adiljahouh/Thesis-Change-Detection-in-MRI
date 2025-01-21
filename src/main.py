@@ -59,6 +59,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
             post_tumor_batch: torch.Tensor = batch['post_tumor'].float().to(device)
+            baseline_batch: torch.Tensor = batch['baseline'].float().to(device)
             
             labels = batch['label'].to(device)
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
@@ -86,7 +87,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             for batch_index in range(pre_batch.size(0)):
                 pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
                 post_image: ndarray = np.squeeze(post_batch[batch_index].data.cpu().numpy())
-                baseline = batch['baseline'][batch_index]
+                baseline: ndarray = np.squeeze(baseline_batch[batch_index].data.cpu().numpy())
                 label = labels[batch_index].item()  # Get the label for the i-th pair
 
                 dist = (distance_1[batch_index], distance_2[batch_index], distance_3[batch_index])
@@ -118,31 +119,38 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    f1_score_conv1, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
+                    f1_score_conv1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
                                                             beta=0.8)
-                    f1_score_conv2, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
+                    f1_score_conv2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
                                                             beta=0.8)
-                    f1_score_conv3, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                    f1_score_conv3, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=0.8)
+                    f1_score_baseline, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=0.8)
+                    
                     
                     
                     conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
                     conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
-
+                    f1_score_conv1_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
+                                                            beta=0.8)
+                    f1_score_conv2_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
+                                                            beta=0.8)
+                    f1_score_conv3_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
+                                                            beta=0.8)
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     (np.rot90(pre_image), "Preoperative"), 
                                     (np.rot90(post_image), "Postoperative"), 
                                     # (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
-                                    (np.rot90(conv1_sharpened_post), f"First layer post {f1_score_conv1}"), 
+                                    (np.rot90(conv1_sharpened_post), f"First layer post {f1_score_conv1_sharp:.2f}"), 
                                     # (np.rot90(conv2_sharpened_pre), "Second layer pre"),
-                                    (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2}"),
+                                    (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2_sharp:.2f}"),
                                     # (np.rot90(conv3_sharpened_pre), "Third layer pre"),
-                                    (np.rot90(conv3_sharpened_post), f"Third layer post {f1_score_conv3}"),
-                                    (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1}"), 
-                                    (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2}"),
-                                    (np.rot90(distance_map_2d_conv3), f"Conv 3 Raw {f1_score_conv3}"),
-                                    (np.rot90(np.squeeze(baseline)), "Baseline method"), output_path=save_path, 
+                                    (np.rot90(conv3_sharpened_post), f"Third layer post {f1_score_conv3_sharp:.2f}"),
+                                    (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1:.2f}"), 
+                                    (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2:.2f}"),
+                                    (np.rot90(distance_map_2d_conv3), f"Conv 3 Raw {f1_score_conv3:.2f}"),
+                                    (np.rot90(baseline), f"Baseline method {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(post_tumor), pre_non_transform=np.rot90(post_image))
     return distances_list, labels_list
 
@@ -220,7 +228,9 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
                 for batch_index in range(pre_batch.size(0)):
-                    ##TODO: stopping criteria needs to be relaxed i think..                            
+                    ##TODO: stopping criteria needs to be relaxed i think.. 
+                    ## Check loss for similar pairs?
+                                           
                     # distance_map_1 = return_upsampled_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
                     #                                             dist_flag='l2', mode='bilinear')
                     # distance_map_2 = return_upsampled_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
