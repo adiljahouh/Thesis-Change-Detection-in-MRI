@@ -75,7 +75,7 @@ class contrastiveThresholdLoss(nn.Module):
         # if 1 (simillar) constractive loss = margin - distance
         return torch.mean(constractive_thresh_loss)
 
-def resize_tumor_to_label_dim(label, size) -> torch.Tensor:
+def resize_tumor_to_feature_map(label, size) -> torch.Tensor:
     interp = nn.Upsample(size=size,mode='bilinear')
     return interp(label)
 class contrastiveThresholdMaskLoss(nn.Module):
@@ -205,8 +205,8 @@ def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
     :param segmentation_area: boolean mask where its not 255 = true
     '''
 
-    assert len(feature_map.shape) == 2, 'Wrong size of input prob map'
-    assert len(significant_tumor_pixels.shape) == 2, 'Wrong size of input prob map'
+    assert len(feature_map.shape) == 2, f'Wrong size of input prob map {feature_map.shape}'
+    assert len(significant_tumor_pixels.shape) == 2, f'Wrong size of input prob map {feature_map.shape}'
     thresInf = np.concatenate(([-np.Inf], thres, [np.Inf])) 
     fnArray = feature_map[(significant_tumor_pixels == True)] # pixels in fm where tumor is located
     ## array of probabilities of tumor pixels [0.8, 0.9, 0.7, 0.6, 0.5]
