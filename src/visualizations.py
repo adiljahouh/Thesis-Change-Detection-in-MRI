@@ -219,8 +219,8 @@ def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: n
         norm_enhanced_map = normalize_np_array(enhanced_map)
     except ValueError as e:
         return distance_map
-    print(f"enhanced_map: {enhanced_map.max()}, {enhanced_map.min()}")
-    print(f"norm_enhanced_map: {norm_enhanced_map.max()}, {norm_enhanced_map.min()}")
+    # print(f"enhanced_map: {enhanced_map.max()}, {enhanced_map.min()}")
+    # print(f"norm_enhanced_map: {norm_enhanced_map.max()}, {norm_enhanced_map.min()}")
     return norm_enhanced_map
 
 def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=4.0, beta=0.5):
