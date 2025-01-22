@@ -111,17 +111,16 @@ class contrastiveThresholdMaskLoss(nn.Module):
         out_t1_rz = map_t1.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
 
         # Calculate pairwise distance
-        distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w)
+        distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w), basically distance for each batch
         # Reshape distance to match the ground truth shape
         distance = distance.view(n, h, w)  # Shape: (n, h, w)
         # Ensure ground truth tensor is compatible
         gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
 
-        # gt_rz = gt_rz.view(n, h, w)  # Shape: (n, h, w)
 
         # Calculate the contrastive threshold loss
-        similar_pair = torch.clamp(distance - self.threshold, min=0.0)
-        dissimilar_pair = torch.clamp(self.margin - distance, min=0.0)
+        similar_pair = torch.clamp(distance - self.threshold, min=0.0) # distance below threshold resolves to 0
+        dissimilar_pair = torch.clamp(self.margin - distance, min=0.0) # distance above margin resolves to 0
         
         ## Bit confusing but 1 values (tumor) means dissimilar pairs
         ## as opposed to how the general label works where 1 is similar pairs

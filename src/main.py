@@ -97,7 +97,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 distances_list.append(dist)
                 labels_list.append(label)
                                 # Save the heatmap
-                if label == 0:  
+                if label == 0 or label == 1:  
                     filename = (
                         f"slice_{batch['pat_id'][batch_index]}_"
                         f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
@@ -165,6 +165,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
     print("\nStarting training...")
     best_loss = float('inf')
     best_f1_score = float('-inf')
+    best_val_loss = float('inf')
     consecutive_no_improvement = 0
     
     for epoch in range(epochs):
@@ -222,54 +223,57 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 post_tumor_batch: torch.Tensor = batch['post_tumor'].float().to(device)
                 assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
                 first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
-                for batch_index in range(pre_batch.size(0)):
+                ## CHECK REGULAR LOSS
+                ##################################################################################
+                ###
+                tumor_resized_to_first_conv = resize_tumor_to_feature_map(
+                post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
+                tumor_resized_to_second_conv = resize_tumor_to_feature_map(
+                    post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
+                tumor_resized_to_third_conv = resize_tumor_to_feature_map(
+                post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
+                val_loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
+                val_loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
+                val_loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
+                val_loss: torch.Tensor = val_loss_1 + val_loss_2 + val_loss_3
+                epoch_val_loss += val_loss.item()      
+
+                ###
+                ##################################################################################      
+               
+                ##for batch_index in range(pre_batch.size(0)):
                     ##TODO: stopping criteria needs to be relaxed i think.. 
                     ## Check loss for similar pairs?
-                    
-                    ## CHECK REGULAR LOSS
-                    ##################################################################################
-                    ###
-                    tumor_resized_to_first_conv = resize_tumor_to_feature_map(
-                    post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
-                    tumor_resized_to_second_conv = resize_tumor_to_feature_map(
-                        post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
-                    tumor_resized_to_third_conv = resize_tumor_to_feature_map(
-                    post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
-                    val_loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
-                    val_loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
-                    val_loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
-                    val_loss: torch.Tensor = val_loss_1 + val_loss_2 + val_loss_3
-                    epoch_val_loss += val_loss.item()      
-
-                    ###
-                    ##################################################################################                       
-                    distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
-                    distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
-                    distance_map_3 = return_upsampled_norm_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
-                    f1_score1, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
-                                                            beta=0.8)
-                    f1_score2, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
-                                                            beta=0.8)
-                    f1_score3, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
-                                                            beta=0.8)
-                    batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
-                batch_f1_scores /= pre_batch.size(0) 
-                epoch_f1_scores += batch_f1_scores        
+                                 
+                #     distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                #                                                 dist_flag='l2', mode='bilinear')
+                #     distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                #                                                 dist_flag='l2', mode='bilinear')
+                #     distance_map_3 = return_upsampled_norm_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                #                                                 dist_flag='l2', mode='bilinear')
+                #     f1_score1, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                #                                             beta=0.8)
+                #     f1_score2, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                #                                             beta=0.8)
+                #     f1_score3, validation = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
+                #                                             beta=0.8)
+                #     batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
+                # batch_f1_scores /= pre_batch.size(0) 
+                # epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
-        #####
+        #####3
         avg_val_loss = epoch_val_loss / len(val_loader)
         #######
-        avg_f1_score = epoch_f1_scores / len(val_loader)
+        # avg_f1_score = epoch_f1_scores / len(val_loader)
         #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
-        print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average vall score: {avg_val_loss:.4f}')
+        print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average f1 score: {avg_val_loss:.4f}')
         
         # Check for improvement in validation loss
-        if avg_f1_score > avg_val_loss:
-            best_f1_score = avg_f1_score
+        #if avg_f1_score > best_f1_score:
+        #    best_f1_score = avg_f1_score
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
             consecutive_no_improvement = 0
             # Save the best model
             save_path = os.path.join(save_dir, "model.pth")
@@ -340,7 +344,7 @@ if __name__ == "__main__":
                 image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                 skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
     subject_images = ConcatDataset([aertsImages, remindImages])
-    model_type = complexSiameseExt()
+    model_type = DeepLabExtended()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
