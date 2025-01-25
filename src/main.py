@@ -244,16 +244,16 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     #TODO: stopping criteria needs to be relaxed i think.. 
                     # Check loss for similar pairs?
                                  
-                    distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
-                    distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
+                    # distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                    #                                             dist_flag='l2', mode='bilinear')
+                    # distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                    #                                             dist_flag='l2', mode='bilinear')
                     distance_map_3 = return_upsampled_norm_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    f1_score1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
-                                                            beta=0.8)
-                    f1_score2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
-                                                            beta=0.8)
+                    # f1_score1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                    #                                         beta=0.8)
+                    # f1_score2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                    #                                         beta=0.8)
                     f1_score3, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
                                                             beta=0.8)
                     batch_f1_scores += f1_score3
