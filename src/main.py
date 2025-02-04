@@ -1,7 +1,7 @@
 import torch as torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
-from loss_functions import contrastiveLoss, contrastiveThresholdLoss, \
+from loss_functions import contrastiveLoss, contrastiveUnsupervisedThresholdMaskLoss, \
     eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
@@ -54,6 +54,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
     labels_list = []
     print("Doing predictions...")
     with torch.no_grad():
+        f_score_conv3_total = 0.0
+        f_score_sharp3_total = 0.0
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
@@ -97,7 +99,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                 distances_list.append(dist)
                 labels_list.append(label)
                                 # Save the heatmap
-                if label == 0 or label == 1:  
+                if label == 0:  
                     filename = (
                         f"slice_{batch['pat_id'][batch_index]}_"
                         f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
@@ -138,6 +140,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                                             beta=0.8)
                     f1_score_conv3_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
                                                             beta=0.8)
+                    f_score_conv3_total += f1_score_conv3
+                    f_score_sharp3_total += f1_score_conv3_sharp
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     (np.rot90(pre_image), "Preoperative"), 
                                     (np.rot90(post_image), "Postoperative"), 
@@ -152,6 +156,9 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     (np.rot90(distance_map_2d_conv3), f"Conv 3 Raw {f1_score_conv3:.2f}"),
                                     (np.rot90(baseline), f"Baseline method {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(post_tumor), pre_non_transform=np.rot90(post_image))
+        f_score_conv3_total /= len(test_loader)
+        f_score_sharp3_total /= len(test_loader)
+        print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}, for sharpened conv3: {f_score_sharp3_total:.2f}")
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
@@ -244,19 +251,19 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     #TODO: stopping criteria needs to be relaxed i think.. 
                     # Check loss for similar pairs?
                                  
-                    # distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
-                    #                                             dist_flag='l2', mode='bilinear')
-                    # distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
-                    #                                             dist_flag='l2', mode='bilinear')
+                    distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                                                                dist_flag='l2', mode='bilinear')
+                    distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                                                                dist_flag='l2', mode='bilinear')
                     distance_map_3 = return_upsampled_norm_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    # f1_score1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
-                    #                                         beta=0.8)
-                    # f1_score2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
-                    #                                         beta=0.8)
+                    f1_score1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                                                            beta=0.8)
+                    f1_score2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                                                            beta=0.8)
                     f1_score3, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
                                                             beta=0.8)
-                    batch_f1_scores += f1_score3
+                    batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
                 batch_f1_scores /= pre_batch.size(0) 
                 epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
@@ -324,7 +331,7 @@ if __name__ == "__main__":
         transform=Compose([
                     T.ToTensor()])
     elif args.loss == 'TCL':
-        criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
+        criterion = contrastiveUnsupervisedThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),
