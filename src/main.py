@@ -331,7 +331,7 @@ if __name__ == "__main__":
         transform=Compose([
                     T.ToTensor()])
     elif args.loss == 'TCL':
-        criterion = contrastiveUnsupervisedThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
+        criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),
