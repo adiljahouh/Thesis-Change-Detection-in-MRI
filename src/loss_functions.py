@@ -134,8 +134,14 @@ class contrastiveThresholdMaskLoss(nn.Module):
         ## vice versa for the dissimilar part
         ## loss += tumor area * distance map clipped at margin
         ## loss += NON tumor area * distance map clipped at threshold
+        
+        # constractive_thresh_loss = torch.sum(
+        #     (1 - gt_rz) * torch.pow(similar_pair_penalty, 2) + gt_rz * torch.pow(dissimilar_pair_penalty, 2)
+        # )
+        
+        #attempting to unsupervise the tumor area
         constractive_thresh_loss = torch.sum(
-            (1 - gt_rz) * torch.pow(similar_pair_penalty, 2) + gt_rz * torch.pow(dissimilar_pair_penalty, 2)
+            (1 - gt_rz) * torch.pow(similar_pair_penalty, 2)
         )
         return constractive_thresh_loss
     

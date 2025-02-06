@@ -140,8 +140,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                                             beta=0.8)
                     f1_score_conv3_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
                                                             beta=0.8)
-                    f_score_conv3_total += f1_score_conv3
-                    f_score_sharp3_total += f1_score_conv3_sharp
+                    batch_f1_scores += f1_score_conv3
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     (np.rot90(pre_image), "Preoperative"), 
                                     (np.rot90(post_image), "Postoperative"), 
@@ -156,9 +155,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     (np.rot90(distance_map_2d_conv3), f"Conv 3 Raw {f1_score_conv3:.2f}"),
                                     (np.rot90(baseline), f"Baseline method {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(post_tumor), pre_non_transform=np.rot90(post_image))
+            batch_f1_scores /= pre_batch.size(0)
+            f_score_conv3_total += batch_f1_scores
         f_score_conv3_total /= len(test_loader)
-        f_score_sharp3_total /= len(test_loader)
-        print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}, for sharpened conv3: {f_score_sharp3_total:.2f}")
+        print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
     return distances_list, labels_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
