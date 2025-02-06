@@ -1,7 +1,7 @@
 import torch as torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
-from loss_functions import contrastiveLoss, \
+from loss_functions import contrastiveLoss, contrastiveThresholdLoss, \
     eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
@@ -161,7 +161,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
         print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}, for sharpened conv3: {f_score_sharp3_total:.2f}")
     return distances_list, labels_list
 
-def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
+def train(siamese_net: torch.nn.Module, optimizer: Optimizer, unsupervised_crit: torch.nn.Module,
+          weakly_supervised_crit: torch.nn.Module,
           train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
           save_dir='./results/unassigned', device=torch.device('cuda')):
     
@@ -188,6 +189,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             
             pre_batch = batch['pre'].float().to(device)
             post_batch = batch['post'].float().to(device)
+            label_batch = batch['label'].to(device)
             # pre_tumor_batch = batch['pre_tumor'].to(device)
             post_tumor_batch = batch['post_tumor'].to(device)
             assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
@@ -208,11 +210,18 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             
             ## tumors used for loss function but USE only POST? not both -> focus on change
             ## THen visualize it before passing it to the loss function
-            loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
-            loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
-            loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
-            loss: torch.Tensor = loss_1 + loss_2 + loss_3
-
+            if weakly_supervised_crit:
+                loss_1 = weakly_supervised_crit(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
+                loss_2 = weakly_supervised_crit(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
+                loss_3 = weakly_supervised_crit(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
+                weakly_loss: torch.Tensor = loss_1 + loss_2 + loss_3
+            if unsupervised_crit:
+                un_loss_1 = unsupervised_crit(first_conv[0], first_conv[1], label_batch)
+                un_loss_2 = unsupervised_crit(second_conv[0], second_conv[1], label_batch)
+                un_loss_3 = unsupervised_crit(third_conv[0], third_conv[1], label_batch)
+                unsupervised_loss: torch.Tensor = un_loss_1 + un_loss_2 + un_loss_3
+            print(f"the weakly loss is {weakly_loss.item()} and the unsupervised loss is {unsupervised_loss.item()}")
+            loss = weakly_loss + unsupervised_loss
             loss.backward()
             optimizer.step()
             epoch_train_loss += loss.item()      
@@ -221,50 +230,65 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
         siamese_net.eval()  # switch to evaluation mode
         epoch_f1_scores = 0.0
         with torch.no_grad():
-            for index, batch in enumerate(val_loader):
-                batch: dict[str, torch.Tensor]
-                pre_batch: torch.Tensor = batch['pre'].float().to(device)
-                post_batch: torch.Tensor = batch['post'].float().to(device)
+            for val_index, val_batch in enumerate(val_loader):
+                val_batch: dict[str, torch.Tensor]
+                val_pre_batch: torch.Tensor = val_batch['pre'].float().to(device)
+                val_post_batch: torch.Tensor = val_batch['post'].float().to(device)
+                val_label_batch: torch.Tensor = val_batch['label'].to(device)
                 # pre_tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
-                post_tumor_batch: torch.Tensor = batch['post_tumor'].float().to(device)
-                assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
-                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+                val_post_tumor_batch: torch.Tensor = val_batch['post_tumor'].float().to(device)
+                assert val_pre_batch.shape == val_post_batch.shape, "Pre and post batch shapes do not match"
+                val_first_conv, val_second_conv, val_third_conv = siamese_net(val_pre_batch, val_post_batch)
                 ## CHECK REGULAR LOSS
                 ##################################################################################
                 ###
-                tumor_resized_to_first_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
-                tumor_resized_to_second_conv = resize_tumor_to_feature_map(
-                    post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
-                tumor_resized_to_third_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
-                val_loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
-                val_loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
-                val_loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
-                val_loss: torch.Tensor = val_loss_1 + val_loss_2 + val_loss_3
+                val_tumor_resized_to_first_conv = resize_tumor_to_feature_map(
+                val_post_tumor_batch, val_first_conv[0].data.cpu().numpy().shape[2:])
+                val_tumor_resized_to_second_conv = resize_tumor_to_feature_map(
+                    val_post_tumor_batch, val_second_conv[0].data.cpu().numpy().shape[2:])
+                val_tumor_resized_to_third_conv = resize_tumor_to_feature_map(
+                val_post_tumor_batch, val_third_conv[0].data.cpu().numpy().shape[2:])
+                
+                if weakly_supervised_crit:
+                    val_loss_1 = weakly_supervised_crit(val_first_conv[0], val_first_conv[1], val_tumor_resized_to_first_conv)
+                    val_loss_2 = weakly_supervised_crit(val_second_conv[0],val_second_conv[1], val_tumor_resized_to_second_conv)
+                    val_loss_3 = weakly_supervised_crit(val_third_conv[0], val_third_conv[1], val_tumor_resized_to_third_conv)
+                    val_weak_loss: torch.Tensor = val_loss_1 + val_loss_2 + val_loss_3
+                if unsupervised_crit:
+                    val_un_loss_1 = unsupervised_crit(val_first_conv[0], val_first_conv[1], val_label_batch)
+                    val_un_loss_2 = unsupervised_crit(val_second_conv[0],val_second_conv[1],val_label_batch)
+                    val_un_loss_3 = unsupervised_crit(val_third_conv[0], val_third_conv[1], val_label_batch)
+                    val_unsupervised_loss: torch.Tensor = val_un_loss_1 + val_un_loss_2 + val_un_loss_3
+                
+                print(f"the val weakly loss is {val_weak_loss.item()} and the val unsupervised loss is {val_unsupervised_loss.item()}")
+                val_loss: torch.Tensor = val_unsupervised_loss + val_weak_loss
                 epoch_val_loss += val_loss.item()      
 
-                ###
+                ### not needed but for visualization of f score
                 ##################################################################################    
                 batch_f1_scores = 0.0
-                for batch_index in range(pre_batch.size(0)):
+                for val_pre_index in range(val_pre_batch.size(0)):
                     #TODO: stopping criteria needs to be relaxed i think.. 
                     # Check loss for similar pairs?
-                                 
-                    distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                    
+                    
+                    # skip similar pairs
+                    if val_label_batch[val_pre_index] == 1:
+                        continue         
+                    distance_map_1 = return_upsampled_norm_distance_map(val_first_conv[0][val_pre_index], val_first_conv[1][val_pre_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                    distance_map_2 = return_upsampled_norm_distance_map(val_second_conv[0][val_pre_index], val_second_conv[1][val_pre_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    distance_map_3 = return_upsampled_norm_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                    distance_map_3 = return_upsampled_norm_distance_map(val_third_conv[0][val_pre_index], val_third_conv[1][val_pre_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    f1_score1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                    f1_score1, _ = eval_feature_map(val_post_tumor_batch.cpu().numpy()[val_pre_index][0], distance_map_1, 0.30, 
                                                             beta=0.8)
-                    f1_score2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                    f1_score2, _ = eval_feature_map(val_post_tumor_batch.cpu().numpy()[val_pre_index][0], distance_map_2, 0.30, 
                                                             beta=0.8)
-                    f1_score3, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
+                    f1_score3, _ = eval_feature_map(val_post_tumor_batch.cpu().numpy()[val_pre_index][0], distance_map_3, 0.30, 
                                                             beta=0.8)
                     batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
-                batch_f1_scores /= pre_batch.size(0) 
+                batch_f1_scores /= val_pre_batch.size(0) 
                 epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
@@ -327,11 +351,13 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
     if args.loss == 'CL':
-        criterion = contrastiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+        unsupervised_crit = contrastiveLoss(margin=args.margin, dist_flag=args.dist_flag)
+        weakly_supervised_crit = None
         transform=Compose([
                     T.ToTensor()])
     elif args.loss == 'TCL':
-        criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
+        weakly_supervised_crit = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
+        unsupervised_crit = contrastiveThresholdLoss(hingethresh=args.threshold, margin=args.margin)
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),
@@ -351,12 +377,12 @@ if __name__ == "__main__":
                 skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
     subject_images = ConcatDataset([aertsImages, remindImages])
     model_type = DeepLabExtended()
-    # balance subject_images based on label
+    # balance subject_images based on label, pre balance would be more memory efficient
     
     print(f"Total number of images: {len(subject_images)}")
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of total pairs after balancing: {len(subject_images)}")
-    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
+    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.7, 0.2, 0.1))
     
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
     #optimizer = optim.SGD(model_type.parameters(), lr=0.01, momentum=0.9)
@@ -370,7 +396,8 @@ if __name__ == "__main__":
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
     save_dir = f'./results/{model_params}/train_test'
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-    _ = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
+    _ = train(siamese_net=model_type, optimizer=optimizer, unsupervised_crit=unsupervised_crit, weakly_supervised_crit=weakly_supervised_crit,
+              train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, device=device)
 

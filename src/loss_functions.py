@@ -134,9 +134,10 @@ class contrastiveThresholdMaskLoss(nn.Module):
         ## vice versa for the dissimilar part
         ## loss += tumor area * distance map clipped at margin
         ## loss += NON tumor area * distance map clipped at threshold
-        constractive_thresh_loss = torch.sum(
+        constractive_thresh_loss = torch.mean(
             (1 - gt_rz) * torch.pow(similar_pair_penalty, 2) + gt_rz * torch.pow(dissimilar_pair_penalty, 2)
         )
+        ## maybe remove second term?
         return constractive_thresh_loss
     
 def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
