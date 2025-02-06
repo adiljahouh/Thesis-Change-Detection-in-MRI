@@ -1,7 +1,7 @@
 import torch as torch
 import torch.optim as optim
 from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
-from loss_functions import contrastiveLoss, contrastiveUnsupervisedThresholdMaskLoss, \
+from loss_functions import contrastiveLoss, \
     eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
 from loader import aertsDataset, remindDataset, balance_dataset
 from transformations import ShiftImage, RotateImage
