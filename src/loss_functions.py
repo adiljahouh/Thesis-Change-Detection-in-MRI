@@ -41,6 +41,9 @@ class contrastiveThresholdLoss(nn.Module):
     
     It does a loss function over the ENTIRE batch on LABEL basis NOT pixel basis (so no masks)
     we expect two tensors and a label to be passed to the forward function
+    
+    the distance map IS NOT pixel-wise, it just cares for the distance between the two vectors
+    so thats why its a bit agnostic
     """
     def __init__(self,hingethresh=0.0,margin=2.0, dist_flag='l2'):
         super(contrastiveThresholdLoss, self).__init__()
@@ -60,11 +63,13 @@ class contrastiveThresholdLoss(nn.Module):
         return distance
     
     def forward(self,out_vec_t0,out_vec_t1,label) -> torch.Tensor:
-        # TODO: FLATTENS TO 1D POSSIBLY BAD AND SHOULD BE 2D VECTORS FOR CHANNELS
+        # TODO: FLATTENS TO 1D to just care about the distance between the two vectors
+        # pixel-based distance not important for an agnostic model
         out_vec_t0 = out_vec_t0.view(out_vec_t0.size(0), -1)  
         out_vec_t1 = out_vec_t1.view(out_vec_t1.size(0), -1)
         
-        distance = self.various_distance(out_vec_t0,out_vec_t1)
+        distance = self.various_distance(out_vec_t0,out_vec_t1) # returns scalar distance (16,) since batch size is 16
+        
         ## in my code the margin is used for dissimilar pairs 0
         ## and the threshold is used for similar pairs 1
         ## This might not be the regular usage of margin and threshold
@@ -127,61 +132,12 @@ class contrastiveThresholdMaskLoss(nn.Module):
         # tumor area
         
         ## vice versa for the dissimilar part
+        ## loss += tumor area * distance map clipped at margin
+        ## loss += NON tumor area * distance map clipped at threshold
         constractive_thresh_loss = torch.sum(
             (1 - gt_rz) * torch.pow(similar_pair_penalty, 2) + gt_rz * torch.pow(dissimilar_pair_penalty, 2)
         )
         return constractive_thresh_loss
-    
-class contrastiveUnsupervisedThresholdMaskLoss(nn.Module):
-    """
-    This is a loss function that is used to train a siamese network
-    The loss function is a combination of a threshold and a margin
-    
-    It does a loss function on pixel basis so the label is depended on the pixel
-    so we focus directly on if the featuremap overlays the ground truth tumor
-    """
-    def __init__(self,hingethresh=0.0,margin=2.0, dist_flag='l2'):
-        super(contrastiveUnsupervisedThresholdMaskLoss, self).__init__()
-        self.threshold = hingethresh
-        self.margin = margin
-        self.dist_flag = dist_flag
-
-    def various_distance(self,out_vec_t0,out_vec_t1):
-
-        if self.dist_flag == 'l2': # Euclidean distance
-            distance = F.pairwise_distance(out_vec_t0,out_vec_t1,p=2)
-        if self.dist_flag == 'l1': # Manhattan distance
-            distance = F.pairwise_distance(out_vec_t0,out_vec_t1,p=1)
-        if self.dist_flag == 'cos':# Cosine similarity
-            similarity = F.cosine_similarity(out_vec_t0,out_vec_t1)
-            distance = 1 - 2 * similarity/np.pi
-        return distance
-    
-    def forward(self,map_t0, map_t1,ground_truth):
-        n, c, h, w = map_t0.shape
-
-        # Flatten the spatial dimensions
-        out_t0_rz = map_t0.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
-        out_t1_rz = map_t1.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
-
-        # Calculate pairwise distance
-        distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w), basically distance for each batch
-        # Reshape distance to match the ground truth shape
-        distance = distance.view(n, h, w)  # Shape: (n, h, w)
-        # Ensure ground truth tensor is compatible
-        gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
-
-
-        # Calculate the contrastive threshold loss
-        non_tumor_penalty = torch.pow(distance * (1 - gt_rz), 2)
-
-        # For tumor regions, no explicit penalty - let the model learn
-        # Optional: add a small regularization term to prevent all distances from going to zero
-        regularization = 0.1 * torch.exp(-distance) * gt_rz
-
-        constractive_thresh_loss = torch.sum(non_tumor_penalty + regularization)
-        return constractive_thresh_loss   
-    
     
 def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     # Calculate precision, recall, and beta-weighted F-score for each threshold
