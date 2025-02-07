@@ -9,17 +9,15 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "--preop_dir", "./data/processed/preop/BTC-preop",
-                "--tumor_dir", "./data/raw/preop/BTC-preop/derivatives/tumor_masks",
-                "--model", "custom",
+                "--model", "MLO",
                 "--lr", "0.001",
-                "--epochs", "200",
                 "--patience", "8",
                 "--dist_flag", "l2",
                 "--margin", "5.0",
                 "--loss", "TCL",
                 "--threshold", "0.3",
-                "--skip", "2"
+                "--skip", "100",
+                "--load_slices"
             ],
             "justMyCode": true
         }

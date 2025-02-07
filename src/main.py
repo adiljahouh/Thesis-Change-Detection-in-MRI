@@ -169,7 +169,6 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
     print(f"Number of batches in training set: {len(train_loader)}")
     print(f"Number of batches in validation set: {len(val_loader)}")
     
-    print("\nStarting training...")
     best_loss = float('inf')
     best_f1_score = float('-inf')
     best_val_loss = float('inf')
@@ -178,93 +177,101 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
     for epoch in range(epochs):
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
-        for index, batch in enumerate(train_loader):
+        for index, train_batch in enumerate(train_loader):
             ## each batch is a dict with pre, post, label etc. and collated (merged) values from
             ## each value in the batch
-            batch: dict[str, torch.Tensor]
+            train_batch: dict[str, torch.Tensor]
             
-            assert batch['pre'].shape == batch['post'].shape, "Pre and post batch shapes do not match"
-            assert type(batch['pre']) == type(batch['post']) == torch.Tensor, "Pre or post is not a tensor, use transform ToTensor()  in the dataSet or unsqueeze(0) after loading each batch"
+            assert train_batch['pre'].shape == train_batch['post'].shape, "Pre and post train_batch shapes do not match"
+            assert type(train_batch['pre']) == type(train_batch['post']) == torch.Tensor, "Pre or post is not a tensor, use transform ToTensor()  in the dataSet or unsqueeze(0) after loading each train_batch"
             
-            pre_batch = batch['pre'].float().to(device)
-            post_batch = batch['post'].float().to(device)
-            # pre_tumor_batch = batch['pre_tumor'].to(device)
-            post_tumor_batch = batch['post_tumor'].to(device)
-            assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
+            pre_train_batch = train_batch['pre'].float().to(device)
+            post_train_batch = train_batch['post'].float().to(device)
+            # pre_tumor_train_batch = train_batch['pre_tumor'].to(device)
+            post_tumor_train_batch = train_batch['post_tumor'].to(device)
+            assert pre_train_batch.shape == post_train_batch.shape, "Pre and post train_batch shapes do not match"
             siamese_net.train()  # switch to training mode
 
             optimizer.zero_grad()
-            first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+            first_conv_train, second_conv_train, third_conv_train = siamese_net(pre_train_batch, post_train_batch)
             # TODO: tumor shift check and check control pair handling
             ## TODO: MERGE TUMORS? Or only pass post tumor to the loss function?
-            # Resize tumor to match the dimensions of the convolutional layers
-            tumor_resized_to_first_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
-            tumor_resized_to_second_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
-            tumor_resized_to_third_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
-            ## TODO: need conv distance for each conv layer and then visualize it
+            # Resize tumor to match the dimensions of the conv_trainolutional layers
+            tumor_resized_to_first_conv_train = resize_tumor_to_feature_map(
+                post_tumor_train_batch, first_conv_train[0].data.cpu().numpy().shape[2:])
+            tumor_resized_to_second_conv_train = resize_tumor_to_feature_map(
+                post_tumor_train_batch, second_conv_train[0].data.cpu().numpy().shape[2:])
+            tumor_resized_to_third_conv_train = resize_tumor_to_feature_map(
+                post_tumor_train_batch, third_conv_train[0].data.cpu().numpy().shape[2:])
+            ## TODO: need conv_train distance for each conv_train layer and then visualize it
             
             ## tumors used for loss function but USE only POST? not both -> focus on change
             ## THen visualize it before passing it to the loss function
-            loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
-            loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
-            loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
+            loss_1 = criterion(first_conv_train[0], first_conv_train[1], tumor_resized_to_first_conv_train)
+            loss_2 = criterion(second_conv_train[0], second_conv_train[1], tumor_resized_to_second_conv_train)
+            loss_3 = criterion(third_conv_train[0], third_conv_train[1], tumor_resized_to_third_conv_train)
+            # np.save(os.path.join(os.getcwd(), "pre_train.npy"), third_conv_train[0].data.cpu().numpy())
+            # np.save(os.path.join(os.getcwd(), "post_train.npy"), third_conv_train[1].data.cpu().numpy())
             loss: torch.Tensor = loss_1 + loss_2 + loss_3
-
             loss.backward()
             optimizer.step()
             epoch_train_loss += loss.item()      
                   
-        # Validation loop
+        # Validation loop TODO: back to eval after debug
         siamese_net.eval()  # switch to evaluation mode
         epoch_f1_scores = 0.0
         with torch.no_grad():
-            for index, batch in enumerate(val_loader):
-                batch: dict[str, torch.Tensor]
-                pre_batch: torch.Tensor = batch['pre'].float().to(device)
-                post_batch: torch.Tensor = batch['post'].float().to(device)
-                # pre_tumor_batch: torch.Tensor = batch['pre_tumor'].float().to(device)
-                post_tumor_batch: torch.Tensor = batch['post_tumor'].float().to(device)
-                assert pre_batch.shape == post_batch.shape, "Pre and post batch shapes do not match"
-                first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch)
+            for index, val_batch in enumerate(val_loader):
+                val_batch: dict[str, torch.Tensor]
+                pre_val_batch: torch.Tensor = val_batch['pre'].float().to(device)
+                post_val_batch: torch.Tensor = val_batch['post'].float().to(device)
+                # pre_tumor_val_batch: torch.Tensor = val_batch['pre_tumor'].float().to(device)
+                post_tumor_val_batch: torch.Tensor = val_batch['post_tumor'].float().to(device)
+                assert pre_val_batch.shape == post_val_batch.shape, "Pre and post val_batch shapes do not match"
+                first_conv_val, second_conv_val, third_conv_val = siamese_net(pre_val_batch, post_val_batch)
+                # print("val stats")
+                # print(first_conv_val[0].min(), first_conv_val[1].min(),second_conv_val[0].min(), second_conv_val[1].min(), third_conv_val[0].min(), third_conv_val[1].min())
+                # print(first_conv_val[0].max(), first_conv_val[1].max(),second_conv_val[0].max(), second_conv_val[1].max(), third_conv_val[0].max(), third_conv_val[1].max())
                 ## CHECK REGULAR LOSS
                 ##################################################################################
                 ###
-                tumor_resized_to_first_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, first_conv[0].data.cpu().numpy().shape[2:])
-                tumor_resized_to_second_conv = resize_tumor_to_feature_map(
-                    post_tumor_batch, second_conv[0].data.cpu().numpy().shape[2:])
-                tumor_resized_to_third_conv = resize_tumor_to_feature_map(
-                post_tumor_batch, third_conv[0].data.cpu().numpy().shape[2:])
-                val_loss_1 = criterion(first_conv[0], first_conv[1], tumor_resized_to_first_conv)
-                val_loss_2 = criterion(second_conv[0], second_conv[1], tumor_resized_to_second_conv)
-                val_loss_3 = criterion(third_conv[0], third_conv[1], tumor_resized_to_third_conv)
+                tumor_resized_to_first_conv_val = resize_tumor_to_feature_map(
+                post_tumor_val_batch, first_conv_val[0].data.cpu().numpy().shape[2:])
+                tumor_resized_to_second_conv_val = resize_tumor_to_feature_map(
+                    post_tumor_val_batch, second_conv_val[0].data.cpu().numpy().shape[2:])
+                tumor_resized_to_third_conv_val = resize_tumor_to_feature_map(
+                post_tumor_val_batch, third_conv_val[0].data.cpu().numpy().shape[2:])
+                
+                print("\n\nStarting vall loss")
+                val_loss_1 = criterion(first_conv_val[0], first_conv_val[1], tumor_resized_to_first_conv_val)
+                val_loss_2 = criterion(second_conv_val[0], second_conv_val[1], tumor_resized_to_second_conv_val)
+                val_loss_3 = criterion(third_conv_val[0], third_conv_val[1], tumor_resized_to_third_conv_val)
                 val_loss: torch.Tensor = val_loss_1 + val_loss_2 + val_loss_3
+                # np.save(os.path.join(os.getcwd(), "pre_val.npy"), third_conv_val[0].data.cpu().numpy())
+                # np.save(os.path.join(os.getcwd(), "post_val.npy"), third_conv_val[1].data.cpu().numpy())
                 epoch_val_loss += val_loss.item()      
 
                 ###
                 ##################################################################################    
                 batch_f1_scores = 0.0
-                for batch_index in range(pre_batch.size(0)):
+                for batch_index in range(pre_val_batch.size(0)):
                     #TODO: stopping criteria needs to be relaxed i think.. 
                     # Check loss for similar pairs?
                                  
-                    distance_map_1 = return_upsampled_norm_distance_map(first_conv[0][batch_index], first_conv[1][batch_index],
+                    distance_map_1 = return_upsampled_norm_distance_map(first_conv_val[0][batch_index], first_conv_val[1][batch_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    distance_map_2 = return_upsampled_norm_distance_map(second_conv[0][batch_index], second_conv[1][batch_index],
+                    distance_map_2 = return_upsampled_norm_distance_map(second_conv_val[0][batch_index], second_conv_val[1][batch_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    distance_map_3 = return_upsampled_norm_distance_map(third_conv[0][batch_index], third_conv[1][batch_index],
+                    distance_map_3 = return_upsampled_norm_distance_map(third_conv_val[0][batch_index], third_conv_val[1][batch_index],
                                                                 dist_flag='l2', mode='bilinear')
-                    f1_score1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                    f1_score1, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
                                                             beta=0.8)
-                    f1_score2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                    f1_score2, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
                                                             beta=0.8)
-                    f1_score3, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
+                    f1_score3, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
                                                             beta=0.8)
                     batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
-                batch_f1_scores /= pre_batch.size(0) 
+                batch_f1_scores /= pre_val_batch.size(0) 
                 epoch_f1_scores += batch_f1_scores        
         # Calculate average loss for the epoch
         avg_train_loss = epoch_train_loss / len(train_loader)
@@ -309,7 +316,7 @@ if __name__ == "__main__":
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
-    parser.add_argument("--slice_dir", type=str, default='./data/2D/', help="location for slices to be saved and loaded")
+    parser.add_argument("--slice_dir", type=str, default='./data/2D_post/', help="location for slices to be saved and loaded")
     parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="TCL", help=
                         "Type of loss function to use (constractive or thresholded constractive)")
     parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
@@ -341,22 +348,23 @@ if __name__ == "__main__":
                     ]
         )
             
-    aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
-                raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
-                image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
-                tumor_sensitivity=0.30,transform=transform, load_slices=args.load_slices)
-    print("Aerts dataset loaded")
+    # aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
+    #             raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
+    #             image_ids=['t1_ants_aligned.nii.gz'], skip=args.skip, 
+    #             tumor_sensitivity=0.30,transform=transform, load_slices=args.load_slices)
+    # print("Aerts dataset loaded")
     remindImages = remindDataset(preop_dir=args.remind_dir, 
                 image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                 skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
-    subject_images = ConcatDataset([aertsImages, remindImages])
+    # subject_images = ConcatDataset([aertsImages, remindImages])
+    subject_images = remindImages
     model_type = DeepLabExtended()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of total pairs after balancing: {len(subject_images)}")
-    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.6, 0.2, 0.2))
+    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.7, 0.2, 0.1))
     
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
     #optimizer = optim.SGD(model_type.parameters(), lr=0.01, momentum=0.9)
