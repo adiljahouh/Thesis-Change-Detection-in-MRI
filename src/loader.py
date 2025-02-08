@@ -113,6 +113,20 @@ def filter_array_on_threshold(slice_2d: ndarray, threshold=0.15) -> ndarray:
     slice_2d[slice_2d < threshold] = 0
     
     return slice_2d
+def set_difference_arrays(array1: ndarray, array2: ndarray) -> ndarray:
+    """
+    Computes the set difference between two arrays by setting values in array1 to zero 
+    wherever array2 has nonzero values.
+
+    Args:
+        array1 (ndarray): First input array (typically larger).
+        array2 (ndarray): Second input array (overlapping with array1).
+
+    Returns:
+        ndarray: Modified array1 where elements that overlap with array2 are set to 0.
+    """
+    return np.where(array2 != 0, 0, array1)
+
 
 def convert_tuple_to_string(index):
     if index[0] != -1:
@@ -198,7 +212,8 @@ def is_preop_the_target_shape(preop_shape: Tuple[int, int, int], postop_shape: T
     else:
         return False
 
-def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, pre_mask_slice: np.ndarray, post_mask_slice: np.ndarray, pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str, color='hot') -> str:
+def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndarray, pre_mask_slice: np.ndarray, post_mask_slice: np.ndarray, change_map_slice: np.ndarray,
+                                      pat_id: str, index: Tuple[int, int, int], label: int, save_dir: str, color='hot') -> str:
     """Save the comparison image with tumor overlay, pre slice, and post slice."""
     brain_axis = convert_tuple_to_string(index)
     filename = f"{pat_id}_slice_{brain_axis}_{label}.png"
@@ -206,11 +221,13 @@ def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndar
 
     # Create the tumor overlay on the pre slice
     tumor_overlay_pre = np.ma.masked_where(pre_mask_slice == 0, pre_mask_slice)
-    tumor_overlay_pre_normalized = tumor_overlay_pre / np.max(tumor_overlay_pre) if np.max(tumor_overlay_pre) > 0 else tumor_overlay
+    tumor_overlay_pre_normalized = tumor_overlay_pre / np.max(tumor_overlay_pre) if np.max(tumor_overlay_pre) > 0 else tumor_overlay_pre
 
     tumor_overlay_post = np.ma.masked_where(post_mask_slice == 0, post_mask_slice)
-    tumor_overlay_post_normalized = tumor_overlay_post / np.max(tumor_overlay_post) if np.max(tumor_overlay_post) > 0 else tumor_overlay
+    tumor_overlay_post_normalized = tumor_overlay_post / np.max(tumor_overlay_post) if np.max(tumor_overlay_post) > 0 else tumor_overlay_post
 
+    change_map_slice = np.ma.masked_where(change_map_slice == 0, change_map_slice)
+    change_map_slice_normalized = change_map_slice / np.max(change_map_slice) if np.max(change_map_slice) > 0 else change_map_slice
     # Plot the images
     fig, ax = plt.subplots(1, 4, figsize=(20, 5))
 
@@ -227,14 +244,15 @@ def save_before_comparison_with_tumor(pre_slice: np.ndarray, post_slice: np.ndar
 
     # Third image: post slice
     ax[2].imshow(post_slice, cmap='gray')
+    ax[2].imshow(tumor_overlay_post_normalized, cmap=color, alpha=1)
     ax[2].axis('off')
-    ax[2].set_title('Post Slice')
+    ax[2].set_title('Post Slice with residual tumor overlay')
     
     # fourth image: regular pre slice
-    ax[1].imshow(post_slice, cmap='gray')
-    ax[1].axis('off')
-    ax[1].imshow(tumor_overlay_post_normalized, cmap=color, alpha=1)
-    ax[1].set_title('Post Slice with tumor overlay')
+    ax[3].imshow(post_slice, cmap='gray')
+    ax[3].axis('off')
+    ax[3].imshow(change_map_slice_normalized, cmap=color, alpha=1)
+    ax[3].set_title('Post Slice with change map overlay')
 
     # Save the figure
     fig.tight_layout()
@@ -337,11 +355,13 @@ class remindDataset(Dataset):
                             postop_nifti_norm = normalize_nifti(postop_nifti)
                             assert preop_nifti_norm.max() <= 1.0, f"max: {preop_nifti_norm.max()}"
                             assert postop_nifti_norm.min() >= 0.0, f"min: {postop_nifti_norm.min()}"
+                            assert pre_tumor_norm.max() <= 1.0, f"max: {pre_tumor_norm.max()}"
+                            assert post_tumor_norm.max() <= 1.0, f"max: {post_tumor_norm.max()}"
                             # Convert 3D images to 2D slices
                             images_and_indices_pre = convert_3d_into_2d(preop_nifti_norm, skip=self.skip)
                             images_and_indices_post = convert_3d_into_2d(postop_nifti_norm, skip=self.skip)
-                            pre_masks_and_indices = convert_3d_into_2d(pre_tumor_resampled, skip=self.skip)
-                            post_masks_and_indices = convert_3d_into_2d(post_tumor_resampled, skip=self.skip)
+                            pre_masks_and_indices = convert_3d_into_2d(pre_tumor_norm, skip=self.skip)
+                            post_masks_and_indices = convert_3d_into_2d(post_tumor_norm, skip=self.skip)
                             self._process_pat_slices(pat_id, 
                                                      images_and_indices_pre, 
                                                      images_and_indices_post, 
@@ -358,7 +378,7 @@ class remindDataset(Dataset):
         """Load existing slices for the given pat_id."""
         orientations = ['axial', 'coronal', 'sagittal']
         for orientation in orientations:
-            pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_" in f]
+            pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_label" in f]
             # print(f"{pat_id}_slice_{orientation}_pre")
             pre_slices = pre_slices[::self.skip]
             for pre_slice in pre_slices:
@@ -367,12 +387,17 @@ class remindDataset(Dataset):
                 post_path = os.path.join(self.save_dir, post_slice)
                 if not os.path.exists(post_path):
                     continue
-                tumor_path = ""
+                # tumor_path = ""
                 if "ReMIND" in pat_id:
-                    tumor_slice = pre_slice.replace('_pre_', '_tumor_')
-                    tumor_path = os.path.join(self.save_dir, tumor_slice)
-                    if not os.path.exists(tumor_path):
-                        tumor_path = ""
+                    pre_tumor_slice_file = pre_slice.replace('label', 'tumor_label')
+                    post_tumor_slice_file = pre_tumor_slice_file.replace('pre', 'post')
+                    change_map = pre_slice.replace('pre', 'change_map')
+                    
+                    pre_tumor_path = os.path.join(self.save_dir, pre_tumor_slice_file)
+                    post_tumor_path = os.path.join(self.save_dir, post_tumor_slice_file)
+                    change_map_path = os.path.join(self.save_dir, change_map)
+                    # if not os.path.exists(tumor_path):
+                    #     tumor_path = ""
                 label = int(pre_slice.split('_')[-1].split('.')[0])
                 index_pre = int(pre_slice.split('_')[3])
                 index_post = int(post_slice.split('_')[3])
@@ -382,7 +407,9 @@ class remindDataset(Dataset):
                 self.data.append({
                     "pre_path": pre_path,
                     "post_path": post_path,
-                    "tumor_path": tumor_path,
+                    "change_map": change_map_path,
+                    "tumor_path": pre_tumor_path,
+                    "residual_path": post_tumor_path,
                     "label": label,
                     "pat_id": pat_id,
                     "index_pre": index_tuple,
@@ -401,7 +428,7 @@ class remindDataset(Dataset):
             post_slice_padded = pad_slice(downsize_if_needed_array(post_slice_and_index[0]))
             pre_mask_slice_and_index = pad_slice(downsize_if_needed_array(pre_mask_slice_and_index[0])), pre_mask_slice_and_index[1]
             post_mask_slice_and_index = pad_slice(downsize_if_needed_array(post_mask_slice_and_index[0])), post_mask_slice_and_index[1]
-            
+            change_map_slice = set_difference_arrays(pre_mask_slice_and_index[0], post_mask_slice_and_index[0])
             pre_index = pre_slice_and_index[1]
             post_index = post_slice_and_index[1]
             pre_mask_index = pre_mask_slice_and_index[1]
@@ -417,15 +444,17 @@ class remindDataset(Dataset):
                 if slice_has_high_info(pre_slice_padded, 0.15, 0.15) and slice_has_high_info(post_slice_padded, 0.15, 0.15):
                     pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                     post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
-                    tumor_path = self._save_slice(pre_mask_slice_and_index[0], pat_id, pre_mask_index, 'tumor', label)
-                    resid_tumor_path = self._save_slice(post_mask_slice_and_index[0], pat_id, post_mask_index, 'tumor', label)
+                    tumor_path = self._save_slice(pre_mask_slice_and_index[0], pat_id, pre_mask_index, 'pre_tumor', label)
+                    resid_tumor_path = self._save_slice(post_mask_slice_and_index[0], pat_id, post_mask_index, 'post_tumor', label)
+                    change_map_path = self._save_slice(change_map_slice, 
+                                                       pat_id, pre_mask_index, 'change_map', label)
                     pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, 
-                                        post_slice_padded, pre_mask_slice_and_index[0], post_mask_slice_and_index[0],
+                                        post_slice_padded, pre_mask_slice_and_index[0], post_mask_slice_and_index[0], change_map_slice,
                                         pat_id, pre_index, label, self.save_dir)
                 
                     self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                     "tumor_path": tumor_path, "residual_path": resid_tumor_path,
-                                    "label": label, "pat_id": pat_id,
+                                    "label": label, "pat_id": pat_id, "change_map": change_map_path,
                                     "index_pre": pre_index, "index_post": post_index})
             else:
             ##NOTE: we are not using remind for control pairs so we don't need to check for high info
@@ -433,14 +462,16 @@ class remindDataset(Dataset):
                 if slice_has_high_info(pre_slice_padded, value_minimum=0.15, percentage_minimum=0.001) and slice_has_high_info(post_slice_padded, percentage_minimum=0.15, value_minimum=0.001):
                     pre_path = self._save_slice(pre_slice_padded, pat_id, pre_index, 'pre', label)
                     post_path = self._save_slice(post_slice_padded, pat_id, post_index, 'post', label)
-                    tumor_path = self._save_slice(pre_mask_slice_and_index[0], pat_id, pre_mask_index, 'tumor', label)
-                    resid_tumor_path = self._save_slice(post_mask_slice_and_index[0], pat_id, post_mask_index, 'tumor', label)
+                    tumor_path = self._save_slice(pre_mask_slice_and_index[0], pat_id, pre_mask_index, 'pre_tumor', label)
+                    resid_tumor_path = self._save_slice(post_mask_slice_and_index[0], pat_id, post_mask_index, 'post_tumor', label)
+                    change_map_path = self._save_slice(change_map_slice, 
+                                    pat_id, pre_mask_index, 'change_map', label)
                     pre_post_tumor_vis = save_before_comparison_with_tumor(pre_slice_padded, post_slice_padded, pre_mask_slice_and_index[0],
-                                                                           post_mask_slice_and_index[0], pat_id, pre_index, label, self.save_dir, 'jet')
+                                                                           post_mask_slice_and_index[0], change_map_slice, pat_id, pre_index, label, self.save_dir, 'jet')
                 
                     self.data.append({"pre_path": pre_path, "post_path": post_path, 
                                     "tumor_path": tumor_path, "residual_path": resid_tumor_path,
-                                    "label": label, "pat_id": pat_id,
+                                    "label": label, "pat_id": pat_id, "change_map": change_map_path,
                                     "index_pre": pre_index, "index_post": post_index})
 
 
@@ -462,8 +493,9 @@ class remindDataset(Dataset):
         triplet = self.data[idx]
         pre_slice = np.load(triplet["pre_path"])['data']
         post_slice = np.load(triplet["post_path"])['data']
-        pre_tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
-        post_tumor_slice = np.load(triplet["residual_path"])['data'] if triplet["residual_path"] else np.zeros_like(post_slice)
+        # pre_tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
+        # post_tumor_slice = np.load(triplet["residual_path"])['data'] if triplet["residual_path"] else np.zeros_like(post_slice)
+        change_map_slice = np.load(triplet["change_map"])['data'] if triplet["change_map"] else np.zeros_like(pre_slice)
         baseline = get_baseline_np(pre_slice, post_slice)
         assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
         # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
@@ -479,20 +511,20 @@ class remindDataset(Dataset):
                 if isinstance(transform, ShiftImage):
                     # pre_tumor = tumor_slice
                     post_slice = transform(post_slice, shift=shift)
-                    post_tumor_slice = transform(post_tumor_slice, shift=shift)
+                    change_map_slice = transform(change_map_slice, shift=shift)
                     baseline = transform(baseline, shift=shift)
                 else:
                     pre_slice = transform(pre_slice)
-                    pre_tumor_slice = transform(pre_tumor_slice)
                     post_slice = transform(post_slice)
-                    post_tumor_slice = transform(post_tumor_slice)
+                    change_map_slice = transform(change_map_slice)
                     baseline = transform(baseline)
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
                 "index_post": triplet["index_post"],
-                "baseline": baseline, "pre_tumor": pre_tumor_slice, "post_tumor": post_tumor_slice}
-        
+                "baseline": baseline, "tumor_path": triplet['tumor_path'], "residual_path": triplet['residual_path'],
+                "change_map": change_map_slice}
+    
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
         self.root = proc_preop

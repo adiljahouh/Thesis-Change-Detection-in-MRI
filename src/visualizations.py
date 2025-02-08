@@ -40,7 +40,10 @@ def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str],
         axs[i].axis('off')
         axs[i].set_title(title)
         if i < 2:
-            axs[i].imshow(img, cmap="gray")  # First two images use grayscale colormap
+            axs[i].imshow(img[0], cmap="gray")  # First two images use grayscale colormap
+            temp_tumor_overlay = np.ma.masked_where(img[1] == 0, img[1])
+            temp_tumor_overlay_normalized = temp_tumor_overlay / np.max(temp_tumor_overlay) if np.max(temp_tumor_overlay) > 0 else temp_tumor_overlay
+            axs[i].imshow(temp_tumor_overlay_normalized, cmap="jet", alpha=1)  # Overlay uses jet colormap
         else:
             axs[i].imshow(img, cmap="jet", alpha=1)   # Subsequent overlays use jet colormap
     if tumor is not None:

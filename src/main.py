@@ -60,7 +60,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
             post_batch: torch.Tensor = batch['post'].float().to(device)
-            post_tumor_batch: torch.Tensor = batch['post_tumor'].float().to(device)
+            change_map_gt_batch: torch.Tensor = batch['change_map'].float().to(device)
             baseline_batch: torch.Tensor = batch['baseline'].float().to(device)
             
             labels = batch['label'].to(device)
@@ -112,8 +112,9 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                     save_path = f'{save_dir}/{filename}'
-                    post_tumor = np.squeeze(batch['post_tumor'][batch_index].data.cpu().numpy())  
-
+                    change_map_gt = np.squeeze(batch['change_map'][batch_index].data.cpu().numpy())  
+                    pre_tumor = np.load(batch['tumor_path'][batch_index])['data']
+                    post_tumor = np.load(batch['residual_path'][batch_index])['data']
                      
                     distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
@@ -121,40 +122,40 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    f1_score_conv1, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
+                    f1_score_conv1, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
                                                             beta=0.8)
-                    f1_score_conv2, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
+                    f1_score_conv2, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
                                                             beta=0.8)
-                    f1_score_conv3, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                    f1_score_conv3, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=0.8)
-                    f1_score_baseline, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=0.8)
+                    f1_score_baseline, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=0.8)
                     
                     
                     
                     conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
                     conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
-                    f1_score_conv1_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
+                    f1_score_conv1_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
                                                             beta=0.8)
-                    f1_score_conv2_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
+                    f1_score_conv2_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
                                                             beta=0.8)
-                    f1_score_conv3_sharp, _ = eval_feature_map(post_tumor_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
+                    f1_score_conv3_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
                                                             beta=0.8)
                     batch_f1_scores += f1_score_conv3
                     visualize_multiple_fmaps_and_tumor_baselines(
-                                    (np.rot90(pre_image), "Preoperative"), 
-                                    (np.rot90(post_image), "Postoperative"), 
+                                    ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
+                                    ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative"), 
                                     # (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
-                                    (np.rot90(conv1_sharpened_post), f"First layer post {f1_score_conv1_sharp:.2f}"), 
+                                    # (np.rot90(conv1_sharpened_post), f"First layer post {f1_score_conv1_sharp:.2f}"), 
                                     # (np.rot90(conv2_sharpened_pre), "Second layer pre"),
-                                    (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2_sharp:.2f}"),
+                                    # (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2_sharp:.2f}"),
                                     # (np.rot90(conv3_sharpened_pre), "Third layer pre"),
                                     (np.rot90(conv3_sharpened_post), f"Third layer post {f1_score_conv3_sharp:.2f}"),
-                                    (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1:.2f}"), 
-                                    (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2:.2f}"),
-                                    (np.rot90(distance_map_2d_conv3), f"Conv 3 Raw {f1_score_conv3:.2f}"),
+                                    # (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1:.2f}"), 
+                                    # (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2:.2f}"),
+                                    (np.rot90(distance_map_2d_conv3), f"Feature Map;  F1-score= {f1_score_conv3:.2f}"),
                                     (np.rot90(baseline), f"Baseline method {f1_score_baseline:.2f}"), output_path=save_path, 
-                                    tumor=np.rot90(post_tumor), pre_non_transform=np.rot90(post_image))
+                                    tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
             batch_f1_scores /= pre_batch.size(0)
             f_score_conv3_total += batch_f1_scores
         f_score_conv3_total /= len(test_loader)
@@ -188,7 +189,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             pre_train_batch = train_batch['pre'].float().to(device)
             post_train_batch = train_batch['post'].float().to(device)
             # pre_tumor_train_batch = train_batch['pre_tumor'].to(device)
-            post_tumor_train_batch = train_batch['post_tumor'].to(device)
+            post_tumor_train_batch = train_batch['change_map'].to(device)
             assert pre_train_batch.shape == post_train_batch.shape, "Pre and post train_batch shapes do not match"
             siamese_net.train()  # switch to training mode
 
@@ -226,7 +227,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 pre_val_batch: torch.Tensor = val_batch['pre'].float().to(device)
                 post_val_batch: torch.Tensor = val_batch['post'].float().to(device)
                 # pre_tumor_val_batch: torch.Tensor = val_batch['pre_tumor'].float().to(device)
-                post_tumor_val_batch: torch.Tensor = val_batch['post_tumor'].float().to(device)
+                post_tumor_val_batch: torch.Tensor = val_batch['change_map'].float().to(device)
                 assert pre_val_batch.shape == post_val_batch.shape, "Pre and post val_batch shapes do not match"
                 first_conv_val, second_conv_val, third_conv_val = siamese_net(pre_val_batch, post_val_batch)
                 # print("val stats")
@@ -242,7 +243,6 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 tumor_resized_to_third_conv_val = resize_tumor_to_feature_map(
                 post_tumor_val_batch, third_conv_val[0].data.cpu().numpy().shape[2:])
                 
-                print("\n\nStarting vall loss")
                 val_loss_1 = criterion(first_conv_val[0], first_conv_val[1], tumor_resized_to_first_conv_val)
                 val_loss_2 = criterion(second_conv_val[0], second_conv_val[1], tumor_resized_to_second_conv_val)
                 val_loss_3 = criterion(third_conv_val[0], third_conv_val[1], tumor_resized_to_third_conv_val)
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
-    parser.add_argument("--slice_dir", type=str, default='./data/2D_post/', help="location for slices to be saved and loaded")
+    parser.add_argument("--slice_dir", type=str, default='./data/2D/', help="location for slices to be saved and loaded")
     parser.add_argument("--loss", type=str, choices=['CL', 'TCL'], default="TCL", help=
                         "Type of loss function to use (constractive or thresholded constractive)")
     parser.add_argument("--dist_flag", type=str, choices=['l2', 'l1', 'cos'], default='l2', help=
