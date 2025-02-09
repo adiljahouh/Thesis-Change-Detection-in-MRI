@@ -117,12 +117,14 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     change_map_gt = np.squeeze(batch['change_map'][batch_index].data.cpu().numpy()) 
                     shift_values = (batch['shift_x'][batch_index], batch['shift_y'][batch_index])
                     pre_tumor = np.load(batch['tumor_path'][batch_index])['data']
+                    
                     ## didnt want to keep all tumors in memory
                     post_tumor_unshifted_path = batch['residual_path'][batch_index]
                     post_tumor_unshifted = np.load(post_tumor_unshifted_path)['data']
                     post_tumor_unshifted_tensor = torch.tensor(post_tumor_unshifted, dtype=torch.float32)
                     post_tumor = shift_tensor(post_tumor_unshifted_tensor, shift=shift_values)
                     post_tumor = np.squeeze(post_tumor.data.cpu().numpy())
+                    
                     
                     # distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     # first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
@@ -153,15 +155,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     batch_baseline_f1_scores += f1_score_baseline
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
-                                    ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative"), 
-                                    # (np.rot90(conv1_sharpened_pre), "First Layer Pre"), 
-                                    # (np.rot90(conv1_sharpened_post), f"First layer post {f1_score_conv1_sharp:.2f}"), 
-                                    # (np.rot90(conv2_sharpened_pre), "Second layer pre"),
-                                    # (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2_sharp:.2f}"),
-                                    # (np.rot90(conv3_sharpened_pre), "Third layer pre"),
+                                    ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"), 
                                     ([np.rot90(post_image), np.rot90(conv3_sharpened_post)], f"Changed Postoperative"),
-                                    # (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1:.2f}"), 
-                                    # (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2:.2f}"),
                                     (np.rot90(distance_map_2d_conv3), f"Change Map; F1-score= {f1_score_conv3:.2f}"),
                                     (np.rot90(baseline), f"Baseline method; F1-score= {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))

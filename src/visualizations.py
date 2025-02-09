@@ -10,6 +10,16 @@ from matplotlib.axes import Axes
 from typing import Tuple
 
 interp = torch.nn.Upsample(size=(256, 256), mode='bilinear')
+def robust_normalize(arr, lower_percentile=0, upper_percentile=10):
+    """Normalize array while ignoring extreme outliers."""
+    vmin, vmax = np.percentile(arr, [lower_percentile, upper_percentile])  # Get stable min/max
+    if vmax - vmin < 1e-8:  # Avoid divide-by-zero if array is nearly constant
+        return np.zeros_like(arr)
+    
+    arr_clipped = np.clip(arr, vmin, vmax)  # Remove extreme values
+    arr_norm = (arr_clipped - vmin) / (vmax - vmin)  # Normalize to [0,1]
+    
+    return arr_norm
 
 def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str], 
                                                  output_path: str, tumor: np.ndarray, 
@@ -40,10 +50,18 @@ def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str],
         axs[i].axis('off')
         axs[i].set_title(title)
         if i < 3:
-            axs[i].imshow(img[0], cmap="gray")  # First two images use grayscale colormap
-            temp_tumor_overlay = np.ma.masked_where(img[1] == 0, img[1])
-            temp_tumor_overlay_normalized = temp_tumor_overlay / np.max(temp_tumor_overlay) if np.max(temp_tumor_overlay) > 0 else temp_tumor_overlay
-            axs[i].imshow(temp_tumor_overlay_normalized, cmap="hot", alpha=1)  # Overlay uses jet colormap
+            axs[i].imshow(img[0], cmap="gray")  # First 3 images use grayscale colormap
+            temp_tumor = img[1]
+            temp_tumor = temp_tumor / np.max(temp_tumor) if np.max(temp_tumor) > 0 else temp_tumor
+            if i == 0:
+                temp_tumor_norm_mask = np.ma.masked_where(temp_tumor == 0, temp_tumor)
+                temp_tumor_norm_mask[~temp_tumor_norm_mask.mask] = 1
+                # axs[i].imshow(temp_tumor_norm_mask, cmap='binary', color='red')
+                axs[i].imshow(temp_tumor_norm_mask, cmap='jet', vmin=0.9, vmax=1.0)  # Forces values to the red end of jet
+
+            else:
+                temp_tumor_norm_mask = np.ma.masked_where(temp_tumor == 0, temp_tumor)
+                axs[i].imshow(temp_tumor_norm_mask, cmap="jet", alpha=1)  # Overlay uses jet colormap
         else:
             axs[i].imshow(img, cmap="jet", alpha=1)   # Subsequent overlays use jet colormap
     if tumor is not None:
@@ -60,7 +78,7 @@ def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str],
             fontsize=10, color="red"
         )
     axs[-1].axis('off')
-    axs[-1].set_title('Tumor Segmentation')
+    axs[-1].set_title('Ground Truth')
     # Adjust spacing between subplots
     plt.tight_layout()
     
