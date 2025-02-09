@@ -56,6 +56,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
     with torch.no_grad():
         f_score_conv3_total = 0.0
         f_score_sharp3_total = 0.0
+        shift_tensor = ShiftImage()
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
@@ -112,10 +113,16 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
                     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
                     save_path = f'{save_dir}/{filename}'
-                    change_map_gt = np.squeeze(batch['change_map'][batch_index].data.cpu().numpy())  
+                    change_map_gt = np.squeeze(batch['change_map'][batch_index].data.cpu().numpy()) 
+                    shift_values = (batch['shift_x'][batch_index], batch['shift_y'][batch_index])
                     pre_tumor = np.load(batch['tumor_path'][batch_index])['data']
-                    post_tumor = np.load(batch['residual_path'][batch_index])['data']
-                     
+                    ## didnt want to keep all tumors in memory
+                    post_tumor_unshifted_path = batch['residual_path'][batch_index]
+                    post_tumor_unshifted = np.load(post_tumor_unshifted_path)['data']
+                    post_tumor_unshifted_tensor = torch.tensor(post_tumor_unshifted, dtype=torch.float32)
+                    post_tumor = shift_tensor(post_tumor_unshifted_tensor, shift=shift_values)
+                    post_tumor = np.squeeze(post_tumor.data.cpu().numpy())
+                    
                     distance_map_2d_conv1 = return_upsampled_norm_distance_map(
                     first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv2 = return_upsampled_norm_distance_map(
@@ -150,11 +157,11 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     # (np.rot90(conv2_sharpened_pre), "Second layer pre"),
                                     # (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2_sharp:.2f}"),
                                     # (np.rot90(conv3_sharpened_pre), "Third layer pre"),
-                                    (np.rot90(conv3_sharpened_post), f"Third layer post {f1_score_conv3_sharp:.2f}"),
+                                    (np.rot90(conv3_sharpened_post), f"Sharpened Post; F1-score= {f1_score_conv3_sharp:.2f}"),
                                     # (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1:.2f}"), 
                                     # (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2:.2f}"),
-                                    (np.rot90(distance_map_2d_conv3), f"Feature Map;  F1-score= {f1_score_conv3:.2f}"),
-                                    (np.rot90(baseline), f"Baseline method {f1_score_baseline:.2f}"), output_path=save_path, 
+                                    (np.rot90(distance_map_2d_conv3), f"Feature Map; F1-score= {f1_score_conv3:.2f}"),
+                                    (np.rot90(baseline), f"Baseline method; F1-score= {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
             batch_f1_scores /= pre_batch.size(0)
             f_score_conv3_total += batch_f1_scores

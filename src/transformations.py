@@ -14,7 +14,7 @@ import kornia.geometry.transform as kornia_transform
 #         translation = torch.tensor([[shift_x.item(), shift_y.item()]]).double()
 #         return kornia_transform.translate(tensor.unsqueeze(0).double(), translation, mode='bilinear', padding_mode='border', align_corners=True).squeeze(0).float()
 class ShiftImage:
-    def __init__(self, max_shift_x, max_shift_y):
+    def __init__(self, max_shift_x=50, max_shift_y=50):
         self.max_shift_x = max_shift_x
         self.max_shift_y = max_shift_y
 

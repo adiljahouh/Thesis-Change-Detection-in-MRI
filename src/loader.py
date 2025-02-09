@@ -494,7 +494,7 @@ class remindDataset(Dataset):
         pre_slice = np.load(triplet["pre_path"])['data']
         post_slice = np.load(triplet["post_path"])['data']
         # pre_tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
-        # post_tumor_slice = np.load(triplet["residual_path"])['data'] if triplet["residual_path"] else np.zeros_like(post_slice)
+        #post_tumor_slice = np.load(triplet["residual_path"])['data'] if triplet["residual_path"] else np.zeros_like(post_slice)
         change_map_slice = np.load(triplet["change_map"])['data'] if triplet["change_map"] else np.zeros_like(pre_slice)
         baseline = get_baseline_np(pre_slice, post_slice)
         assert pre_slice.shape == post_slice.shape == (256, 256), f"Shapes do not match: {pre_slice.shape}, {post_slice.shape}"
@@ -518,12 +518,13 @@ class remindDataset(Dataset):
                     post_slice = transform(post_slice)
                     change_map_slice = transform(change_map_slice)
                     baseline = transform(baseline)
+        # print(f"Generated shift: {shift}")  # Debugging output
 
         return {"pre": pre_slice, "post": post_slice, "label": triplet["label"], 
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
                 "index_post": triplet["index_post"],
                 "baseline": baseline, "tumor_path": triplet['tumor_path'], "residual_path": triplet['residual_path'],
-                "change_map": change_map_slice}
+                "change_map": change_map_slice, "shift_x": shift[0], "shift_y": shift[1]}
     
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
