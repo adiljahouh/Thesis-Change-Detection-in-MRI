@@ -55,7 +55,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
     print("Doing predictions...")
     with torch.no_grad():
         f_score_conv3_total = 0.0
-        f_score_sharp3_total = 0.0
+        f_score_baseline_total = 0.0
         shift_tensor = ShiftImage()
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
@@ -87,6 +87,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             
             # Iterate over the batch
             batch_f1_scores = 0.0
+            batch_baseline_f1_scores = 0.0
             for batch_index in range(pre_batch.size(0)):
                 pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
                 post_image: ndarray = np.squeeze(post_batch[batch_index].data.cpu().numpy())
@@ -123,10 +124,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     post_tumor = shift_tensor(post_tumor_unshifted_tensor, shift=shift_values)
                     post_tumor = np.squeeze(post_tumor.data.cpu().numpy())
                     
-                    distance_map_2d_conv1 = return_upsampled_norm_distance_map(
-                    first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    distance_map_2d_conv2 = return_upsampled_norm_distance_map(
-                    second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    # distance_map_2d_conv1 = return_upsampled_norm_distance_map(
+                    # first_conv[0][batch_index], first_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    # distance_map_2d_conv2 = return_upsampled_norm_distance_map(
+                    # second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     # f1_score_conv1, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
@@ -146,9 +147,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     #                                         beta=0.8)
                     # f1_score_conv2_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
                     #                                         beta=0.8)
-                    f1_score_conv3_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
-                                                            beta=0.8)
+                    # f1_score_conv3_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
+                    #                                         beta=0.8)
                     batch_f1_scores += f1_score_conv3
+                    batch_baseline_f1_scores += f1_score_baseline
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
                                     ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative"), 
@@ -157,16 +159,21 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                                     # (np.rot90(conv2_sharpened_pre), "Second layer pre"),
                                     # (np.rot90(conv2_sharpened_post), f"Second layer post {f1_score_conv2_sharp:.2f}"),
                                     # (np.rot90(conv3_sharpened_pre), "Third layer pre"),
-                                    (np.rot90(conv3_sharpened_post), f"Sharpened Post; F1-score= {f1_score_conv3_sharp:.2f}"),
+                                    ([np.rot90(post_image), np.rot90(conv3_sharpened_post)], f"Changed Postoperative"),
                                     # (np.rot90(distance_map_2d_conv1), f"Conv 1 Raw {f1_score_conv1:.2f}"), 
                                     # (np.rot90(distance_map_2d_conv2), f"Conv 2 Raw {f1_score_conv2:.2f}"),
-                                    (np.rot90(distance_map_2d_conv3), f"Feature Map; F1-score= {f1_score_conv3:.2f}"),
+                                    (np.rot90(distance_map_2d_conv3), f"Change Map; F1-score= {f1_score_conv3:.2f}"),
                                     (np.rot90(baseline), f"Baseline method; F1-score= {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
             batch_f1_scores /= pre_batch.size(0)
+            batch_baseline_f1_scores /= pre_batch.size(0)
+            
             f_score_conv3_total += batch_f1_scores
+            f_score_baseline_total += batch_baseline_f1_scores
         f_score_conv3_total /= len(test_loader)
+        f_score_baseline_total /= len(test_loader)
         print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
+        print(f"Average f1 score for baseline: {f_score_baseline_total:.2f}")
     return distances_list, labels_list, round(f_score_conv3_total, 2)
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
@@ -290,10 +297,10 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
               Average f1 score {avg_f1_score:.4f}')
         
         # Check for improvement in validation loss
-        #if avg_f1_score > best_f1_score:
-        #    best_f1_score = avg_f1_score
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
+        if avg_f1_score > best_f1_score:
+            best_f1_score = avg_f1_score
+        # if avg_val_loss < best_val_loss:
+        #     best_val_loss = avg_val_loss
             consecutive_no_improvement = 0
             # Save the best model
             save_path = os.path.join(save_dir, "model.pth")

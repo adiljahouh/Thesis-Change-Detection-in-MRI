@@ -39,11 +39,11 @@ def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str],
     for i, (img, title) in enumerate(args):
         axs[i].axis('off')
         axs[i].set_title(title)
-        if i < 2:
+        if i < 3:
             axs[i].imshow(img[0], cmap="gray")  # First two images use grayscale colormap
             temp_tumor_overlay = np.ma.masked_where(img[1] == 0, img[1])
             temp_tumor_overlay_normalized = temp_tumor_overlay / np.max(temp_tumor_overlay) if np.max(temp_tumor_overlay) > 0 else temp_tumor_overlay
-            axs[i].imshow(temp_tumor_overlay_normalized, cmap="jet", alpha=1)  # Overlay uses jet colormap
+            axs[i].imshow(temp_tumor_overlay_normalized, cmap="hot", alpha=1)  # Overlay uses jet colormap
         else:
             axs[i].imshow(img, cmap="jet", alpha=1)   # Subsequent overlays use jet colormap
     if tumor is not None:
@@ -68,40 +68,40 @@ def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str],
     plt.savefig(output_path)
     plt.close(fig)
 
-def visualize_multiple_images(*args: Tuple[np.ndarray, str], output_path: str, **kwargs):
-    """
-    Merges and visualizes a variable number of images in a single figure.
+# def visualize_multiple_images(*args: Tuple[np.ndarray, str], output_path: str, **kwargs):
+#     """
+#     Merges and visualizes a variable number of images in a single figure.
     
-    Args:
-        *args: Variable number of image arrays (2D or 3D).
-        output_path (str): Path where the merged image will be saved.
-        **kwargs: Additional keyword arguments (currently not used but can be extended).
-    """
-    num_images = len(args) // 2
+#     Args:
+#         *args: Variable number of image arrays (2D or 3D).
+#         output_path (str): Path where the merged image will be saved.
+#         **kwargs: Additional keyword arguments (currently not used but can be extended).
+#     """
+#     num_images = len(args) // 2
     
-    # Create a figure with a number of subplots equal to the number of image pairs
-    fig, axs = plt.subplots(1, num_images, figsize=(num_images * 3, 4))
-    axs: list[Axes]
-    # If only one subplot is created, axs will not be an array
-    if num_images == 1:
-        axs = [axs]
+#     # Create a figure with a number of subplots equal to the number of image pairs
+#     fig, axs = plt.subplots(1, num_images, figsize=(num_images * 3, 4))
+#     axs: list[Axes]
+#     # If only one subplot is created, axs will not be an array
+#     if num_images == 1:
+#         axs = [axs]
     
-    # Display each pair of images on a separate subplot
-    for i in range(0, len(args), 2):
-        base_img, base_title = args[i]
-        overlay_img, overlay_title = args[i + 1]
+#     # Display each pair of images on a separate subplot
+#     for i in range(0, len(args), 2):
+#         base_img, base_title = args[i]
+#         overlay_img, overlay_title = args[i + 1]
         
-        axs[i // 2].axis('off')
-        axs[i // 2].set_title(f"{base_title} + {overlay_title}")
-        axs[i // 2].imshow(base_img, cmap="gray")
-        axs[i // 2].imshow(overlay_img, cmap="jet", alpha=0.5)
+#         axs[i // 2].axis('off')
+#         axs[i // 2].set_title(f"{base_title} + {overlay_title}")
+#         axs[i // 2].imshow(base_img, cmap="gray")
+#         axs[i // 2].imshow(overlay_img, cmap="jet", alpha=0.5)
     
-    # Adjust spacing between subplots
-    plt.tight_layout()
+#     # Adjust spacing between subplots
+#     plt.tight_layout()
     
-    # Save the merged image
-    plt.savefig(output_path)
-    plt.close(fig)
+#     # Save the merged image
+#     plt.savefig(output_path)
+#     plt.close(fig)
 def get_baseline_torch(pre: torch.Tensor, post: torch.Tensor) -> np.ndarray:  
     diff = torch.abs(pre - post)
     return diff.data.cpu().numpy()
@@ -194,60 +194,93 @@ def return_upsampled_norm_distance_map(output_t0: torch.Tensor,output_t1: torch.
         np.savetxt(save_path, similar_distance_map)
     return normalized_distance_map
 
-def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=2.0, beta=1, threshold=0.15):
-    """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
-    assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
-    assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
-    assert base_image.max() <= 1.0, f"max: {base_image.max()}"
-    assert base_image.min() >= 0.0, f"min: {base_image.min()}"
+def custom_np_norm(arr, min_val=0.0, max_val=1.0):
+    """Normalize a numpy array to a given range [min_val, max_val]."""
+    arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)  # Normalize to [0,1]
+    return arr * (max_val - min_val) + min_val  # Scale to [min_val, max_val]
+# def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=1.0, beta=1, threshold=0.8, max_intensity=0.6, overlay_weight=0.5):
+#     """Apply sharpening while ensuring the base image remains grayscale and distance map is visualized using JET colormap."""
+#     assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
+#     assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
+#     assert base_image.max() <= 1.0, f"max: {base_image.max()}"
+#     assert base_image.min() >= 0.0, f"min: {base_image.min()}"
 
-    # Create a binary mask where base image values are above the threshold
-    mask = (base_image > threshold).astype(np.float32)
+#     # Normalize the base image to be clearly visible in grayscale
+#     base_image = custom_np_norm(base_image, min_val=0.2, max_val=0.8)
+
+#     # Thresholding the distance map
+#     distance_map = (distance_map > threshold).astype(np.float32) * distance_map  # Keep only values above threshold
+
+#     # Extract high-frequency details from the base image
+#     blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
+#     high_freq_details = base_image - blurred_image
+
+#     # Sharpening based purely on the distance map's strength
+#     sharpened_map = distance_map * (1 + alpha * high_freq_details)
+
+#     # Ensure low base image regions still retain enhancement
+#     enhanced_map = sharpened_map + beta * (1 - distance_map) * base_image
+
+#     # Normalize enhanced map
+#     enhanced_map = custom_np_norm(enhanced_map, min_val=0.0, max_val=max_intensity)
+
+#     # Convert base image to 3-channel grayscale for visualization
+#     base_gray = cv2.cvtColor((base_image * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+#     # Convert enhanced map to JET colormap
+#     distance_colormap = cv2.applyColorMap((enhanced_map * 255).astype(np.uint8), cv2.COLORMAP_JET)
+
+#     # Blend grayscale base image with the distance colormap
+#     final_visualization = cv2.addWeighted(base_gray, (1 - overlay_weight), distance_colormap, overlay_weight, 0)
+
+#     return final_visualization
+def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=2.0, beta=1, threshold=0.55):
+    """Process the distance map with sharpening, without blending with the base image."""
     
-    # Blur the base image and calculate high-frequency details
-    blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
-    high_freq_details = base_image - blurred_image
-
-    # Compute sharpened map for high-value regions
-    try:
-        sharpened_map = distance_map * (1 + alpha * high_freq_details)
-        
-        # Add contribution from the base image in low-value regions
-        enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
-
-        # Apply the mask to filter the distance map
-        enhanced_map = mask * enhanced_map + (1 - mask) * base_image
-
-        # Normalize the final result to keep it within [0, 1]
-        norm_enhanced_map = normalize_np_array(enhanced_map)
-    except ValueError as e:
-        return distance_map
-    # print(f"enhanced_map: {enhanced_map.max()}, {enhanced_map.min()}")
-    # print(f"norm_enhanced_map: {norm_enhanced_map.max()}, {norm_enhanced_map.min()}")
-    return norm_enhanced_map
-
-def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=4.0, beta=0.5):
-    """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
     assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
     assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
     assert base_image.max() <= 1.0, f"max: {base_image.max()}"
     assert base_image.min() >= 0.0, f"min: {base_image.min()}"
 
-    # Blur the base image and calculate high-frequency details
+    # Threshold and normalize the distance map
+    distance_map = (distance_map > threshold).astype(np.float32) * distance_map
+
+    # Extract high-frequency details from the base image
     blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
     high_freq_details = base_image - blurred_image
 
-    # Compute sharpened map for high-value regions
+    # Apply sharpening based purely on the distance map's strength
     sharpened_map = distance_map * (1 + alpha * high_freq_details)
-    
-    # Add contribution from the base image in low-value regions
-    enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
+
+    # Normalize the final enhanced distance map
+    norm_enhanced_map = normalize_np_array(sharpened_map)
+
+    return sharpened_map  
 
 
-    # Normalize the final result to keep it within [0, 1]
-    enhanced_map = normalize_np_array(enhanced_map)
+
+# def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=4.0, beta=0.5):
+#     """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
+#     assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
+#     assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
+#     assert base_image.max() <= 1.0, f"max: {base_image.max()}"
+#     assert base_image.min() >= 0.0, f"min: {base_image.min()}"
+
+#     # Blur the base image and calculate high-frequency details
+#     blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
+#     high_freq_details = base_image - blurred_image
+
+#     # Compute sharpened map for high-value regions
+#     sharpened_map = distance_map * (1 + alpha * high_freq_details)
     
-    return enhanced_map
+#     # Add contribution from the base image in low-value regions
+#     enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
+
+
+#     # Normalize the final result to keep it within [0, 1]
+#     enhanced_map = normalize_np_array(enhanced_map)
+    
+#     return enhanced_map
 
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
