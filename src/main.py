@@ -129,23 +129,23 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
-                    f1_score_conv1, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
-                                                            beta=0.8)
-                    f1_score_conv2, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
-                                                            beta=0.8)
+                    # f1_score_conv1, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
+                    #                                         beta=0.8)
+                    # f1_score_conv2, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
+                    #                                         beta=0.8)
                     f1_score_conv3, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=0.8)
                     f1_score_baseline, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=0.8)
                     
                     
                     
-                    conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
-                    conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
+                    # conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
+                    # conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
-                    f1_score_conv1_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
-                                                            beta=0.8)
-                    f1_score_conv2_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
-                                                            beta=0.8)
+                    # f1_score_conv1_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
+                    #                                         beta=0.8)
+                    # f1_score_conv2_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
+                    #                                         beta=0.8)
                     f1_score_conv3_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
                                                             beta=0.8)
                     batch_f1_scores += f1_score_conv3
@@ -167,7 +167,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
             f_score_conv3_total += batch_f1_scores
         f_score_conv3_total /= len(test_loader)
         print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
-    return distances_list, labels_list
+    return distances_list, labels_list, round(f_score_conv3_total, 2)
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
           train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
@@ -371,7 +371,7 @@ if __name__ == "__main__":
     print(f"Total number of images: {len(subject_images)}")
     subject_images: list[dict] = balance_dataset(subject_images)
     print(f"Total number of total pairs after balancing: {len(subject_images)}")
-    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.7, 0.2, 0.1))
+    train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.8, 0.1, 0.1))
     
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
     #optimizer = optim.SGD(model_type.parameters(), lr=0.01, momentum=0.9)
@@ -390,9 +390,9 @@ if __name__ == "__main__":
             save_dir=save_dir, device=device)
 
     
-    distances, labels = predict(model_type, test_loader, base_dir =save_dir, device=device, model_type=args.model)
+    distances, labels, f_score = predict(model_type, test_loader, base_dir =save_dir, device=device, model_type=args.model)
 
     # take the conv distance distance from each tuple
-    thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
-    thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
-    thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")
+    thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}")
+    thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}")
+    thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}")
