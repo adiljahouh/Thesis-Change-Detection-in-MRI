@@ -47,7 +47,8 @@ from torchvision.transforms import Compose
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
-def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, device=torch.device('cuda'), model_type='SLO'):
+def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, 
+            base_dir, device=torch.device('cuda'), dist_flag='l2'):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -131,7 +132,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, base_dir, dev
                     # distance_map_2d_conv2 = return_upsampled_norm_distance_map(
                     # second_conv[0][batch_index], second_conv[1][batch_index], dist_flag='l2', mode='bilinear')
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
-                    third_conv[0][batch_index], third_conv[1][batch_index], dist_flag='l2', mode='bilinear')
+                    third_conv[0][batch_index], third_conv[1][batch_index], dist_flag=dist_flag, mode='bilinear')
                     # f1_score_conv1, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv1, 0.30,
                     #                                         beta=0.8)
                     # f1_score_conv2, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv2, 0.30, 
@@ -268,11 +269,11 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     # Check loss for similar pairs?
                                  
                     distance_map_1 = return_upsampled_norm_distance_map(first_conv_val[0][batch_index], first_conv_val[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
+                                                                dist_flag=dist_flag, mode='bilinear')
                     distance_map_2 = return_upsampled_norm_distance_map(second_conv_val[0][batch_index], second_conv_val[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
+                                                                dist_flag=dist_flag, mode='bilinear')
                     distance_map_3 = return_upsampled_norm_distance_map(third_conv_val[0][batch_index], third_conv_val[1][batch_index],
-                                                                dist_flag='l2', mode='bilinear')
+                                                                dist_flag=dist_flag, mode='bilinear')
                     f1_score1, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
                                                             beta=0.8)
                     f1_score2, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
@@ -347,7 +348,8 @@ if __name__ == "__main__":
         transform=Compose([
                     T.ToTensor()])
     elif args.loss == 'TCL':
-        criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin)
+        criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin,
+                                                 dist_flag=args.dist_flag)
         transform = Compose([
                     T.ToTensor(),
                     ShiftImage(max_shift_x=50, max_shift_y=50),
@@ -392,7 +394,7 @@ if __name__ == "__main__":
             save_dir=save_dir, device=device)
 
     
-    distances, labels, f_score = predict(model_type, test_loader, base_dir =save_dir, device=device, model_type=args.model)
+    distances, labels, f_score = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
 
     # take the conv distance distance from each tuple
     thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}")
