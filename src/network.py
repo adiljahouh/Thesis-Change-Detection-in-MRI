@@ -223,7 +223,7 @@ class DeepLabExtended(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # Multi-scale contexts
+        # Atrious pyramid pooling
         self.fc6_1 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, dilation=3, padding=3),
             nn.ReLU(inplace=True),
@@ -283,7 +283,7 @@ class DeepLabExtended(nn.Module):
         # print(fc7_1.shape, fc7_2.shape, fc7_3.shape, fc7_4.shape)
         fc_feature = fc7_1 + fc7_2 + fc7_3 + fc7_4
         embedding_feature = self.embedding_layer(fc_feature)
-        return conv4_feature, conv5_feature, fc_feature
+        return conv4_feature, conv5_feature, embedding_feature
     # def normalize(self, x, scale = 1.0, dim = 1):
     #     return scale * x * x.pow(2).sum(dim).clamp(min=1e-12).rsqrt().expand_as(x)
     def normalize(self, x, scale=1.0, dim=1):

@@ -91,7 +91,7 @@ class contrastiveThresholdMaskLoss(nn.Module):
     It does a loss function on pixel basis so the label is depended on the pixel
     so we focus directly on if the featuremap overlays the ground truth tumor
     """
-    def __init__(self,hingethresh=0.0,margin=2.0, dist_flag='l2'):
+    def __init__(self,hingethresh,margin, dist_flag):
         super(contrastiveThresholdMaskLoss, self).__init__()
         self.threshold = hingethresh
         self.margin = margin
@@ -110,14 +110,18 @@ class contrastiveThresholdMaskLoss(nn.Module):
     
     def forward(self,map_t0, map_t1,ground_truth):
         n, c, h, w = map_t0.shape
-
+    
         # Flatten the spatial dimensions
         out_t0_rz = map_t0.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
         out_t1_rz = map_t1.view(n, c, -1).transpose(1, 2)  # Shape: (n, h*w, c)
         # Calculate pairwise distance
-        distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w), basically distance for each batch
+        distance = self.various_distance(out_t0_rz, out_t1_rz)  # Shape: (n, h*w), basically distance scalar for each pixel vector (over all channels)
+        # print(f"Shape of distance: {distance.shape}")
+        # print(f"Shape of map_t0: {map_t0.shape}")
+        # print(f"Shape of map_t1: {map_t1.shape}")
+        # print(f"Shape of ground_truth: {ground_truth.shape}")
         # Reshape distance to match the ground truth shape
-        distance = distance.view(n, h, w)  # Shape: (n, h, w)
+        distance = distance.view(n, h, w)  # Shape: (n, h, w) reshape it back to the original shape with distance scalar per pixel
         # Ensure ground truth tensor is compatible
         gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
     

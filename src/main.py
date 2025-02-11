@@ -48,7 +48,7 @@ from torchvision.transforms import Compose
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
 def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, 
-            base_dir, device=torch.device('cuda'), dist_flag='l2'):
+            base_dir, device, dist_flag):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -146,6 +146,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     # conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
                     # conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
+                    print(conv3_sharpened_post.min(), conv3_sharpened_post.max())
                     # f1_score_conv1_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
                     #                                         beta=0.8)
                     # f1_score_conv2_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
@@ -173,8 +174,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
     return distances_list, labels_list, round(f_score_conv3_total, 2)
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
-          train_loader: DataLoader, val_loader: DataLoader, epochs=100, patience=3, 
-          save_dir='./results/unassigned', device=torch.device('cuda')):
+          train_loader: DataLoader, val_loader: DataLoader, epochs, patience, 
+          save_dir, device, dist_flag):
     
     siamese_net.to(device)
     print(f"Number of batches in training set: {len(train_loader)}")
@@ -391,9 +392,8 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
     _ = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
-            save_dir=save_dir, device=device)
+            save_dir=save_dir, device=device, dist_flag=args.dist_flag)
 
-    
     distances, labels, f_score = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
 
     # take the conv distance distance from each tuple

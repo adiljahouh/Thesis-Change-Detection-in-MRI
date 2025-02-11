@@ -9,5 +9,5 @@
 # python -u src/main.py --model SLO --preop_dir "./data/processed/preop/BTC-preop" --tumor_dir "./data/raw/preop/BTC-preop/derivatives/tumor_masks"  --model custom --lr 0.001 --epochs 200 --patience 8 --dist_flag l2 --margin 5.0 --loss TCL --threshold 0.3 --skip 2
 
 
-python -u src/main.py --model MLO --skip 1 --batch_size 16 --loss TCL --threshold 0.2 --patience 10 --load_slices
+python -u src/main.py --model MLO --skip 20 --batch_size 16 --loss TCL --threshold 0.3 --dist_flag l2 --patience 10 --load_slices
  
