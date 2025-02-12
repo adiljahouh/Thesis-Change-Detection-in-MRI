@@ -102,6 +102,6 @@ if __name__ == "__main__":
         # thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
         # thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
         # thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")    # take the conv distance distance from each tuple
-        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}")
-        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}")
-        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}")
+        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f1_score}")
+        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f1_score}")
+        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f1_score}")

@@ -89,6 +89,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             # Iterate over the batch
             batch_f1_scores = 0.0
             batch_baseline_f1_scores = 0.0
+            disimilair_pairs = 0
             for batch_index in range(pre_batch.size(0)):
                 pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
                 post_image: ndarray = np.squeeze(post_batch[batch_index].data.cpu().numpy())
@@ -155,6 +156,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     #                                         beta=0.8)
                     batch_f1_scores += f1_score_conv3
                     batch_baseline_f1_scores += f1_score_baseline
+                    disimilair_pairs += 1
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
                                     ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"), 
@@ -162,8 +164,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                                     (np.rot90(distance_map_2d_conv3), f"Change Map; F1-score= {f1_score_conv3:.2f}"),
                                     (np.rot90(baseline), f"Baseline method; F1-score= {f1_score_baseline:.2f}"), output_path=save_path, 
                                     tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
-            batch_f1_scores /= pre_batch.size(0)
-            batch_baseline_f1_scores /= pre_batch.size(0)
+            batch_f1_scores /= disimilair_pairs
+            batch_baseline_f1_scores /= disimilair_pairs
             
             f_score_conv3_total += batch_f1_scores
             f_score_baseline_total += batch_baseline_f1_scores
@@ -370,7 +372,8 @@ if __name__ == "__main__":
                 skip=args.skip, tumor_sensitivity=0.30, transform=transform, load_slices=args.load_slices)
     # subject_images = ConcatDataset([aertsImages, remindImages])
     subject_images = remindImages
-    model_type = DeepLabExtended()
+    from network import DeepLabV3
+    model_type = DeepLabV3()
     # balance subject_images based on label
     
     print(f"Total number of images: {len(subject_images)}")
