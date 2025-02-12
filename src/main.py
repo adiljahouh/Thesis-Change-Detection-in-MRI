@@ -103,7 +103,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                 distances_list.append(dist)
                 labels_list.append(label)
                                 # Save the heatmap
-                if label == 0:  
+                if label == 0 or label == 1:  
                     filename = (
                         f"slice_{batch['pat_id'][batch_index]}_"
                         f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
@@ -147,13 +147,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     # conv1_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv1, base_image=post_image)
                     # conv2_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv2, base_image=post_image)
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
-                    print(conv3_sharpened_post.min(), conv3_sharpened_post.max())
-                    # f1_score_conv1_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv1_sharpened_post, 0.30,
-                    #                                         beta=0.8)
-                    # f1_score_conv2_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv2_sharpened_post, 0.30,
-                    #                                         beta=0.8)
-                    # f1_score_conv3_sharp, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], conv3_sharpened_post, 0.30,
-                    #                                         beta=0.8)
                     batch_f1_scores += f1_score_conv3
                     batch_baseline_f1_scores += f1_score_baseline
                     disimilair_pairs += 1
