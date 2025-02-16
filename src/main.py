@@ -59,8 +59,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
         f_score_baseline_total = 0.0
         mean_iou_conv3_total = 0.0
         mean_iou_baseline_total = 0.0
-        precision_total = 0.0
-        recall_total = 0.0
+        conv3_precision_total = 0.0
+        conv3_recall_total = 0.0
+        baseline_precision_total = 0.0
+        baseline_recall_total = 0.0
         shift_tensor = ShiftImage()
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
@@ -95,8 +97,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             batch_baseline_f1_scores = 0.0
             batch_miou_score_conv3 = 0.0
             batch_miou_score_baseline = 0.0
-            batch_precision = 0.0
-            batch_recall = 0.0
+            batch_precision_conv3 = 0.0
+            batch_recall_conv3 = 0.0
+            batch_precision_baseline = 0.0
+            batch_recall_baseline = 0.0
             disimilair_pairs = 0
             for batch_index in range(pre_batch.size(0)):
                 pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
@@ -141,9 +145,9 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                   
                     # baseline_significant = np.where(baseline > 0.30, 1, 0)
                   
-                    f1_score_conv3, mean_miou_score_conv3, prec, recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                    f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
-                    f1_score_baseline, mean_miou_score_baseline = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
+                    f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
                     
                     
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
@@ -151,8 +155,10 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     batch_baseline_f1_scores += f1_score_baseline
                     batch_miou_score_conv3 += mean_miou_score_conv3
                     batch_miou_score_baseline += mean_miou_score_baseline
-                    batch_precision += prec
-                    batch_recall += recall
+                    batch_precision_conv3 += conv3_prec
+                    batch_recall_conv3 += conv3_recall
+                    batch_precision_baseline += baseline_prec
+                    batch_recall_baseline += baseline_recall
                     disimilair_pairs += 1
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
@@ -165,36 +171,48 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             batch_baseline_f1_scores /= disimilair_pairs
             batch_miou_score_conv3 /= disimilair_pairs
             batch_miou_score_baseline /= disimilair_pairs
-            batch_precision /= disimilair_pairs
-            batch_recall /= disimilair_pairs
+            batch_precision_conv3 /= disimilair_pairs
+            batch_recall_conv3 /= disimilair_pairs
+            batch_precision_baseline /= disimilair_pairs
+            batch_recall_baseline /= disimilair_pairs
             # get batch average and add to total
             
             f_score_conv3_total += batch_f1_scores
             f_score_baseline_total += batch_baseline_f1_scores
             mean_iou_conv3_total += batch_miou_score_conv3
             mean_iou_baseline_total += batch_miou_score_baseline
-            precision_total += batch_precision
-            recall_total += batch_recall
+            conv3_precision_total += batch_precision_conv3
+            conv3_recall_total += batch_recall_conv3
+            baseline_precision_total += batch_precision_baseline
+            baseline_recall_total += batch_recall_baseline
             
         f_score_conv3_total /= len(test_loader)
         f_score_baseline_total /= len(test_loader)
         mean_iou_conv3_total /= len(test_loader)
         mean_iou_baseline_total /= len(test_loader)
-        precision_total /= len(test_loader)
-        recall_total /= len(test_loader)
+        conv3_precision_total /= len(test_loader)
+        conv3_recall_total /= len(test_loader)
+        baseline_precision_total /= len(test_loader)
+        baseline_recall_total /= len(test_loader)
+        
         with open(f'{base_dir}/results.txt', 'w') as f:
             f.write(f"Average f1 score for conv3: {f_score_conv3_total:.2f}\n")
             f.write(f"Average f1 score for baseline: {f_score_baseline_total:.2f}\n")
             f.write(f"Average miou score for conv3: {mean_iou_conv3_total:.2f}\n")
             f.write(f"Average miou score for baseline: {mean_iou_baseline_total:.2f}\n")
-            f.write(f"Average precision for conv3: {precision_total:.2f}\n")
-            f.write(f"Average recall for conv3: {recall_total:.2f}\n")
+            f.write(f"Average precision for conv3: {conv3_precision_total:.2f}\n")
+            f.write(f"Average recall for conv3: {conv3_recall_total:.2f}\n")
+            f.write(f"Average precision for baseline: {baseline_precision_total:.2f}\n")
+            f.write(f"Average recall for baseline: {baseline_recall_total:.2f}\n")
         print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
         print(f"Average f1 score for baseline: {f_score_baseline_total:.2f}")
         print(f"Average miou score for conv3: {mean_iou_conv3_total:.2f}")
         print(f"Average miou score for baseline: {mean_iou_baseline_total:.2f}")
-        print(f"Average precision for conv3: {precision_total:.2f}")
-        print(f"Average recall for conv3: {recall_total:.2f}")
+        print(f"Average precision for conv3: {conv3_precision_total:.2f}")
+        print(f"Average recall for conv3: {conv3_recall_total:.2f}")    
+        print(f"Average precision for baseline: {baseline_precision_total:.2f}")
+        print(f"Average recall for baseline: {baseline_recall_total:.2f}")
+        
     return distances_list, labels_list, round(f_score_conv3_total, 2), round(mean_iou_conv3_total, 2)
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,

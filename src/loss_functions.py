@@ -210,7 +210,7 @@ def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     best_index = F.argmax()
     best_f1 = F[best_index]
     best_threshold = thresh[best_index]
-    return best_f1, best_threshold, best_index, precision, recall
+    return best_f1, best_threshold, best_index, precision[best_index], recall[best_index]
 
 def find_best_thresh_for_miou(FN, FP, posNum, thresh_index):
     """
