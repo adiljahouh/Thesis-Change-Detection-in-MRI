@@ -164,8 +164,8 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
      
     FN, FP, posNum, negNum = calc_fn_fp_per_thresh(all_tumor_pixels, feature_map,
                                      thresh)
-    best_f1, best_threshold = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
-    best_miou, _ = find_best_thresh_for_miou(FN, FP, posNum, thresh)
+    best_f1, f1_thresh, thresh_index, precision, recall = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
+    best_miou = find_best_thresh_for_miou(FN, FP, posNum, thresh_index)
     # has_tumor_pixels = np.any(all_tumor_pixels)
     # if not has_tumor_pixels:
     #     print(f"No tumor pixels found for {extra}")
@@ -195,7 +195,7 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
     # plt.savefig(vis_path, bbox_inches="tight")
     # plt.close(fig)
     
-    return best_f1, best_miou
+    return best_f1, best_miou, precision, recall
 
 def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     # Calculate precision, recall, and beta-weighted F-score for each threshold
@@ -210,9 +210,9 @@ def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     best_index = F.argmax()
     best_f1 = F[best_index]
     best_threshold = thresh[best_index]
-    return best_f1, best_threshold
+    return best_f1, best_threshold, best_index, precision, recall
 
-def find_best_thresh_for_miou(FN, FP, posNum, thresh):
+def find_best_thresh_for_miou(FN, FP, posNum, thresh_index):
     """
     Find the threshold that maximizes the Mean IoU (mIoU) score.
     """
@@ -220,10 +220,8 @@ def find_best_thresh_for_miou(FN, FP, posNum, thresh):
     IoU = TP / (TP + FP + FN + 1e-10)  # Compute IoU for each threshold
 
     # Find the best threshold based on IoU score
-    best_index = IoU.argmax()
-    best_miou = IoU[best_index]
-    best_threshold = thresh[best_index]
-    return best_miou, best_threshold
+    best_miou = IoU[thresh_index]
+    return best_miou
 
 def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
     '''

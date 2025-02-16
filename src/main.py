@@ -59,6 +59,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
         f_score_baseline_total = 0.0
         mean_iou_conv3_total = 0.0
         mean_iou_baseline_total = 0.0
+        precision_total = 0.0
+        recall_total = 0.0
         shift_tensor = ShiftImage()
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
@@ -93,6 +95,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             batch_baseline_f1_scores = 0.0
             batch_miou_score_conv3 = 0.0
             batch_miou_score_baseline = 0.0
+            batch_precision = 0.0
+            batch_recall = 0.0
             disimilair_pairs = 0
             for batch_index in range(pre_batch.size(0)):
                 pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
@@ -107,7 +111,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                 distances_list.append(dist)
                 labels_list.append(label)
                                 # Save the heatmap
-                if label == 0 or label == 1:  
+                if label == 0:  
                     filename = (
                         f"slice_{batch['pat_id'][batch_index]}_"
                         f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
@@ -135,8 +139,9 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag=dist_flag, mode='bilinear')
                   
+                    # baseline_significant = np.where(baseline > 0.30, 1, 0)
                   
-                    f1_score_conv3, mean_miou_score_conv3 = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                    f1_score_conv3, mean_miou_score_conv3, prec, recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
                     f1_score_baseline, mean_miou_score_baseline = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
                     
@@ -146,6 +151,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     batch_baseline_f1_scores += f1_score_baseline
                     batch_miou_score_conv3 += mean_miou_score_conv3
                     batch_miou_score_baseline += mean_miou_score_baseline
+                    batch_precision += prec
+                    batch_recall += recall
                     disimilair_pairs += 1
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
@@ -158,22 +165,37 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             batch_baseline_f1_scores /= disimilair_pairs
             batch_miou_score_conv3 /= disimilair_pairs
             batch_miou_score_baseline /= disimilair_pairs
+            batch_precision /= disimilair_pairs
+            batch_recall /= disimilair_pairs
             # get batch average and add to total
             
             f_score_conv3_total += batch_f1_scores
             f_score_baseline_total += batch_baseline_f1_scores
             mean_iou_conv3_total += batch_miou_score_conv3
             mean_iou_baseline_total += batch_miou_score_baseline
+            precision_total += batch_precision
+            recall_total += batch_recall
             
         f_score_conv3_total /= len(test_loader)
         f_score_baseline_total /= len(test_loader)
         mean_iou_conv3_total /= len(test_loader)
         mean_iou_baseline_total /= len(test_loader)
+        precision_total /= len(test_loader)
+        recall_total /= len(test_loader)
+        with open(f'{base_dir}/results.txt', 'w') as f:
+            f.write(f"Average f1 score for conv3: {f_score_conv3_total:.2f}\n")
+            f.write(f"Average f1 score for baseline: {f_score_baseline_total:.2f}\n")
+            f.write(f"Average miou score for conv3: {mean_iou_conv3_total:.2f}\n")
+            f.write(f"Average miou score for baseline: {mean_iou_baseline_total:.2f}\n")
+            f.write(f"Average precision for conv3: {precision_total:.2f}\n")
+            f.write(f"Average recall for conv3: {recall_total:.2f}\n")
         print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
         print(f"Average f1 score for baseline: {f_score_baseline_total:.2f}")
         print(f"Average miou score for conv3: {mean_iou_conv3_total:.2f}")
         print(f"Average miou score for baseline: {mean_iou_baseline_total:.2f}")
-    return distances_list, labels_list, round(f_score_conv3_total, 2)
+        print(f"Average precision for conv3: {precision_total:.2f}")
+        print(f"Average recall for conv3: {recall_total:.2f}")
+    return distances_list, labels_list, round(f_score_conv3_total, 2), round(mean_iou_conv3_total, 2)
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
           train_loader: DataLoader, val_loader: DataLoader, epochs, patience, 
@@ -211,7 +233,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             # TODO: tumor shift check and check control pair handling
             ## TODO: MERGE TUMORS? Or only pass post tumor to the loss function?
             # Resize tumor to match the dimensions of the conv_trainolutional layers
-            tumor_resized_to_first_conv_train =     (
+            tumor_resized_to_first_conv_train = resize_tumor_to_feature_map(
                 post_tumor_train_batch, first_conv_train[0].data.cpu().numpy().shape[2:])
             tumor_resized_to_second_conv_train = resize_tumor_to_feature_map(
                 post_tumor_train_batch, second_conv_train[0].data.cpu().numpy().shape[2:])
@@ -221,6 +243,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             
             ## tumors used for loss function but USE only POST? not both -> focus on change
             ## THen visualize it before passing it to the loss function
+
             loss_1 = criterion(first_conv_train[0], first_conv_train[1], tumor_resized_to_first_conv_train)
             loss_2 = criterion(second_conv_train[0], second_conv_train[1], tumor_resized_to_second_conv_train)
             loss_3 = criterion(third_conv_train[0], third_conv_train[1], tumor_resized_to_third_conv_train)
@@ -277,11 +300,11 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                                                                 dist_flag=dist_flag, mode='bilinear')
                     distance_map_3 = return_upsampled_norm_distance_map(third_conv_val[0][batch_index], third_conv_val[1][batch_index],
                                                                 dist_flag=dist_flag, mode='bilinear')
-                    f1_score1, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
-                                                            beta=0.8)
-                    f1_score2, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
-                                                            beta=0.8)
-                    f1_score3, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
+                    f1_score1, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                                                  beta=0.8)
+                    f1_score2, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                                                   beta=0.8)
+                    f1_score3, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
                                                             beta=0.8)
                     batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
                 batch_f1_scores /= pre_val_batch.size(0) 
@@ -397,9 +420,9 @@ if __name__ == "__main__":
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, device=device, dist_flag=args.dist_flag)
 
-    distances, labels, f_score = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
+    distances, labels, f_score, miou = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
 
     # take the conv distance distance from each tuple
-    thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}")
-    thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}")
-    thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}")
+    thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
+    thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
+    thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")
