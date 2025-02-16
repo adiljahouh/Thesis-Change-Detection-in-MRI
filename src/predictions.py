@@ -67,11 +67,11 @@ if __name__ == "__main__":
             # RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)
             ]
         )
-        # aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
+        # remindImages = aertsDataset(proc_preop=args.aerts_dir, 
         #         raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
         #         image_ids=['t1_ants_aligned.nii.gz'], skip=50, 
         #         tumor_sensitivity=0.30,transform=transform, load_slices=True)
-        # print("Aerts dataset loaded")
+        print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=50, tumor_sensitivity=0.30, transform=transform, load_slices=True)
