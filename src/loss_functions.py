@@ -148,21 +148,6 @@ class contrastiveThresholdMaskLoss(nn.Module):
         # )
         return constractive_thresh_loss
     
-def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
-    # Calculate precision, recall, and beta-weighted F-score for each threshold
-    tp = posNum - FN  # True positives at each threshold
-    precision = tp / (tp + FP + 1e-10)  # Avoid division by zero
-    recall = tp / (posNum + 1e-10)  # Avoid division by zero
-
-    betasq = beta**2
-    F = (1 + betasq) * (precision * recall) / ((betasq * precision) + recall + 1e-10)
-
-    # Find the best threshold based on F-score
-    best_index = F.argmax()
-    best_f1 = F[best_index]
-    best_threshold = thresh[best_index]
-    return best_f1, best_threshold
-
 def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
     """
        tumor seg is the ground rtuth
@@ -179,7 +164,8 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
      
     FN, FP, posNum, negNum = calc_fn_fp_per_thresh(all_tumor_pixels, feature_map,
                                      thresh)
-    best_f1, best_threshold = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
+    best_f1, f1_thresh, thresh_index, precision, recall = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
+    best_miou = find_best_thresh_for_miou(FN, FP, posNum, thresh_index)
     # has_tumor_pixels = np.any(all_tumor_pixels)
     # if not has_tumor_pixels:
     #     print(f"No tumor pixels found for {extra}")
@@ -209,7 +195,33 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
     # plt.savefig(vis_path, bbox_inches="tight")
     # plt.close(fig)
     
-    return best_f1, best_threshold
+    return best_f1, best_miou, precision, recall
+
+def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
+    # Calculate precision, recall, and beta-weighted F-score for each threshold
+    tp = posNum - FN  # True positives at each threshold
+    precision = tp / (tp + FP + 1e-10)  # Avoid division by zero
+    recall = tp / (posNum + 1e-10)  # Avoid division by zero
+
+    betasq = beta**2
+    F = (1 + betasq) * (precision * recall) / ((betasq * precision) + recall + 1e-10)
+
+    # Find the best threshold based on F-score
+    best_index = F.argmax()
+    best_f1 = F[best_index]
+    best_threshold = thresh[best_index]
+    return best_f1, best_threshold, best_index, precision[best_index], recall[best_index]
+
+def find_best_thresh_for_miou(FN, FP, posNum, thresh_index):
+    """
+    Find the threshold that maximizes the Mean IoU (mIoU) score.
+    """
+    TP = posNum - FN  # True positives at each threshold
+    IoU = TP / (TP + FP + FN + 1e-10)  # Compute IoU for each threshold
+
+    # Find the best threshold based on IoU score
+    best_miou = IoU[thresh_index]
+    return best_miou
 
 def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
     '''

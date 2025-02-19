@@ -1,5 +1,5 @@
 import torch
-from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
+from network import SimpleSiamese, complexSiameseExt, DeepLabExtended, DeepLabV3
 
 from loader import balance_dataset, control_pairs, aertsDataset, remindDataset
 import os
@@ -67,16 +67,16 @@ if __name__ == "__main__":
             # RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)
             ]
         )
-        # aertsImages = aertsDataset(proc_preop=args.aerts_dir, 
+        # remindImages = aertsDataset(proc_preop=args.aerts_dir, 
         #         raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
         #         image_ids=['t1_ants_aligned.nii.gz'], skip=50, 
         #         tumor_sensitivity=0.30,transform=transform, load_slices=True)
-        # print("Aerts dataset loaded")
+        print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=50, tumor_sensitivity=0.30, transform=transform, load_slices=True)
         subject_images = remindImages
-        model_type = DeepLabExtended()
+        model_type = DeepLabV3()
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced
@@ -102,6 +102,6 @@ if __name__ == "__main__":
         # thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
         # thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
         # thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")    # take the conv distance distance from each tuple
-        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}")
-        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}")
-        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}")
+        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f1_score}")
+        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f1_score}")
+        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f1_score}")
