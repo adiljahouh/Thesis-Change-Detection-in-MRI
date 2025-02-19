@@ -1,5 +1,5 @@
 *.gz
-*.txt
+# *.txt
 *.dcm
 *.log
 *.csv
@@ -11,6 +11,8 @@ data/2D/*
 data/raw/*
 data/ReMIND_dataset/*
 data/processed/*
+task.txt
+/results/old/*
 *.pth
 *.pt
 /results/*/heatmaps/*.jpg

@@ -132,7 +132,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     shift_values = (batch['shift_x'][batch_index], batch['shift_y'][batch_index])
                     pre_tumor = np.load(batch['tumor_path'][batch_index])['data']
                     
-                    ## didnt want to keep all tumors in memory
+                    ## didnt want to keep all tumors in memory so is hift only test ones
                     post_tumor_unshifted_path = batch['residual_path'][batch_index]
                     post_tumor_unshifted = np.load(post_tumor_unshifted_path)['data']
                     post_tumor_unshifted_tensor = torch.tensor(post_tumor_unshifted, dtype=torch.float32)
