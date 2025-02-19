@@ -1,1 +1,1 @@
-python -u src/predictions.py --mode augmented --model_path ./results/MLO_l2_lr-0.001_marg-5.0_thresh-0.3_loss-TCL/train_test/model.pth
+python -u src/predictions.py --mode augmented --model_path ./results/old/MLO_l2_lr-0.001_marg-5.0_thresh-0.3_loss-TCL/train_test/model.pth

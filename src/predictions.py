@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
-    parser.add_argument("--slice_dir", type=str, default='./data/2D/', help="location for slices to be saved and loaded")
+    parser.add_argument("--slice_dir", type=str, default='./data/test/', help="location for slices to be saved and loaded")
     parser.add_argument("--folder_name", type=str, default='inference', help="Name of the folder to save the results")
     args = parser.parse_args()
     model_details = args.model_path.split('/')[-3]
@@ -74,14 +74,14 @@ if __name__ == "__main__":
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=50, tumor_sensitivity=0.30, transform=transform, load_slices=True)
+                    skip=1, tumor_sensitivity=0.30, transform=transform, load_slices=True)
         subject_images = remindImages
         model_type = DeepLabV3()
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced
     subject_images: list[dict] = balance_dataset(subject_images)
-
+    
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
  
