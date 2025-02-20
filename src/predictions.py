@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced
-    subject_images: list[dict] = balance_dataset(subject_images)
+    #subject_images: list[dict] = balance_dataset(subject_images)
     
     print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
     print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))

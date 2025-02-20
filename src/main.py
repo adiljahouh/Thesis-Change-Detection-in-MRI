@@ -78,7 +78,18 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             second_conv: torch.Tensor
             third_conv: torch.Tensor
             # these are all batches
+            
             first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
+            # print(third_conv[0].shape)
+            # # Save the third conv tuple of tensors as npz files in 2d/test/
+            # save_dir = os.path.join(os.getcwd(), '2d/test')
+            # print(save_dir)
+            # print(third_conv[0].shape)
+            # shift_values = (batch['shift_x'][0], batch['shift_y'][0])
+            # os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
+            # np.savez(os.path.join(save_dir, f'third_conv_{index}.npz'), third_conv_0=third_conv[0].data.cpu().numpy(), shift_values=shift_values)
+            # np.savez(os.path.join(save_dir, f'third_conv_{index}_post.npz'), third_conv_1=third_conv[1].data.cpu().numpy(), shift_values=shift_values)
+            # return
             flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
             flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
             distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)

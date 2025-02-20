@@ -1,0 +1,8 @@
+Average f1 score for conv3: 0.07664971474810851
+Average f1 score for baseline: 0.17520257416808396
+Average miou score for conv3: 0.042734955458010024
+Average miou score for baseline: 0.10494400915921741
+Average precision for conv3: 0.045936316200543066
+Average recall for conv3: 0.8845435357965988
+Average precision for baseline: 0.13648523497740697
+Average recall for baseline: 0.5728372750961063
