@@ -4,6 +4,7 @@ from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
 from loss_functions import contrastiveLoss, \
     eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
 from loader import aertsDataset, remindDataset, balance_dataset
+from distance_measures import threshold_by_zscore
 from transformations import ShiftImage, RotateImage
 import os
 from visualizations import *
@@ -155,7 +156,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag=dist_flag, mode='bilinear')
                   
                     # baseline_significant = np.where(baseline > 0.30, 1, 0)
-                  
+                    ## TODO: this is not fair, pass the optimal threshold value to the eval function
+                    ## change beta to 0.8?
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
                     f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
@@ -330,11 +332,11 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                     distance_map_3 = return_upsampled_norm_distance_map(third_conv_val[0][batch_index], third_conv_val[1][batch_index],
                                                                 dist_flag=dist_flag, mode='bilinear')
                     f1_score1, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
-                                                  beta=0.8)
+                                                  beta=1)
                     f1_score2, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
-                                                   beta=0.8)
+                                                   beta=1)
                     f1_score3, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
-                                                            beta=0.8)
+                                                            beta=1)
                     batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
                 batch_f1_scores /= pre_val_batch.size(0) 
                 epoch_f1_scores += batch_f1_scores        
