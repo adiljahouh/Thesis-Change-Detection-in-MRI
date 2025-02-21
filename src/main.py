@@ -1,10 +1,10 @@
 import torch as torch
 import torch.optim as optim
-from network import SimpleSiamese, complexSiameseExt, DeepLabExtended
+from network import complexSiameseExt, DeepLabExtended
 from loss_functions import contrastiveLoss, \
     eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
 from loader import aertsDataset, remindDataset, balance_dataset
-from distance_measures import threshold_by_zscore
+from distance_measures import threshold_by_zscore_std, threshold_by_percentile
 from transformations import ShiftImage, RotateImage
 import os
 from visualizations import *
@@ -158,6 +158,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     # baseline_significant = np.where(baseline > 0.30, 1, 0)
                     ## TODO: this is not fair, pass the optimal threshold value to the eval function
                     ## change beta to 0.8?
+                    baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
+                    baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
                     f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
