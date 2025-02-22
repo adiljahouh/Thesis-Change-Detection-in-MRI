@@ -248,7 +248,7 @@ def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
 
     assert len(feature_map.shape) == 2, f'Wrong size of input prob map {feature_map.shape}'
     assert len(significant_tumor_pixels.shape) == 2, f'Wrong size of input prob map {feature_map.shape}'
-    thresInf = np.concatenate(([-np.Inf], thres, [np.Inf])) 
+    thresInf = np.concatenate(([-np.inf], thres, [np.inf])) 
     fnArray = feature_map[(significant_tumor_pixels == True)] # pixels in fm where tumor is located
     ## array of probabilities of tumor pixels [0.8, 0.9, 0.7, 0.6, 0.5]
     fnHist = np.histogram(fnArray,bins=thresInf)[0]

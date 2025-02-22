@@ -302,8 +302,18 @@ class remindDataset(Dataset):
             for filename in files:
                 for image_id in self.image_ids:
                     if filename.startswith(image_id):# if t1_aligned is found
+                        print(filename)
                         try:
-                            pat_id = root_path.split("/")[-3]
+                            root_path = os.path.normpath(root_path)
+
+                            # Use os.path.split() instead of manual string splitting
+                            path_parts = root_path.split(os.path.sep)
+
+                            # Make sure we don't go out of bounds
+                            if len(path_parts) >= 3:
+                                pat_id = path_parts[-3]
+                            else:
+                                pat_id = None  # Handle cases where the path is too short
                             if "Intraop" in root_path or "Unused" in root_path:
                                 continue
                             print(f"Processing {pat_id}, loading {filename}")
@@ -372,7 +382,7 @@ class remindDataset(Dataset):
                         except AssertionError as e:
                             print(f"AssertionError: {e}")
                         except Exception as e:
-                            print(f"Uncaught error: {e}")
+                           print(f"Uncaught error: {e} ({type(e).__name__})")
 
     def _load_existing_slices(self, pat_id: str):
         """Load existing slices for the given pat_id."""
@@ -631,7 +641,8 @@ class aertsDataset(Dataset):
                         except FileNotFoundError as e:
                             print(f"File not found: {e}")
                         except Exception as e:
-                            print(f"Uncaught error: {e}")
+                            print(f"Uncaught error: {e} ({type(e).__name__})")
+
 
     def _process_con_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
