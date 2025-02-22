@@ -2,7 +2,7 @@ import torch as torch
 import torch.optim as optim
 from network import complexSiameseExt, DeepLabExtended
 from loss_functions import contrastiveLoss, \
-    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
+    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map, compute_f_score
 from loader import aertsDataset, remindDataset, balance_dataset
 from distance_measures import threshold_by_zscore_std, threshold_by_percentile
 from transformations import ShiftImage, RotateImage
@@ -49,7 +49,7 @@ from torchvision.transforms import Compose
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
 def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, 
-            base_dir, device, dist_flag):
+            base_dir, device, dist_flag, thresh):
     siamese_net.to(device)
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
@@ -160,6 +160,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     ## change beta to 0.8?
                     baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
                     baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
+                    compute_f_score(distance_map_2d_conv3)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
                     f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
@@ -238,8 +239,8 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
     print(f"Number of batches in training set: {len(train_loader)}")
     print(f"Number of batches in validation set: {len(val_loader)}")
     
-    best_loss = float('inf')
     best_f1_score = float('-inf')
+    best_thresh = None
     best_val_loss = float('inf')
     consecutive_no_improvement = 0
     
@@ -333,11 +334,11 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                                                                 dist_flag=dist_flag, mode='bilinear')
                     distance_map_3 = return_upsampled_norm_distance_map(third_conv_val[0][batch_index], third_conv_val[1][batch_index],
                                                                 dist_flag=dist_flag, mode='bilinear')
-                    f1_score1, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
+                    f1_score1, _, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_1, 0.30, 
                                                   beta=1)
-                    f1_score2, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
+                    f1_score2, _, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_2, 0.30, 
                                                    beta=1)
-                    f1_score3, _, _, _ = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
+                    f1_score3, _, _, _, thresh = eval_feature_map(post_tumor_val_batch.cpu().numpy()[batch_index][0], distance_map_3, 0.30, 
                                                             beta=1)
                     batch_f1_scores += (f1_score1 + f1_score2 + f1_score3) / 3
                 batch_f1_scores /= pre_val_batch.size(0) 
@@ -349,10 +350,11 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
         
         #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
         print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average val loss: {avg_val_loss:.4f},\
-              Average f1 score {avg_f1_score:.4f}')
+              Average f1 score {avg_f1_score:.4f} - Threshold: {thresh:.2f}')
         
         # Check for improvement in validation loss
         if avg_f1_score > best_f1_score:
+            best_thresh = thresh
             best_f1_score = avg_f1_score
         # if avg_val_loss < best_val_loss:
         #     best_val_loss = avg_val_loss
@@ -367,7 +369,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
             if consecutive_no_improvement >= patience:
                 print(f'Early stopping at epoch {epoch+1} as no improvement for {patience} consecutive epochs.')
                 break
-    return best_loss           
+    return best_f1_score, best_thresh           
 
 if __name__ == "__main__":
     interp = torch.nn.Upsample(size=(256, 256), mode='bilinear')
@@ -449,11 +451,11 @@ if __name__ == "__main__":
             f'lr-{args.lr}_marg-{args.margin}_thresh-{args.threshold}_loss-{args.loss}'
     save_dir = f'./results/{model_params}/train_test'
     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-    _ = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
+    _, best_threshold = train(model_type, optimizer, criterion, train_loader=train_loader, val_loader=val_loader, 
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, device=device, dist_flag=args.dist_flag)
 
-    distances, labels, f_score, miou = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
+    distances, labels, f_score, miou = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag, thresh=best_threshold)
 
     # take the conv distance distance from each tuple
     thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")

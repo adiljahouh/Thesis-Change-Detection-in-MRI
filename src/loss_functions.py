@@ -208,7 +208,7 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
                                      thresh)
     best_f1, f1_thresh, thresh_index, precision, recall = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
     best_miou = find_best_thresh_for_miou(FN, FP, posNum, thresh_index)
-    return best_f1, best_miou, precision, recall, 
+    return best_f1, best_miou, precision, recall, f1_thresh
 
 def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     # Calculate precision, recall, and beta-weighted F-score for each threshold
