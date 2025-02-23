@@ -2,7 +2,7 @@ import torch as torch
 import torch.optim as optim
 from network import complexSiameseExt, DeepLabExtended
 from loss_functions import contrastiveLoss, \
-    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map
+    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map, compute_f_score, compute_iou
 from loader import aertsDataset, remindDataset, balance_dataset
 from distance_measures import threshold_by_zscore_std, threshold_by_percentile
 from transformations import ShiftImage, RotateImage
@@ -159,28 +159,41 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     ## TODO: this is not fair, pass the optimal threshold value to the eval function
                     ## change beta to 0.8?
                     baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
-                    baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
+                    # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
-                    f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
+                    
+                    f1_score_baseline, _, _ = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], 
+                                                        pred_mask=baseline, beta=1)
+                    mean_miou_score_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
+                                                        pred_mask=baseline)
+                    
+                    f1_score_baseline_z_scored, baseline_prec_z, baseline_recall_z = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
+                                                        pred_mask=baseline_z_scored, beta=1)
+                    mean_miou_score_baseline_z_scored = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
+                                                        pred_mask=baseline_z_scored)
+                    
+                    # f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline_z_scored, 0.30, beta=1)
                     
                     
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
                     batch_f1_scores += f1_score_conv3
-                    batch_baseline_f1_scores += f1_score_baseline
+                    batch_baseline_f1_scores += f1_score_baseline_z_scored
                     batch_miou_score_conv3 += mean_miou_score_conv3
                     batch_miou_score_baseline += mean_miou_score_baseline
                     batch_precision_conv3 += conv3_prec
                     batch_recall_conv3 += conv3_recall
-                    batch_precision_baseline += baseline_prec
-                    batch_recall_baseline += baseline_recall
+                    batch_precision_baseline += baseline_prec_z
+                    batch_recall_baseline += baseline_recall_z
                     disimilair_pairs += 1
                     visualize_multiple_fmaps_and_tumor_baselines(
                                     ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
                                     ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"), 
                                     ([np.rot90(post_image), np.rot90(conv3_sharpened_post)], f"Changed Postoperative"),
                                     (np.rot90(distance_map_2d_conv3), f"Change Map;\nF1={f1_score_conv3:.2f}, MIoU={mean_miou_score_conv3:.2f}"),
-                                    (np.rot90(baseline), f"Baseline method;\nF1={f1_score_baseline:.2f}, MIoU={mean_miou_score_baseline:.2f}"), output_path=save_path, 
+                                    (np.rot90(baseline), f"Baseline method;\nF1={f1_score_baseline:.2f}, MIoU={mean_miou_score_baseline:.2f}"),
+                                    (np.rot90(baseline_z_scored), f"Baseline method Z-scored;\nF1={f1_score_baseline_z_scored:.2f}, MIoU={mean_miou_score_baseline_z_scored:.2f}"),
+                                    output_path=save_path, 
                                     tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
             batch_f1_scores /= disimilair_pairs
             batch_baseline_f1_scores /= disimilair_pairs

@@ -148,6 +148,40 @@ class contrastiveThresholdMaskLoss(nn.Module):
         # )
         return constractive_thresh_loss
 
+import numpy as np
+
+def compute_iou(tumor_seg, feature_map=None, threshold=None, pred_mask=None):
+    """
+    Computes the Intersection over Union (IoU) for a given threshold or a precomputed segmentation mask.
+    
+    Parameters:
+    - tumor_seg: Ground truth binary segmentation (2D numpy array, 1 = tumor, 0 = background).
+    - feature_map: Model output (2D numpy array with probability values between 0 and 1) [optional if pred_mask is given].
+    - threshold: The threshold to binarize the feature map [required if pred_mask is not given].
+    - pred_mask: Precomputed binary segmentation mask (2D numpy array, 1 = tumor, 0 = background) [optional].
+    
+    Returns:
+    - IoU score for the given threshold or mask.
+    """
+    if pred_mask is None:
+        if feature_map is None or threshold is None:
+            raise ValueError("Either pred_mask or both feature_map and threshold must be provided.")
+        # Convert feature map into binary mask using the given threshold
+        pred_mask = feature_map >= threshold  # 1 where detected as tumor, 0 otherwise
+
+    # True Positives (TP): Pixels correctly classified as tumor
+    TP = np.sum((pred_mask == 1) & (tumor_seg == 1))
+
+    # False Positives (FP): Pixels incorrectly classified as tumor
+    FP = np.sum((pred_mask == 1) & (tumor_seg == 0))
+
+    # False Negatives (FN): Tumor pixels that were missed
+    FN = np.sum((pred_mask == 0) & (tumor_seg == 1))
+
+    # Compute IoU
+    IoU = TP / (TP + FP + FN + 1e-10)  # Avoid division by zero
+
+    return IoU
 
 
 def compute_f_score(tumor_seg, feature_map=None, threshold=None, pred_mask=None, beta=0.8):
