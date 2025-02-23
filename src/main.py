@@ -54,16 +54,29 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
     labels_list = []
+    batch_count = 0
     print("Doing predictions...")
     with torch.no_grad():
-        f_score_conv3_total = 0.0
-        f_score_baseline_total = 0.0
-        mean_iou_conv3_total = 0.0
-        mean_iou_baseline_total = 0.0
-        conv3_precision_total = 0.0
-        conv3_recall_total = 0.0
-        baseline_precision_total = 0.0
-        baseline_recall_total = 0.0
+        # f_score_conv3_total = 0.0
+        # f_score_baseline_total = 0.0
+        # f_score_baseline_z_total = 0.0
+        
+        # mean_iou_conv3_total = 0.0
+        # mean_iou_baseline_total = 0.0
+        # mean_iou_baseline_z_total = 0.0
+        
+        # conv3_precision_total = 0.0
+        # baseline_precision_total = 0.0
+        # baseline_z_precision_total = 0.0
+        
+        # conv3_recall_total = 0.0
+        # baseline_recall_total = 0.0
+        # baseline_z_recall_total = 0.0
+        global_metrics = {
+            'conv3': {'f1': 0.0, 'miou': 0.0, 'precision': 0.0, 'recall': 0.0},
+            'baseline': {'f1': 0.0, 'miou': 0.0, 'precision': 0.0, 'recall': 0.0},
+            'zscored_baseline': {'f1': 0.0, 'miou': 0.0, 'precision': 0.0, 'recall': 0.0}
+        }
         shift_tensor = ShiftImage()
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
@@ -81,16 +94,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             # these are all batches
             
             first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
-            # print(third_conv[0].shape)
-            # # Save the third conv tuple of tensors as npz files in 2d/test/
-            # save_dir = os.path.join(os.getcwd(), '2d/test')
-            # print(save_dir)
-            # print(third_conv[0].shape)
-            # shift_values = (batch['shift_x'][0], batch['shift_y'][0])
-            # os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-            # np.savez(os.path.join(save_dir, f'third_conv_{index}.npz'), third_conv_0=third_conv[0].data.cpu().numpy(), shift_values=shift_values)
-            # np.savez(os.path.join(save_dir, f'third_conv_{index}_post.npz'), third_conv_1=third_conv[1].data.cpu().numpy(), shift_values=shift_values)
-            # return
             flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
             flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
             distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)
@@ -105,15 +108,22 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             assert distance_1.size(0) == distance_2.size(0) == distance_3.size(0), "Distance sizes do not match"
             
             # Iterate over the batch
-            batch_f1_scores = 0.0
-            batch_baseline_f1_scores = 0.0
-            batch_miou_score_conv3 = 0.0
-            batch_miou_score_baseline = 0.0
-            batch_precision_conv3 = 0.0
-            batch_recall_conv3 = 0.0
-            batch_precision_baseline = 0.0
-            batch_recall_baseline = 0.0
-            disimilair_pairs = 0
+            # batch_f1_scores = 0.0
+            # batch_baseline_f1_scores = 0.0
+            # batch_miou_score_conv3 = 0.0
+            # batch_miou_score_baseline = 0.0
+            # batch_precision_conv3 = 0.0
+            # batch_recall_conv3 = 0.0
+            # batch_precision_baseline = 0.0
+            # batch_recall_baseline = 0.0
+            # disimilair_pairs = 0
+            dissimilar_count = 0
+
+            batch_metrics = {
+                'conv3': {'f1': 0.0, 'miou': 0.0, 'precision': 0.0, 'recall': 0.0},
+                'baseline': {'f1': 0.0, 'miou': 0.0, 'precision': 0.0, 'recall': 0.0},
+                'zscored_baseline': {'f1': 0.0, 'miou': 0.0, 'precision': 0.0, 'recall': 0.0}
+            }
             for batch_index in range(pre_batch.size(0)):
                 pre_image: ndarray = np.squeeze(pre_batch[batch_index].data.cpu().numpy())
                 post_image: ndarray = np.squeeze(post_batch[batch_index].data.cpu().numpy())
@@ -154,92 +164,112 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                 
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag=dist_flag, mode='bilinear')
-                  
-                    # baseline_significant = np.where(baseline > 0.30, 1, 0)
-                    ## TODO: this is not fair, pass the optimal threshold value to the eval function
-                    ## change beta to 0.8?
                     baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
-                    # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
-                    f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
-                                                            beta=1)
-                    #f1_score_baseline, mean_miou_score_baseline, _, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline_z_scored, 0.30, beta=1)
-                    f1_score_baseline, _, _ = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], 
-                                                        feature_map=baseline, threshold=0.5, beta=1)
-                    mean_miou_score_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
-                                                        feature_map=baseline, threshold=0.5)
                     
-                    f1_score_baseline_z_scored, baseline_prec_z, baseline_recall_z = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
-                                                        pred_mask=baseline_z_scored, beta=1)
-                    mean_miou_score_baseline_z_scored = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
-                                                        pred_mask=baseline_z_scored)
+                    # Compute metrics for conv3 using eval_feature_map (threshold 0.30, beta=1)
+                    f1_conv3, miou_conv3, prec_conv3, rec_conv3 = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                                                             beta=1)
+                
+                    # Compute metrics for baseline using compute_f_score and compute_iou (threshold 0.5, beta=1)
+                    f1_baseline, _, _ = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], feature_map=baseline, threshold=0.5, beta=1)
+                    miou_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], feature_map=baseline, threshold=0.5)
+                    
+                    # Compute metrics for z-scored baseline using compute_f_score and compute_iou (beta=1)
+                    f1_z, prec_z, rec_z = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], pred_mask=baseline_z_scored, beta=1)
+                    miou_z = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], pred_mask=baseline_z_scored)
+                    
+                    # Accumulate metrics into the batch dictionary
+                    batch_metrics['conv3']['f1'] += f1_conv3
+                    batch_metrics['conv3']['miou'] += miou_conv3
+                    batch_metrics['conv3']['precision'] += prec_conv3
+                    batch_metrics['conv3']['recall'] += rec_conv3
+
+                    batch_metrics['baseline']['f1'] += f1_baseline
+                    batch_metrics['baseline']['miou'] += miou_baseline
+                    # (Precision and recall for the baseline method are not computed in the original code)
+                    
+                    batch_metrics['zscored_baseline']['f1'] += f1_z
+                    batch_metrics['zscored_baseline']['miou'] += miou_z
+                    batch_metrics['zscored_baseline']['precision'] += prec_z
+                    batch_metrics['zscored_baseline']['recall'] += rec_z
+                
+                    # baseline_significant = np.where(baseline > 0.30, 1, 0)
+                    # baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
+                    # # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
+                    # f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                    #                                         beta=1)
+                    # #f1_score_baseline, mean_miou_score_baseline, _, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline_z_scored, 0.30, beta=1)
+                    # f1_score_baseline, _, _ = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], 
+                    #                                     feature_map=baseline, threshold=0.5, beta=1)
+                    # mean_miou_score_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
+                    #                                     feature_map=baseline, threshold=0.5)
+                    
+                    # f1_score_baseline_z_scored, baseline_prec_z, baseline_recall_z = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
+                    #                                     pred_mask=baseline_z_scored, beta=1)
+                    # mean_miou_score_baseline_z_scored = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
+                    #                                     pred_mask=baseline_z_scored)
                     
                     
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
-                    batch_f1_scores += f1_score_conv3
-                    batch_baseline_f1_scores += f1_score_baseline_z_scored
-                    batch_miou_score_conv3 += mean_miou_score_conv3
-                    batch_miou_score_baseline += mean_miou_score_baseline
-                    batch_precision_conv3 += conv3_prec
-                    batch_recall_conv3 += conv3_recall
-                    batch_precision_baseline += baseline_prec_z
-                    batch_recall_baseline += baseline_recall_z
-                    disimilair_pairs += 1
+                    # batch_f1_scores += f1_score_conv3
+                    # batch_baseline_f1_scores += f1_score_baseline_z_scored
+                    # batch_miou_score_conv3 += mean_miou_score_conv3
+                    # batch_miou_score_baseline += mean_miou_score_baseline
+                    # batch_precision_conv3 += conv3_prec
+                    # batch_recall_conv3 += conv3_recall
+                    # batch_precision_baseline += baseline_prec_z
+                    # batch_recall_baseline += baseline_recall_z
+                    # disimilair_pairs += 1
                     visualize_multiple_fmaps_and_tumor_baselines(
-                                    ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
-                                    ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"), 
-                                    ([np.rot90(post_image), np.rot90(conv3_sharpened_post)], f"Changed Postoperative"),
-                                    (np.rot90(distance_map_2d_conv3), f"Change Map;\nF1={f1_score_conv3:.2f}, MIoU={mean_miou_score_conv3:.2f}"),
-                                    (np.rot90(baseline), f"Baseline method 0.5 thresh;\nF1={f1_score_baseline:.2f}, MIoU={mean_miou_score_baseline:.2f}"),
-                                    (np.rot90(baseline_z_scored), f"Baseline method Z-scored;\nF1={f1_score_baseline_z_scored:.2f}, MIoU={mean_miou_score_baseline_z_scored:.2f}"),
-                                    output_path=save_path, 
-                                    tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
-            batch_f1_scores /= disimilair_pairs
-            batch_baseline_f1_scores /= disimilair_pairs
-            batch_miou_score_conv3 /= disimilair_pairs
-            batch_miou_score_baseline /= disimilair_pairs
-            batch_precision_conv3 /= disimilair_pairs
-            batch_recall_conv3 /= disimilair_pairs
-            batch_precision_baseline /= disimilair_pairs
-            batch_recall_baseline /= disimilair_pairs
-            # get batch average and add to total
-            
-            f_score_conv3_total += batch_f1_scores
-            f_score_baseline_total += batch_baseline_f1_scores
-            mean_iou_conv3_total += batch_miou_score_conv3
-            mean_iou_baseline_total += batch_miou_score_baseline
-            conv3_precision_total += batch_precision_conv3
-            conv3_recall_total += batch_recall_conv3
-            baseline_precision_total += batch_precision_baseline
-            baseline_recall_total += batch_recall_baseline
-            
-        f_score_conv3_total /= len(test_loader)
-        f_score_baseline_total /= len(test_loader)
-        mean_iou_conv3_total /= len(test_loader)
-        mean_iou_baseline_total /= len(test_loader)
-        conv3_precision_total /= len(test_loader)
-        conv3_recall_total /= len(test_loader)
-        baseline_precision_total /= len(test_loader)
-        baseline_recall_total /= len(test_loader)
+                                        ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"),
+                                        ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"),
+                                        ([np.rot90(post_image), np.rot90(conv3_sharpened_post)], f"Changed Postoperative"),
+                                        (np.rot90(distance_map_2d_conv3), f"Change Map;\nF1={f1_conv3:.2f}, MIoU={miou_conv3:.2f}"),
+                                        (np.rot90(baseline), f"Baseline method 0.5 thresh;\nF1={f1_baseline:.2f}, MIoU={miou_baseline:.2f}"),
+                                        (np.rot90(baseline_z_scored), f"Baseline method Z-scored;\nF1={f1_z:.2f}, MIoU={miou_z:.2f}"),
+                                        output_path=save_path,
+                                        tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image)
+                                    )
+            # Average metrics over the dissimilar pairs in the batch
+            if dissimilar_count > 0:
+                for method in batch_metrics:
+                    for metric in batch_metrics[method]:
+                        batch_metrics[method][metric] /= dissimilar_count
+                # Accumulate the batch metrics into the global totals
+                for method in global_metrics:
+                    global_metrics[method]['f1'] += batch_metrics[method]['f1']
+                    global_metrics[method]['miou'] += batch_metrics[method]['miou']
+                    global_metrics[method]['precision'] += batch_metrics[method]['precision']
+                    global_metrics[method]['recall'] += batch_metrics[method]['recall']
+                batch_count += 1
         
-        with open(f'{base_dir}/results.txt', 'w') as f:
-            f.write(f"Average f1 score for conv3: {f_score_conv3_total}\n")
-            f.write(f"Average f1 score for baseline: {f_score_baseline_total}\n")
-            f.write(f"Average miou score for conv3: {mean_iou_conv3_total}\n")
-            f.write(f"Average miou score for baseline: {mean_iou_baseline_total}\n")
-            f.write(f"Average precision for conv3: {conv3_precision_total}\n")
-            f.write(f"Average recall for conv3: {conv3_recall_total}\n")
-            f.write(f"Average precision for baseline: {baseline_precision_total}\n")
-            f.write(f"Average recall for baseline: {baseline_recall_total}\n")
-        print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
-        print(f"Average f1 score for baseline: {f_score_baseline_total:.2f}")
-        print(f"Average miou score for conv3: {mean_iou_conv3_total:.2f}")
-        print(f"Average miou score for baseline: {mean_iou_baseline_total:.2f}")
-        print(f"Average precision for conv3: {conv3_precision_total:.2f}")
-        print(f"Average recall for conv3: {conv3_recall_total:.2f}")    
-        print(f"Average precision for baseline: {baseline_precision_total:.2f}")
-        print(f"Average recall for baseline: {baseline_recall_total:.2f}")
+        # Average the global metrics over the number of batches
+        if batch_count > 0:
+            for method in global_metrics:
+                for metric in global_metrics[method]:
+                    global_metrics[method][metric] /= batch_count
         
-    return distances_list, labels_list, round(f_score_conv3_total, 2), round(mean_iou_conv3_total, 2)
+        # Write the results to a file
+        results_path = os.path.join(base_dir, 'results.txt')
+        with open(results_path, 'w') as f:
+            for method in global_metrics:
+                f.write(f"Average {method} f1 score: {global_metrics[method]['f1']}\n")
+                f.write(f"Average {method} miou score: {global_metrics[method]['miou']}\n")
+                f.write(f"Average {method} precision: {global_metrics[method]['precision']}\n")
+                f.write(f"Average {method} recall: {global_metrics[method]['recall']}\n")
+        
+        print(f"Average conv3 f1 score: {global_metrics['conv3']['f1']:.2f}")
+        print(f"Average baseline f1 score: {global_metrics['baseline']['f1']:.2f}")
+        print(f"Average conv3 miou score: {global_metrics['conv3']['miou']:.2f}")
+        print(f"Average baseline miou score: {global_metrics['baseline']['miou']:.2f}")
+        print(f"Average conv3 precision: {global_metrics['conv3']['precision']:.2f}")
+        print(f"Average conv3 recall: {global_metrics['conv3']['recall']:.2f}")
+        print(f"Average zscored baseline f1 score: {global_metrics['zscored_baseline']['f1']:.2f}")
+        print(f"Average zscored baseline miou score: {global_metrics['zscored_baseline']['miou']:.2f}")
+        print(f"Average zscored baseline precision: {global_metrics['zscored_baseline']['precision']:.2f}")
+        print(f"Average zscored baseline recall: {global_metrics['zscored_baseline']['recall']:.2f}")
+
+    return distances_list, labels_list, round(global_metrics['conv3']['f1'], 2), round(global_metrics['conv3']['miou'], 2)
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
           train_loader: DataLoader, val_loader: DataLoader, epochs, patience, 
