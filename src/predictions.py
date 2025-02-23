@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument("--tumor_dir", type=str, default='./data/raw/preop/BTC-preop/derivatives/tumor_masks', help=
                         "Path to the directory containing suject dirs with tumor masks, relative is possible from project dir \
                         should contain sub-pat01, sub-pat02 etc. with tumor.nii in them")
-    parser.add_argument("--slice_dir", type=str, default='./data/test/', help="location for slices to be saved and loaded")
+    parser.add_argument("--slice_dir", type=str, default='./data/2D/', help="location for slices to be saved and loaded")
     parser.add_argument("--folder_name", type=str, default='inference', help="Name of the folder to save the results")
     args = parser.parse_args()
     model_details = args.model_path.split('/')[-3]
@@ -74,7 +74,7 @@ if __name__ == "__main__":
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=1, tumor_sensitivity=0.30, transform=transform, load_slices=True)
+                    skip=10, tumor_sensitivity=0.30, transform=transform, load_slices=True)
         subject_images = remindImages
         model_type = DeepLabV3()
 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     model_type.load_state_dict(torch.load(args.model_path))
     
-    distances, labels, f1_score = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
+    distances, labels, f_score, miou = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
     if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)
     elif args.model == 'MLO':
@@ -102,6 +102,8 @@ if __name__ == "__main__":
         # thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
         # thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
         # thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")    # take the conv distance distance from each tuple
-        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f1_score}")
-        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f1_score}")
-        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f1_score}")
+        
+        # take the conv distance distance from each tuple
+        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
+        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
+        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")
