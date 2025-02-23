@@ -162,15 +162,17 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag=dist_flag, mode='bilinear')
                   
                     # baseline_significant = np.where(baseline > 0.30, 1, 0)
+                    baseline = normalize_np_array(baseline)
+                    baseline_masked = (baseline > 0.5).astype(np.uint8)
                     baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
                     # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
                     #f1_score_baseline, mean_miou_score_baseline, _, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline_z_scored, 0.30, beta=1)
                     f1_score_baseline, baseline_prec, baseline_recall = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], 
-                                                        feature_map=baseline, threshold=0.5, beta=1)
+                                                        pred_mask=baseline_masked, beta=1)
                     mean_miou_score_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
-                                                        feature_map=baseline, threshold=0.5)
+                                                        pred_mask=baseline_masked)
                     
                     f1_score_baseline_z_scored, baseline_prec_z, baseline_recall_z = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
                                                         pred_mask=baseline_z_scored, beta=1)
@@ -202,7 +204,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                                     ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"), 
                                     ([np.rot90(post_image), np.rot90(conv3_sharpened_post)], f"Changed Postoperative"),
                                     (np.rot90(distance_map_2d_conv3), f"Change Map;\nF1={f1_score_conv3:.2f}, MIoU={mean_miou_score_conv3:.2f}"),
-                                    (np.rot90(baseline), f"Baseline method 0.5 thresh;\nF1={f1_score_baseline:.2f}, MIoU={mean_miou_score_baseline:.2f}"),
+                                    (np.rot90(baseline_masked), f"Baseline method 0.5 thresh;\nF1={f1_score_baseline:.2f}, MIoU={mean_miou_score_baseline:.2f}"),
                                     (np.rot90(baseline_z_scored), f"Baseline method Z-scored;\nF1={f1_score_baseline_z_scored:.2f}, MIoU={mean_miou_score_baseline_z_scored:.2f}"),
                                     output_path=save_path, 
                                     tumor=np.rot90(change_map_gt), pre_non_transform=np.rot90(post_image))
