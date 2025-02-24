@@ -73,6 +73,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
         baseline_z_recall_total = 0.0
 
         shift_tensor = ShiftImage()
+        rotate_tensor = RotateImage()
         for index, batch in enumerate(test_loader): 
             batch: dict[str, torch.Tensor]
             pre_batch: torch.Tensor = batch['pre'].float().to(device)
@@ -148,13 +149,16 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     save_path = f'{save_dir}/{filename}'
                     change_map_gt = np.squeeze(batch['change_map'][batch_index].data.cpu().numpy()) 
                     shift_values = (batch['shift_x'][batch_index], batch['shift_y'][batch_index])
+                    rotation_angle = batch['rotation_angle'][batch_index]
                     pre_tumor = np.load(batch['tumor_path'][batch_index])['data']
                     
-                    ## didnt want to keep all tumors in memory so is hift only test ones
+                    ## didnt want to keep all tumors in memory so is shift only test ones
                     post_tumor_unshifted_path = batch['residual_path'][batch_index]
                     post_tumor_unshifted = np.load(post_tumor_unshifted_path)['data']
                     post_tumor_unshifted_tensor = torch.tensor(post_tumor_unshifted, dtype=torch.float32)
                     post_tumor = shift_tensor(post_tumor_unshifted_tensor, shift=shift_values)
+                    post_tumor = rotate_tensor(post_tumor.unsqueeze(0), angle=rotation_angle)
+                    
                     post_tumor = np.squeeze(post_tumor.data.cpu().numpy())
                     
                 
@@ -477,11 +481,11 @@ if __name__ == "__main__":
         criterion = contrastiveThresholdMaskLoss(hingethresh=args.threshold, margin=args.margin,
                                                  dist_flag=args.dist_flag)
         transform = Compose([
-                    T.ToTensor(),
+                    T.ToTensor(), # First to tensor then do tensor-based transformations
                     ShiftImage(max_shift_x=50, max_shift_y=50),
                     # T.RandomVerticalFlip(),
                     # T.RandomHorizontalFlip(),
-                    # RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)
+                    RotateImage(padding_mode='border', align_corners=True)
                     ]
         )
             
