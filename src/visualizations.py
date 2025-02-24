@@ -67,13 +67,15 @@ def visualize_change_detection(
         if "RiA" in title:
             #seg_mask = seg_mask / np.max(seg_mask) if np.max(seg_mask) > 0 else seg_mask
             change_map_mask = np.ma.masked_where(seg_mask == 0, seg_mask)
-            vminx = 0
+            vminx = 0.1
+            alpha = 1
             
         else:
             change_map_norm = change_map / np.max(change_map) if np.max(change_map) > 0 else change_map
             change_map_mask = np.ma.masked_where(change_map_norm == 0, change_map_norm)
             change_map_mask[~change_map_mask.mask] = 1  # Set non-zero values to 1 for overlay
             vminx = 0.9
+            alpha = 1
         # Change Map Visualization (Jet Colormap)
         axs[idx].imshow(change_map, cmap="jet", alpha=1)
         axs[idx].axis("off")
@@ -82,7 +84,7 @@ def visualize_change_detection(
         # Overlay Change Map on Postoperative Image
         idx_overlay = 2 + num_maps + i  # Position after all change maps
         axs[idx_overlay].imshow(postoperative_img, cmap="gray")
-        axs[idx_overlay].imshow(change_map_mask, cmap="jet", alpha=1, vmin=vminx, vmax=1)  # Overlay with transparency
+        axs[idx_overlay].imshow(change_map_mask, cmap="jet", alpha=alpha, vmin=vminx, vmax=1)  # Overlay with transparency
         axs[idx_overlay].axis("off")
         axs[idx_overlay].set_title(f"{title}\n(superimposed)")
     

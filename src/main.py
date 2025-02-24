@@ -187,7 +187,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                                                         pred_mask=baseline_z_scored)
                     
                     
-                    conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image, alpha=4)
+                    conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image, alpha=6)
                     batch_f1_scores += f1_score_conv3
                     batch_baseline_f1_scores += f1_score_baseline
                     batch_baseline_z_f1_scores += f1_score_baseline_z_scored
