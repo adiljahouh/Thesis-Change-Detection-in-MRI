@@ -64,7 +64,7 @@ if __name__ == "__main__":
             ShiftImage(max_shift_x=50, max_shift_y=50),
             # T.RandomVerticalFlip(),
             # T.RandomHorizontalFlip(),
-            # RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)
+            RotateImage(padding_mode='border', align_corners=True)
             ]
         )
         # remindImages = aertsDataset(proc_preop=args.aerts_dir, 
@@ -74,16 +74,16 @@ if __name__ == "__main__":
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=10, tumor_sensitivity=0.30, transform=transform, load_slices=True)
+                    skip=50, tumor_sensitivity=0.30, transform=transform, load_slices=True)
         subject_images = remindImages
         model_type = DeepLabV3()
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced
-    subject_images: list[dict] = balance_dataset(subject_images)
+    #subject_images: list[dict] = balance_dataset(subject_images)
     
-    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
-    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
+    # print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
+    # print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
  
     
     ## using validation split to avoid overfitting

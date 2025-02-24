@@ -505,9 +505,9 @@ class remindDataset(Dataset):
         shift_y = torch.randint(-50, 51, (1,)).item()
         shift = (shift_x, shift_y)
         rotation_angle = torch.randint(-180, 181, (1,), dtype=torch.float32)
-
         ## HACK: to shift the tumor slice by the same amount as the pre and post slices
         ## to later use for feature map evaluation
+        ## btw this hack is stupid, you should just balance the dataset beforehand and then you can transform everything without memory issue during training/testing etc
         if self.transform:
             for transform in self.transform.transforms:
                 if isinstance(transform, ShiftImage):
