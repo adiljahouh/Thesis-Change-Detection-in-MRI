@@ -65,9 +65,9 @@ def visualize_change_detection(
     for i, (change_map, title, seg_mask) in enumerate(args):
         idx = 2 + i  # Shift index after preoperative & postoperative images
         if "RiA" in title:
-            seg_mask = seg_mask / np.max(seg_mask) if np.max(seg_mask) > 0 else seg_mask
+            #seg_mask = seg_mask / np.max(seg_mask) if np.max(seg_mask) > 0 else seg_mask
             change_map_mask = np.ma.masked_where(seg_mask == 0, seg_mask)
-            vminx = 0.5
+            vminx = 0
             
         else:
             change_map_norm = change_map / np.max(change_map) if np.max(change_map) > 0 else change_map

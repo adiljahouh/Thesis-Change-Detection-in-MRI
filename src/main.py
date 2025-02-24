@@ -144,9 +144,12 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                         f"{'sagittal_' if batch['index_post'][2][batch_index] != -1 else ''}"
                         f"{batch['index_post'][2][batch_index] if batch['index_post'][2][batch_index] != -1 else ''}_{label}.jpg"
                     )
-                    save_dir = os.path.join(os.getcwd(), f'{base_dir}/heatmaps')
+                    baseline_save_dir = os.path.join(os.getcwd(), f'{base_dir}/baselines')
+                    save_dir = os.path.join(os.getcwd(), f'{base_dir}/fmaps')
                     os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-                    save_path = f'{save_dir}/{filename}'
+                    os.makedirs(baseline_save_dir, exist_ok=True)
+                    fmap_path = f'{save_dir}/{filename}'
+                    baseline_path = f'{baseline_save_dir}/{filename}'
                     change_map_gt = np.squeeze(batch['change_map'][batch_index].data.cpu().numpy()) 
                     shift_values = (batch['shift_x'][batch_index], batch['shift_y'][batch_index])
                     rotation_angle = batch['rotation_angle'][batch_index]
@@ -184,7 +187,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                                                         pred_mask=baseline_z_scored)
                     
                     
-                    conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
+                    conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image, alpha=4)
                     batch_f1_scores += f1_score_conv3
                     batch_baseline_f1_scores += f1_score_baseline
                     batch_baseline_z_f1_scores += f1_score_baseline_z_scored
@@ -204,15 +207,22 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     
                     disimilair_pairs += 1
                     visualize_change_detection(
+                        (np.rot90(baseline_masked), "Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", None),
+                        (np.rot90(baseline_z_scored), "Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", None),
+                        preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
+                        postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
+                        ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                        output_path=baseline_path
+                    )
+                    visualize_change_detection(
                         (np.rot90(distance_map_2d_conv3), "RiA prediction $\hat{T}_{model}$", np.rot90(conv3_sharpened_post)),
                         (np.rot90(baseline_masked), "Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", None),
                         (np.rot90(baseline_z_scored), "Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", None),
                         preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
                         postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
                         ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                        output_path=save_path
+                        output_path=fmap_path
                     )
-
                     # visualize_multiple_fmaps_and_tumor_baselines(
                     #                 ([np.rot90(pre_image), np.rot90(pre_tumor)], "Preoperative"), 
                     #                 ([np.rot90(post_image), np.rot90(post_tumor)], "Postoperative Residual"), 
