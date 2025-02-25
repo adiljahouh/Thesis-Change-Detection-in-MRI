@@ -159,10 +159,13 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     post_tumor_unshifted_path = batch['residual_path'][batch_index]
                     post_tumor_unshifted = np.load(post_tumor_unshifted_path)['data']
                     post_tumor_unshifted_tensor = torch.tensor(post_tumor_unshifted, dtype=torch.float32)
-                    post_tumor = shift_tensor(post_tumor_unshifted_tensor, shift=shift_values)
-                    post_tumor = rotate_tensor(post_tumor.unsqueeze(0), angle=rotation_angle)
-                    
-                    post_tumor = np.squeeze(post_tumor.data.cpu().numpy())
+                    if shift_values != (0, 0):
+                        post_tumor = shift_tensor(post_tumor_unshifted_tensor, shift=shift_values)
+                    elif rotation_angle != 0:
+                        post_tumor = rotate_tensor(post_tumor.unsqueeze(0), angle=rotation_angle)
+                        post_tumor = np.squeeze(post_tumor.data.cpu().numpy())
+                    else:
+                        post_tumor = post_tumor_unshifted
                     
                 
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(

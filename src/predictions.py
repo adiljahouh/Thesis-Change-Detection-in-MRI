@@ -64,7 +64,7 @@ if __name__ == "__main__":
             ShiftImage(max_shift_x=50, max_shift_y=50),
             # T.RandomVerticalFlip(),
             # T.RandomHorizontalFlip(),
-            RotateImage(padding_mode='border', align_corners=True)
+            #RotateImage(padding_mode='border', align_corners=True)
             ]
         )
         # remindImages = aertsDataset(proc_preop=args.aerts_dir, 

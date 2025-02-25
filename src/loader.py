@@ -501,10 +501,8 @@ class remindDataset(Dataset):
         # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
 
         # Apply any transformations if necessary
-        shift_x = torch.randint(-50, 51, (1,)).item()
-        shift_y = torch.randint(-50, 51, (1,)).item()
-        shift = (shift_x, shift_y)
-        rotation_angle = torch.randint(-90, 90, (1,), dtype=torch.float32)
+        rotation_angle = 0
+        shift = (0, 0)
         ## HACK: to shift the tumor slice by the same amount as the pre and post slices
         ## to later use for feature map evaluation
         ## btw this hack is stupid, you should just balance the dataset beforehand and then you can transform everything without memory issue during training/testing etc
@@ -512,10 +510,14 @@ class remindDataset(Dataset):
             for transform in self.transform.transforms:
                 if isinstance(transform, ShiftImage):
                     # pre_tumor = tumor_slice
+                    shift_x = torch.randint(-50, 51, (1,)).item()
+                    shift_y = torch.randint(-50, 51, (1,)).item()
+                    shift = (shift_x, shift_y)
                     post_slice = transform(post_slice, shift=shift)
                     change_map_slice = transform(change_map_slice, shift=shift)
                     baseline = transform(baseline, shift=shift)
                 elif isinstance(transform, RotateImage):
+                    rotation_angle = torch.randint(-90, 90, (1,), dtype=torch.float32)
                     post_slice = transform(post_slice, angle=rotation_angle)
                     change_map_slice = transform(change_map_slice, angle=rotation_angle)
                     baseline = transform(baseline, angle=rotation_angle)

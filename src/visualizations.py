@@ -51,13 +51,13 @@ def visualize_change_detection(
 
     # Display Preoperative Image with Overlay
     axs[0].imshow(preoperative_img, cmap="gray")
-    axs[0].imshow(np.ma.masked_where(preoperative_overlay == 0, preoperative_overlay), cmap="jet", alpha=1, vmin=0.9, vmax=1.0)
+    axs[0].imshow(np.ma.masked_where(preoperative_overlay == 0, preoperative_overlay), cmap="jet", alpha=0.5, vmin=0.9, vmax=1.0)
     axs[0].axis("off")
     axs[0].set_title("Preoperative State")
 
     # Display Postoperative Image with Overlay
     axs[1].imshow(postoperative_img, cmap="gray")
-    axs[1].imshow(np.ma.masked_where(postoperative_overlay == 0, postoperative_overlay), cmap="jet", alpha=1)
+    axs[1].imshow(np.ma.masked_where(postoperative_overlay == 0, postoperative_overlay), cmap="jet", alpha=0.5)
     axs[1].axis("off")
     axs[1].set_title("Postoperative State")
 
@@ -91,7 +91,7 @@ def visualize_change_detection(
     if ground_truth is not None:
         gt_img, gt_overlay = ground_truth
         axs[-1].imshow(gt_img, cmap="gray")
-        axs[-1].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=1)
+        axs[-1].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5, vmin=0.7)
         axs[-1].axis("off")
         axs[-1].set_title("Ground Truth")
 
