@@ -51,7 +51,7 @@ def visualize_change_detection(
 
     # Display Preoperative Image with Overlay
     axs[0].imshow(preoperative_img, cmap="gray")
-    axs[0].imshow(np.ma.masked_where(preoperative_overlay == 0, preoperative_overlay), cmap="jet", alpha=1)
+    axs[0].imshow(np.ma.masked_where(preoperative_overlay == 0, preoperative_overlay), cmap="jet", alpha=1, vmin=0.9, vmax=1.0)
     axs[0].axis("off")
     axs[0].set_title("Preoperative State")
 
