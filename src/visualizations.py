@@ -23,7 +23,7 @@ def robust_normalize(arr, lower_percentile=0, upper_percentile=10):
 
 
 def visualize_change_detection(
-    *args: Tuple[np.ndarray, str, np.ndarray | None],
+    *args: Tuple[np.ndarray, str, str, np.ndarray | None], # change_map , title, scores, segmentation (possible)
     preoperative: Tuple[np.ndarray, np.ndarray], 
     postoperative: Tuple[np.ndarray, np.ndarray],
     ground_truth: Tuple[np.ndarray, np.ndarray],
@@ -36,7 +36,7 @@ def visualize_change_detection(
     Args:
         preoperative (Tuple[np.ndarray, np.ndarray]): (Grayscale preoperative image, Overlay mask).
         postoperative (Tuple[np.ndarray, np.ndarray]): (Grayscale postoperative image, Overlay mask).
-        *args (Tuple[np.ndarray, str, np.ndarray]): Arbitrary number of change maps with labels. Possible segmentation mask.
+        *args (Tuple[np.ndarray, str, str, np.ndarray]): Arbitrary number of change maps with labels. Possible segmentation mask.
         ground_truth (Tuple[np.ndarray, np.ndarray], optional): (Grayscale GT image, GT mask).
         output_path (str): Path to save the visualization.
     """
@@ -62,24 +62,23 @@ def visualize_change_detection(
     axs[1].set_title("Postoperative State")
 
     # Display Change Maps and Overlays
-    for i, (change_map, title, seg_mask) in enumerate(args):
+    for i, (change_map, title, score, seg_mask) in enumerate(args):
         idx = 2 + i  # Shift index after preoperative & postoperative images
         if "RiA" in title:
             #seg_mask = seg_mask / np.max(seg_mask) if np.max(seg_mask) > 0 else seg_mask
             change_map_mask = np.ma.masked_where(seg_mask == 0, seg_mask)
             vminx = 0.1
             alpha = 1
-            
         else:
             change_map_norm = change_map / np.max(change_map) if np.max(change_map) > 0 else change_map
             change_map_mask = np.ma.masked_where(change_map_norm == 0, change_map_norm)
-            change_map_mask[~change_map_mask.mask] = 1  # Set non-zero values to 1 for overlay
-            vminx = 0.9
+            # change_map_mask[~change_map_mask.mask] = 1  # Set non-zero values to 1 for overlay
+            vminx = 0
             alpha = 1
         # Change Map Visualization (Jet Colormap)
         axs[idx].imshow(change_map, cmap="jet", alpha=1)
         axs[idx].axis("off")
-        axs[idx].set_title(title)
+        axs[idx].set_title(title + f"\n{score})")
         
         # Overlay Change Map on Postoperative Image
         idx_overlay = 2 + num_maps + i  # Position after all change maps
