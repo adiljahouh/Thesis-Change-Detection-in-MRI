@@ -23,11 +23,12 @@ def robust_normalize(arr, lower_percentile=0, upper_percentile=10):
 
 
 def visualize_change_detection(
-    *args: Tuple[np.ndarray, str, str, np.ndarray | None], # change_map , title, scores, segmentation (possible)
+    *args: Tuple[np.ndarray, str, str, np.ndarray | None],  # change_map, title, scores, segmentation (possible)
     preoperative: Tuple[np.ndarray, np.ndarray], 
     postoperative: Tuple[np.ndarray, np.ndarray],
     ground_truth: Tuple[np.ndarray, np.ndarray],
-    output_path: str
+    output_path: str,
+    show_gt: bool = False
 ):
     """
     Visualizes preoperative and postoperative images with overlays, followed by multiple change maps,
@@ -39,9 +40,10 @@ def visualize_change_detection(
         *args (Tuple[np.ndarray, str, str, np.ndarray]): Arbitrary number of change maps with labels. Possible segmentation mask.
         ground_truth (Tuple[np.ndarray, np.ndarray], optional): (Grayscale GT image, GT mask).
         output_path (str): Path to save the visualization.
+        show_gt (bool): Whether to visualize the ground truth as a jet map separately.
     """
     num_maps = len(args)
-    num_cols = 2 + num_maps * 2 + 1  # Pre-overlay, Post-overlay, Change Maps, Overlays, and GT
+    num_cols = 2 + num_maps * 2 + 1 + (1 if show_gt else 0)  # Adjust column count if show_gt is True
     
     fig, axs = plt.subplots(1, num_cols, figsize=(num_cols * 3, 4))
     
@@ -59,22 +61,21 @@ def visualize_change_detection(
     axs[1].imshow(postoperative_img, cmap="gray")
     axs[1].imshow(np.ma.masked_where(postoperative_overlay == 0, postoperative_overlay), cmap="jet", alpha=0.5)
     axs[1].axis("off")
-    axs[1].set_title("Postoperative State")
+    axs[1].set_title("Intraoperative State")
 
     # Display Change Maps and Overlays
     for i, (change_map, title, score, seg_mask) in enumerate(args):
         idx = 2 + i  # Shift index after preoperative & postoperative images
         if "RiA" in title:
-            #seg_mask = seg_mask / np.max(seg_mask) if np.max(seg_mask) > 0 else seg_mask
             change_map_mask = np.ma.masked_where(seg_mask == 0, seg_mask)
             vminx = 0.1
             alpha = 1
         else:
             change_map_norm = change_map / np.max(change_map) if np.max(change_map) > 0 else change_map
             change_map_mask = np.ma.masked_where(change_map_norm == 0, change_map_norm)
-            # change_map_mask[~change_map_mask.mask] = 1  # Set non-zero values to 1 for overlay
             vminx = 0
             alpha = 1
+
         # Change Map Visualization (Jet Colormap)
         axs[idx].imshow(change_map, cmap="jet", alpha=1)
         axs[idx].axis("off")
@@ -87,18 +88,28 @@ def visualize_change_detection(
         axs[idx_overlay].axis("off")
         axs[idx_overlay].set_title(f"{title}\n(superimposed)")
     
-    # Display Ground Truth (if available)
+    # Display Ground Truth (if available and show_gt=True)
+    if show_gt and ground_truth is not None:
+        gt_img, gt_overlay = ground_truth
+        gt_idx = -2  # Second to last column
+        axs[gt_idx].imshow(gt_img, cmap="gray")
+        axs[gt_idx].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5, vmin=0.7)
+        axs[gt_idx].axis("off")
+        axs[gt_idx].set_title("Ground Truth (Jet)")
+
+    # Display Final Ground Truth Overlay (if available)
     if ground_truth is not None:
         gt_img, gt_overlay = ground_truth
         axs[-1].imshow(gt_img, cmap="gray")
         axs[-1].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5, vmin=0.7)
         axs[-1].axis("off")
-        axs[-1].set_title("Ground Truth")
+        axs[-1].set_title("Ground Truth (Final Overlay)")
 
     # Adjust layout and save
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close(fig)
+
 
 # def visualize_multiple_fmaps_and_tumor_baselines(*args: Tuple[np.ndarray, str], 
 #                                                  output_path: str, tumor: np.ndarray, 
