@@ -94,16 +94,13 @@ if __name__ == "__main__":
 
     model_type.load_state_dict(torch.load(args.model_path))
     
-    distances, labels, f_score, miou = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
+    distances, labels, f_score, miou, all_f1_scores = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
     if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)
     elif args.model == 'MLO':
         # take the conv distance distance from each tuple
-        # thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
-        # thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
-        # thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")    # take the conv distance distance from each tuple
-        
-        # take the conv distance distance from each tuple
         thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
         thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
         thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")
+        
+        create_histogram_f1(all_f1_scores, save_dir)

@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import numpy as np
+from matplotlib import pyplot as plt
+
 class contrastiveLoss(nn.Module):
 
     def __init__(self,margin =2.0,dist_flag='l2'):
@@ -307,3 +309,4 @@ def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
     ## return the number of false negatives, false positives per threshold
     # number of positive pixels, number of negative pixels
     return FN, FP, posNum, negNum
+    

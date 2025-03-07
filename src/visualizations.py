@@ -92,10 +92,9 @@ def visualize_change_detection(
     if show_gt and ground_truth is not None:
         gt_img, gt_overlay = ground_truth
         gt_idx = -2  # Second to last column
-        axs[gt_idx].imshow(gt_img, cmap="gray")
-        axs[gt_idx].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5, vmin=0.7)
+        axs[gt_idx].imshow(gt_overlay, cmap="jet")
         axs[gt_idx].axis("off")
-        axs[gt_idx].set_title("Ground Truth (Jet)")
+        axs[gt_idx].set_title("Ground Truth Mask $\Delta T$")
 
     # Display Final Ground Truth Overlay (if available)
     if ground_truth is not None:
@@ -103,7 +102,7 @@ def visualize_change_detection(
         axs[-1].imshow(gt_img, cmap="gray")
         axs[-1].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5, vmin=0.7)
         axs[-1].axis("off")
-        axs[-1].set_title("Ground Truth (Final Overlay)")
+        axs[-1].set_title("Ground Truth")
 
     # Adjust layout and save
     plt.tight_layout()
@@ -369,4 +368,16 @@ def plot_and_save_ndarray(data, save_dir, filename):
     # Save the plot to the specified directory
     plt.savefig(os.path.join(save_dir, filename))
     plt.close()  # Close the plot to free up memory
-    
+
+def create_histogram_f1(f1_score, save_dir, extra_title=""):
+    """
+    Create a histogram of F1 scores for a given dataset.
+    """
+    plt.figure(figsize=(6, 4))
+    plt.hist(f1_score, bins=50, color='blue', alpha=0.7, edgecolor='black')
+    plt.xlabel("F1 Score")
+    plt.ylabel("Frequency")
+    plt.title("Histogram of F1 Score distribution")
+    plt.savefig("f1_histogram.png")
+    plt.savefig(os.path.join(save_dir, f'f1_hist.png'))
+    plt.close()  # Close the plot to free up memory

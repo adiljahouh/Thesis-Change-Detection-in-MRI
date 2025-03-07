@@ -54,6 +54,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
     siamese_net.eval()  # Set the model to evaluation mode
     distances_list = []
     labels_list = []
+    f1_scores_list = []
     print("Doing predictions...")
     with torch.no_grad():
         f_score_conv3_total = 0.0
@@ -176,6 +177,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
+                    f1_scores_list.append(f1_score_conv3)
                     #f1_score_baseline, mean_miou_score_baseline, _, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline_z_scored, 0.30, beta=1)
                     f1_score_baseline, baseline_prec, baseline_recall = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], 
                                                         pred_mask=baseline_masked, beta=1)
@@ -223,7 +225,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                             preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
                             postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
                             ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                            output_path=fmap_path
+                            output_path=fmap_path,
+                            show_gt=True
                         )
                     except Exception as e:
                         print(f"Error in visualization: {e}")
@@ -315,7 +318,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
         print(f"Average precision for baseline z-scored: {baseline_z_precision_total:.2f}")
         print(f"Average recall for baseline z-scored: {baseline_z_recall_total:.2f}")
         
-    return distances_list, labels_list, round(f_score_conv3_total, 2), round(mean_iou_conv3_total, 2)
+    return distances_list, labels_list, round(f_score_conv3_total, 2), round(mean_iou_conv3_total, 2), f1_scores_list
 
 def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.nn.Module,
           train_loader: DataLoader, val_loader: DataLoader, epochs, patience, 
@@ -540,9 +543,11 @@ if __name__ == "__main__":
             epochs=args.epochs, patience=args.patience, 
             save_dir=save_dir, device=device, dist_flag=args.dist_flag)
 
-    distances, labels, f_score, miou = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
+    distances, labels, f_score, miou, all_f1_scores = predict(model_type, test_loader, base_dir =save_dir, device=device, dist_flag=args.dist_flag)
 
     # take the conv distance distance from each tuple
     thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
     thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
     thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")
+    
+    
