@@ -1,12 +1,12 @@
-Average f1 score for conv3: 0.7096182319974453
-Average f1 score for baseline: 0.054161000703391096
-Average f1 score for baseline z-scored: 0.1096588516950375
-Average miou score for conv3: 0.5961332904344082
-Average miou score for baseline: 0.03134301712985472
-Average miou score for baseline z-scored: 0.06542826788187298
-Average precision for conv3: 0.6863698636015921
-Average recall for conv3: 0.8035068198143144
-Average precision for baseline: 0.0912943200220621
-Average recall for baseline: 0.05039829371607084
-Average precision for baseline z-scored: 0.09359543787080657
-Average recall for baseline z-scored: 0.2284978729330985
+Average f1 score for conv3: 0.5499053895112768
+Average f1 score for baseline: 0.06432169733233085
+Average f1 score for baseline z-scored: 0.10937443711833851
+Average miou score for conv3: 0.44923930373776494
+Average miou score for baseline: 0.03884359712030825
+Average miou score for baseline z-scored: 0.06635679338759001
+Average precision for conv3: 0.5246959033825629
+Average recall for conv3: 0.7475368143229835
+Average precision for baseline: 0.10523946474728554
+Average recall for baseline: 0.06656231744989258
+Average precision for baseline z-scored: 0.09234237915244263
+Average recall for baseline z-scored: 0.23074806773245848

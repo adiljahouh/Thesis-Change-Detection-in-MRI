@@ -520,8 +520,8 @@ class remindDataset(Dataset):
                     change_map_slice = transform(change_map_slice, shift=shift)
                     baseline = transform(baseline, shift=shift)
                 elif isinstance(transform, RotateImage):
-                    rotation_angle = torch.randint(-90, 90, (1,), dtype=torch.float32)
-                    
+                    rotation_angle = torch.randint(-30, 30, (1,), dtype=torch.float32)
+                
                     post_slice = transform(post_slice, angle=rotation_angle)
                     change_map_slice = transform(change_map_slice, angle=rotation_angle)
                     baseline = transform(baseline, angle=rotation_angle)

@@ -549,5 +549,5 @@ if __name__ == "__main__":
     thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
     thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
     thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")
-    
+    create_histogram_f1(all_f1_scores, save_dir)
     

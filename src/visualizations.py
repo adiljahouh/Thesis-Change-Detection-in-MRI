@@ -378,6 +378,5 @@ def create_histogram_f1(f1_score, save_dir, extra_title=""):
     plt.xlabel("F1 Score")
     plt.ylabel("Frequency")
     plt.title("Histogram of F1 Score distribution")
-    plt.savefig("f1_histogram.png")
     plt.savefig(os.path.join(save_dir, f'f1_hist.png'))
     plt.close()  # Close the plot to free up memory
