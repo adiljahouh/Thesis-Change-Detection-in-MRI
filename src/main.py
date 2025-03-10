@@ -172,7 +172,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                   
                     # baseline_significant = np.where(baseline > 0.30, 1, 0)
                     baseline = normalize_np_array(baseline)
-                    baseline_masked = (baseline > 0.5).astype(np.uint8)
+                    baseline_masked = (baseline > 0.3).astype(np.uint8)
                     baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
                     # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
@@ -210,14 +210,14 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     
                     disimilair_pairs += 1
                     try:
-                        visualize_change_detection(
-                            (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
-                            (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
-                            preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
-                            postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                            ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                            output_path=baseline_path
-                        )
+                        # visualize_change_detection(
+                        #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
+                        #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
+                        #     preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
+                        #     postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
+                        #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                        #     output_path=baseline_path
+                        # )
                         visualize_change_detection(
                             (np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
                             # (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
@@ -284,22 +284,22 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
         baseline_z_recall_total /= len(test_loader)
         
         with open(f'{base_dir}/results.txt', 'w') as f:
-            f.write(f"Average f1 score for conv3: {f_score_conv3_total}\n")
+            #f.write(f"Average f1 score for conv3: {f_score_conv3_total}\n")
             f.write(f"Average f1 score for baseline: {f_score_baseline_total}\n")
-            f.write(f"Average f1 score for baseline z-scored: {f_score_baseline_z_total}\n")
+            #f.write(f"Average f1 score for baseline z-scored: {f_score_baseline_z_total}\n")
             
-            f.write(f"Average miou score for conv3: {mean_iou_conv3_total}\n")
+            #f.write(f"Average miou score for conv3: {mean_iou_conv3_total}\n")
             f.write(f"Average miou score for baseline: {mean_iou_baseline_total}\n")
-            f.write(f"Average miou score for baseline z-scored: {mean_iou_baseline_z_total}\n")
+            #f.write(f"Average miou score for baseline z-scored: {mean_iou_baseline_z_total}\n")
             
-            f.write(f"Average precision for conv3: {conv3_precision_total}\n")
-            f.write(f"Average recall for conv3: {conv3_recall_total}\n")
+            #f.write(f"Average precision for conv3: {conv3_precision_total}\n")
+            #f.write(f"Average recall for conv3: {conv3_recall_total}\n")
             
             f.write(f"Average precision for baseline: {baseline_precision_total}\n")
             f.write(f"Average recall for baseline: {baseline_recall_total}\n")
             
-            f.write(f"Average precision for baseline z-scored: {baseline_z_precision_total}\n")
-            f.write(f"Average recall for baseline z-scored: {baseline_z_recall_total}\n")
+            #f.write(f"Average precision for baseline z-scored: {baseline_z_precision_total}\n")
+            #f.write(f"Average recall for baseline z-scored: {baseline_z_recall_total}\n")
             
         print(f"Average f1 score for conv3: {f_score_conv3_total:.2f}")
         print(f"Average f1 score for baseline: {f_score_baseline_total:.2f}")
