@@ -135,7 +135,7 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                 distances_list.append(dist)
                 labels_list.append(label)
                                 # Save the heatmap
-                if label == 0:  
+                if label == 0 or label == 1:  
                     filename = (
                         f"slice_{batch['pat_id'][batch_index]}_"
                         f"{'axial_' if batch['index_post'][0][batch_index] != -1 else ''}"
@@ -209,7 +209,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     batch_recall_baseline_z += baseline_recall_z
                     
                     disimilair_pairs += 1
-                    try:
                         # visualize_change_detection(
                         #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
                         #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
@@ -218,19 +217,32 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                         #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
                         #     output_path=baseline_path
                         # )
-                        visualize_change_detection(
-                            (np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
+                    if label == 0:
+                        try:
+                            visualize_change_detection(
+                                (np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
+                                (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
+                                (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
+                                preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
+                                postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
+                                ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                                output_path=fmap_path,
+                                show_gt=True,
+                            )
+                        except Exception as e:
+                            print(e)
+                    else:
+                        visualize_change_detection_control(
+                                                        (np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
                             (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
                             (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
                             preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
                             postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                            ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                            ground_truth=None,
                             output_path=fmap_path,
-                            show_gt=True
+                            show_gt=False,
+                        
                         )
-                    except Exception as e:
-                        print(f"Error in visualization: {e}")
-                        print(f"Error type: {type(e).__name__}")
             batch_f1_scores /= disimilair_pairs
             batch_baseline_f1_scores /= disimilair_pairs
             batch_baseline_z_f1_scores /= disimilair_pairs
@@ -442,10 +454,10 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
               Average f1 score {avg_f1_score:.4f}')
         
         # Check for improvement in validation loss
-        if avg_f1_score > best_f1_score:
-            best_f1_score = avg_f1_score
-        # if avg_val_loss < best_val_loss:
-        #     best_val_loss = avg_val_loss
+        # if avg_f1_score > best_f1_score:
+        #     best_f1_score = avg_f1_score
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
             consecutive_no_improvement = 0
             # Save the best model
             save_path = os.path.join(save_dir, "model.pth")

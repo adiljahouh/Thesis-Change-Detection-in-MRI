@@ -127,11 +127,11 @@ class contrastiveThresholdMaskLoss(nn.Module):
         # Ensure ground truth tensor is compatible
         gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
 
-        if torch.sum(gt_rz) == 0:
-             similar_pair_penalty = torch.clamp(distance, min=0.0)
-        else:
-        # Calculate the contrastive threshold loss
-            similar_pair_penalty = torch.clamp(distance - self.threshold, min=0.0) # distance below threshold resolves to 0
+        # if torch.sum(gt_rz) == 0:
+        #      similar_pair_penalty = torch.clamp(distance, min=0.0)
+        # else:
+        # # Calculate the contrastive threshold loss
+        similar_pair_penalty = torch.clamp(distance - self.threshold, min=0.0) # distance below threshold resolves to 0
         dissimilar_pair_penalty = torch.clamp(self.margin - distance, min=0.0) # distance above margin resolves to 0
 
         #print(f"Similar pair penalty min: {similar_pair_penalty.min()}, max: {similar_pair_penalty.max()}")
