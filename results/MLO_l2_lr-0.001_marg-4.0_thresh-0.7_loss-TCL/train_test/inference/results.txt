@@ -1,4 +1,4 @@
-Average f1 score for baseline: 0.11490267074527014
-Average miou score for baseline: 0.07082047308056551
-Average precision for baseline: 0.09899960650039888
-Average recall for baseline: 0.2347043817418833
+Average f1 score for baseline: 0.0
+Average miou score for baseline: 0.0
+Average precision for baseline: 0.0
+Average recall for baseline: 0.0
