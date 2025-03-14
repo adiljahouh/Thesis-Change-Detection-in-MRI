@@ -1,0 +1,4 @@
+Average f1 score for baseline: 0.0
+Average miou score for baseline: 0.0
+Average precision for baseline: 0.0
+Average recall for baseline: 0.0

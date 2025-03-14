@@ -20,6 +20,8 @@ def robust_normalize(arr, lower_percentile=0, upper_percentile=10):
     arr_norm = (arr_clipped - vmin) / (vmax - vmin)  # Normalize to [0,1]
     
     return arr_norm
+import matplotlib.colors as mcolors
+
 def visualize_change_detection_control(
     *args: Tuple[np.ndarray, str, str, np.ndarray | None],  # change_map, title, scores, segmentation (possible)
     preoperative: Tuple[np.ndarray, np.ndarray], 
@@ -60,7 +62,9 @@ def visualize_change_detection_control(
     axs[1].imshow(np.ma.masked_where(postoperative_overlay == 0, postoperative_overlay), cmap="jet", alpha=0.5)
     axs[1].axis("off")
     axs[1].set_title("Intraoperative State")
-
+        # Custom colormap that forces everything to red
+    red_cmap = mcolors.LinearSegmentedColormap.from_list("custom_red", ["red", "red"], N=256)
+    red_cmap.set_bad(color="white", alpha=0)  # Masked values will be transparent
     # Display Change Maps and Overlays
     for i, (change_map, title, score, seg_mask) in enumerate(args):
         idx = 2 + i  # Shift index after preoperative & postoperative images
@@ -70,6 +74,8 @@ def visualize_change_detection_control(
         else:
             change_map_norm = change_map / np.max(change_map) if np.max(change_map) > 0 else change_map
             change_map_mask = np.ma.masked_where(change_map_norm == 0, change_map_norm)
+            print(change_map_mask.max())
+            print(change_map_mask.min())
             alpha = 1
 
         # Change Map Visualization (Jet Colormap)
@@ -80,14 +86,14 @@ def visualize_change_detection_control(
         # Overlay Change Map on Postoperative Image
         idx_overlay = 2 + num_maps + i  # Position after all change maps
         axs[idx_overlay].imshow(postoperative_img, cmap="gray")
-        axs[idx_overlay].imshow(change_map_mask, cmap="jet", alpha=alpha)  # Overlay with transparency
+        axs[idx_overlay].imshow(change_map_mask, cmap=red_cmap, alpha=alpha)  # Overlay with transparency
         axs[idx_overlay].axis("off")
         axs[idx_overlay].set_title(f"{title}\n(superimposed)")
     
     # Display Ground Truth (if available and show_gt=True)
     if show_gt and ground_truth is not None:
         gt_img, gt_overlay = ground_truth
-        gt_idx = -2  # Second to last column
+        gt_idx = -1  # Second to last column
         axs[gt_idx].imshow(gt_overlay, cmap="jet")
         axs[gt_idx].axis("off")
         axs[gt_idx].set_title("Ground Truth Mask $\Delta T$")
@@ -96,7 +102,7 @@ def visualize_change_detection_control(
     if ground_truth is not None:
         gt_img, gt_overlay = ground_truth
         axs[-1].imshow(gt_img, cmap="gray")
-        axs[-1].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5, vmin=0.7)
+        axs[-1].imshow(np.ma.masked_where(gt_overlay == 0, gt_overlay), cmap="jet", alpha=0.5)
         axs[-1].axis("off")
         axs[-1].set_title("Ground Truth")
 
@@ -142,7 +148,7 @@ def visualize_change_detection(
 
     # Display Postoperative Image with Overlay
     axs[1].imshow(postoperative_img, cmap="gray")
-    axs[1].imshow(np.ma.masked_where(postoperative_overlay == 0, postoperative_overlay), cmap="jet", alpha=0.5)
+    axs[1].imshow(np.ma.masked_where(postoperative_overlay == 0, postoperative_overlay), cmap="jet", alpha=0.5, vmin=0.9, vmax=1.0)
     axs[1].axis("off")
     axs[1].set_title("Intraoperative State")
 
