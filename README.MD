@@ -48,9 +48,12 @@ This project is designed to detect image-based changes in intraoperative tumor r
 
 ---
 ## Data Setup
-1. Unzip ```2D.zip```, ```ReMIND_dataset.zip``` in the ```./data``` directory.
+1. Unzip ```2D.zip``` in the ```./data``` directory.
 
-2. Now we should have:
+
+2.  Optionally: unzip ```ReMIND_dataset.zip``` in the ```./data``` directory as well, if you want to use the slicing function and generate your own slices (with your own tumor thresholds)
+
+3. Now we should have:
 
 ```
 myProject/
@@ -89,7 +92,8 @@ myProject/
     ```
 
 
-2. Configuring skip, patience and thresholds in the modelscript file can enhance training.
+2. Configuring skip, patience, load_slices parameter and thresholds in the modelscript file can enhance training.
+
 
 ---
 ## Testing a pretrained model

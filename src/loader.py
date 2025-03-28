@@ -291,11 +291,15 @@ class remindDataset(Dataset):
         self.load_slices = load_slices
         self.preop_dir = preop_dir
         # https://www.nature.com/articles/s41597-024-03295-z
-        print("Starting remind dataset")
+        print("Initializing remind dataset")
         
         os.makedirs(self.save_dir, exist_ok=True)  # Ensure the save directory exists
         os.makedirs(os.path.join(self.save_dir, 'overview'), exist_ok=True)  # Ensure the overview directory exists
-        self._find_nifti_patients_and_get_slices()
+        if self.load_slices:
+            self._load_existing_slices()
+        else: 
+            print("Uncomment this line to generate 2D slices from the REMIND dataset.")
+            # self._find_nifti_patients_and_get_slices()
 
     def _find_nifti_patients_and_get_slices(self):
         for root_path, dirs, files in os.walk(self.preop_dir):
@@ -307,10 +311,10 @@ class remindDataset(Dataset):
                             if "Intraop" in root_path or "Unused" in root_path:
                                 continue
                             print(f"Processing {pat_id}, loading {filename}")
-                            if self.load_slices:
-                                print(f"Loading existing slices for {pat_id} instead of processing...")
-                                self._load_existing_slices(pat_id)
-                                continue
+                            # if self.load_slices:
+                            #     print(f"Loading existing slices for {pat_id} instead of processing...")
+                            #     self._load_existing_slices(pat_id)
+                            #     continue
                             preop_nifti = nib.load(os.path.join(root_path, filename))
                             post_op_path = root_path.replace("Preop", "Intraop")
                             matching_filename = find_matching_file(post_op_path, image_id)
@@ -374,48 +378,57 @@ class remindDataset(Dataset):
                         except Exception as e:
                             print(f"Uncaught error: {e}")
 
-    def _load_existing_slices(self, pat_id: str):
+    def _load_existing_slices(self):
         """Load existing slices for the given pat_id."""
         orientations = ['axial', 'coronal', 'sagittal']
-        for orientation in orientations:
-            pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_label" in f]
-            # print(f"{pat_id}_slice_{orientation}_pre")
-            pre_slices = pre_slices[::self.skip]
-            for pre_slice in pre_slices:
-                pre_path = os.path.join(self.save_dir, pre_slice)
-                post_slice = pre_slice.replace('_pre_', '_post_')
-                post_path = os.path.join(self.save_dir, post_slice)
-                if not os.path.exists(post_path):
-                    continue
-                # tumor_path = ""
-                if "ReMIND" in pat_id:
-                    pre_tumor_slice_file = pre_slice.replace('label', 'tumor_label')
-                    post_tumor_slice_file = pre_tumor_slice_file.replace('pre', 'post')
-                    change_map = pre_slice.replace('pre', 'change_map')
-                    
-                    pre_tumor_path = os.path.join(self.save_dir, pre_tumor_slice_file)
-                    post_tumor_path = os.path.join(self.save_dir, post_tumor_slice_file)
-                    change_map_path = os.path.join(self.save_dir, change_map)
-                    # if not os.path.exists(tumor_path):
-                    #     tumor_path = ""
-                label = int(pre_slice.split('_')[-1].split('.')[0])
-                index_pre = int(pre_slice.split('_')[3])
-                index_post = int(post_slice.split('_')[3])
-                assert index_pre == index_post, f"Indices do not match: {index_pre}, {index_post}"
-                index_tuple = get_index_tuple(index_pre, orientation)
+        ## Get patient IDS
+        all_slices = os.listdir(self.save_dir)
+        unique_patients = set()
+        for filename in all_slices:
+            if filename.startswith("ReMIND-"):
+                patient_id = filename.split("_")[0]
+                unique_patients.add(patient_id)
+        
+        for pat_id in unique_patients:
+            for orientation in orientations:
+                pre_slices = [f for f in os.listdir(self.save_dir) if f"{pat_id}_slice_{orientation}" in f and "_pre_label" in f]
+                # print(f"{pat_id}_slice_{orientation}_pre")
+                pre_slices = pre_slices[::self.skip]
+                for pre_slice in pre_slices:
+                    pre_path = os.path.join(self.save_dir, pre_slice)
+                    post_slice = pre_slice.replace('_pre_', '_post_')
+                    post_path = os.path.join(self.save_dir, post_slice)
+                    if not os.path.exists(post_path):
+                        continue
+                    # tumor_path = ""
+                    if "ReMIND" in pat_id:
+                        pre_tumor_slice_file = pre_slice.replace('label', 'tumor_label')
+                        post_tumor_slice_file = pre_tumor_slice_file.replace('pre', 'post')
+                        change_map = pre_slice.replace('pre', 'change_map')
+                        
+                        pre_tumor_path = os.path.join(self.save_dir, pre_tumor_slice_file)
+                        post_tumor_path = os.path.join(self.save_dir, post_tumor_slice_file)
+                        change_map_path = os.path.join(self.save_dir, change_map)
+                        # if not os.path.exists(tumor_path):
+                        #     tumor_path = ""
+                    label = int(pre_slice.split('_')[-1].split('.')[0])
+                    index_pre = int(pre_slice.split('_')[3])
+                    index_post = int(post_slice.split('_')[3])
+                    assert index_pre == index_post, f"Indices do not match: {index_pre}, {index_post}"
+                    index_tuple = get_index_tuple(index_pre, orientation)
 
-                self.data.append({
-                    "pre_path": pre_path,
-                    "post_path": post_path,
-                    "change_map": change_map_path,
-                    "tumor_path": pre_tumor_path,
-                    "residual_path": post_tumor_path,
-                    "label": label,
-                    "pat_id": pat_id,
-                    "index_pre": index_tuple,
-                    "index_post": index_tuple,
-                })
-            print(f"loaded {len(pre_slices)} existing slices for {pat_id}")
+                    self.data.append({
+                        "pre_path": pre_path,
+                        "post_path": post_path,
+                        "change_map": change_map_path,
+                        "tumor_path": pre_tumor_path,
+                        "residual_path": post_tumor_path,
+                        "label": label,
+                        "pat_id": pat_id,
+                        "index_pre": index_tuple,
+                        "index_post": index_tuple,
+                    })
+                print(f"loaded {len(pre_slices)} existing slices for {pat_id}")
     def _process_pat_slices(self, pat_id: str, 
                             images_pre: list[Tuple[ndarray, Tuple[int, int, int]]], 
                             images_post: list[Tuple[ndarray, Tuple[int, int, int]]], 

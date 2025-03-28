@@ -20,7 +20,7 @@ from torchvision.transforms import Compose
 def ROC_BASELINE(test_loader: DataLoader, device):
     distances_list = []
     labels_list = []
-    print("Doing predictions...")
+    print("Generating Baseline ROC...")
     with torch.no_grad():
         print(len(test_loader))
         for index, batch in enumerate(test_loader):             
@@ -30,7 +30,6 @@ def ROC_BASELINE(test_loader: DataLoader, device):
             # these are all batches
 
             for batch_index in range(len(labels)):
-                print(batch_index)
                 label = labels[batch_index].item()  # Get the label for the i-th pair
                 dist = dists[batch_index].item()
                 # print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
@@ -205,14 +204,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     batch_recall_baseline_z += baseline_recall_z
                     
                     disimilair_pairs += 1
-                        # visualize_change_detection(
-                        #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
-                        #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
-                        #     preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
-                        #     postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                        #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                        #     output_path=baseline_path
-                        # )
                     if label == 0:
                         try:
                             ## this is to get large visuals of pan sharpen 
@@ -244,14 +235,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                             output_path=baseline_path,
                             show_gt=False,
                         )
-                        # visualize_change_detection(
-                        #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
-                        #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
-                        #     preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
-                        #     postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                        #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                        #     output_path=baseline_path
-                        # )
             batch_f1_scores /= disimilair_pairs
             batch_baseline_f1_scores /= disimilair_pairs
             batch_baseline_z_f1_scores /= disimilair_pairs
@@ -410,12 +393,8 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 post_tumor_val_batch: torch.Tensor = val_batch['change_map'].float().to(device)
                 assert pre_val_batch.shape == post_val_batch.shape, "Pre and post val_batch shapes do not match"
                 first_conv_val, second_conv_val, third_conv_val = siamese_net(pre_val_batch, post_val_batch)
-                # print("val stats")
-                # print(first_conv_val[0].min(), first_conv_val[1].min(),second_conv_val[0].min(), second_conv_val[1].min(), third_conv_val[0].min(), third_conv_val[1].min())
-                # print(first_conv_val[0].max(), first_conv_val[1].max(),second_conv_val[0].max(), second_conv_val[1].max(), third_conv_val[0].max(), third_conv_val[1].max())
-                ## CHECK REGULAR LOSS
-                ##################################################################################
-                ###
+
+
                 tumor_resized_to_first_conv_val = resize_tumor_to_feature_map(
                 post_tumor_val_batch, first_conv_val[0].data.cpu().numpy().shape[2:])
                 tumor_resized_to_second_conv_val = resize_tumor_to_feature_map(
@@ -435,8 +414,7 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
                 ##################################################################################    
                 batch_f1_scores = 0.0
                 for batch_index in range(pre_val_batch.size(0)):
-                    #TODO: stopping criteria needs to be relaxed i think.. 
-                    # Check loss for similar pairs?
+
                                  
                     distance_map_1 = return_upsampled_norm_distance_map(first_conv_val[0][batch_index], first_conv_val[1][batch_index],
                                                                 dist_flag=dist_flag, mode='bilinear')
@@ -549,8 +527,7 @@ if __name__ == "__main__":
     train_subject_images, val_subject_images, test_subject_images = random_split(subject_images, (0.8, 0.1, 0.1))
     
     optimizer = optim.Adam(model_type.parameters(), lr=args.lr)
-    #optimizer = optim.SGD(model_type.parameters(), lr=0.01, momentum=0.9)
-
+    
     ## collates the values into one tensor per key
     train_loader = DataLoader(train_subject_images, batch_size=args.batch_size, shuffle=False)
     val_loader = DataLoader(val_subject_images, batch_size=args.batch_size, shuffle=False)

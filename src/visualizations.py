@@ -74,8 +74,6 @@ def visualize_change_detection_control(
         else:
             change_map_norm = change_map / np.max(change_map) if np.max(change_map) > 0 else change_map
             change_map_mask = np.ma.masked_where(change_map_norm == 0, change_map_norm)
-            print(change_map_mask.max())
-            print(change_map_mask.min())
             alpha = 1
 
         # Change Map Visualization (Jet Colormap)
@@ -327,42 +325,7 @@ def custom_np_norm(arr, min_val=0.0, max_val=1.0):
     """Normalize a numpy array to a given range [min_val, max_val]."""
     arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)  # Normalize to [0,1]
     return arr * (max_val - min_val) + min_val  # Scale to [min_val, max_val]
-# def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=1.0, beta=1, threshold=0.8, max_intensity=0.6, overlay_weight=0.5):
-#     """Apply sharpening while ensuring the base image remains grayscale and distance map is visualized using JET colormap."""
-#     assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
-#     assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
-#     assert base_image.max() <= 1.0, f"max: {base_image.max()}"
-#     assert base_image.min() >= 0.0, f"min: {base_image.min()}"
 
-#     # Normalize the base image to be clearly visible in grayscale
-#     base_image = custom_np_norm(base_image, min_val=0.2, max_val=0.8)
-
-#     # Thresholding the distance map
-#     distance_map = (distance_map > threshold).astype(np.float32) * distance_map  # Keep only values above threshold
-
-#     # Extract high-frequency details from the base image
-#     blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
-#     high_freq_details = base_image - blurred_image
-
-#     # Sharpening based purely on the distance map's strength
-#     sharpened_map = distance_map * (1 + alpha * high_freq_details)
-
-#     # Ensure low base image regions still retain enhancement
-#     enhanced_map = sharpened_map + beta * (1 - distance_map) * base_image
-
-#     # Normalize enhanced map
-#     enhanced_map = custom_np_norm(enhanced_map, min_val=0.0, max_val=max_intensity)
-
-#     # Convert base image to 3-channel grayscale for visualization
-#     base_gray = cv2.cvtColor((base_image * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-
-#     # Convert enhanced map to JET colormap
-#     distance_colormap = cv2.applyColorMap((enhanced_map * 255).astype(np.uint8), cv2.COLORMAP_JET)
-
-#     # Blend grayscale base image with the distance colormap
-#     final_visualization = cv2.addWeighted(base_gray, (1 - overlay_weight), distance_colormap, overlay_weight, 0)
-
-#     return final_visualization
 def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: np.ndarray, alpha=2.0, beta=1, threshold=0.55):
     """Process the distance map with sharpening, without blending with the base image."""
     
@@ -387,29 +350,6 @@ def multiplicative_sharpening_and_filter(distance_map: np.ndarray, base_image: n
     return sharpened_map  
 
 
-
-# def multiplicative_sharpening(distance_map: np.ndarray, base_image: np.ndarray, alpha=4.0, beta=0.5):
-#     """Apply multiplicative sharpening by injecting high-frequency details from the base image."""
-#     assert distance_map.max() <= 1.0, f"max: {distance_map.max()}"
-#     assert distance_map.min() >= 0.0, f"min: {distance_map.min()}"
-#     assert base_image.max() <= 1.0, f"max: {base_image.max()}"
-#     assert base_image.min() >= 0.0, f"min: {base_image.min()}"
-
-#     # Blur the base image and calculate high-frequency details
-#     blurred_image = cv2.GaussianBlur(base_image, (5, 5), 0)
-#     high_freq_details = base_image - blurred_image
-
-#     # Compute sharpened map for high-value regions
-#     sharpened_map = distance_map * (1 + alpha * high_freq_details)
-    
-#     # Add contribution from the base image in low-value regions
-#     enhanced_map = sharpened_map + beta * base_image * (1 - distance_map)
-
-
-#     # Normalize the final result to keep it within [0, 1]
-#     enhanced_map = normalize_np_array(enhanced_map)
-    
-#     return enhanced_map
 
 def plot_and_save_ndarray(data, save_dir, filename):
     # Create a new figure
