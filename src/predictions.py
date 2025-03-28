@@ -23,7 +23,6 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', type=str, help='Path to the model to load', required=True)
     parser.add_argument("--preop_dir", type=str, default='./data/processed/preop/BTC-preop', help=
                         "Path to the directory containing the preprocessed data")
-    parser.add_argument("--mode", type=str, choices= ['sanity_check', 'augmented'] ,default='augmented', help="Mode of testing, sanity_check or augmented")
     parser.add_argument("--aerts_dir", type=str, default='./data/processed/preop/BTC-preop', help=
                         "Path to the directory containing the preprocessed subject dirs FROM AERTS, relative is possible from project dir\
                             should contain sub-pat01, sub-pat02 etc. with a specific nifti image id anywhere down the tree")
@@ -62,8 +61,6 @@ if __name__ == "__main__":
         transform = Compose([
             T.ToTensor(),
             ShiftImage(max_shift_x=50, max_shift_y=50),
-            # T.RandomVerticalFlip(),
-            # T.RandomHorizontalFlip(),
             #RotateImage(padding_mode='border', align_corners=True)
             ]
         )
@@ -71,7 +68,7 @@ if __name__ == "__main__":
         #         raw_tumor_dir=args.tumor_dir, save_dir=args.slice_dir,
         #         image_ids=['t1_ants_aligned.nii.gz'], skip=50, 
         #         tumor_sensitivity=0.30,transform=transform, load_slices=True)
-        print("Aerts dataset loaded")
+        # print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
                     skip=10, tumor_sensitivity=0.30, transform=transform, load_slices=True)
