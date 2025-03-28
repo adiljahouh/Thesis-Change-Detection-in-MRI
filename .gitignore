@@ -3,8 +3,6 @@
 *.log
 *.csv
 *.tsv
-# *.png
-# *.jpg
 *.zip
 *.pth
 *.pt
@@ -16,9 +14,7 @@ data/processed/*
 
 task.txt
 
-!/home/adil/Documents/TUE/ThesisPrepPhase/myProject/results/MLO_l2_lr-0.001_marg-4.0_thresh-0.7_loss-TCL/train_test/model.pth
-# results/**/*.png
-# real_results/**/*.png
+!results/MLO_l2_lr-0.001_marg-4.0_thresh-0.7_loss-TCL/train_test/model.pth
 results/**/*.jpg
 real_results/**/*.jpg
 
