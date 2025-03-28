@@ -6,7 +6,7 @@
 *.tsv
 *.png
 *.jpg
-data/*
+*.zip
 data/2D/*
 data/raw/*
 data/ReMIND_dataset/*
@@ -17,7 +17,10 @@ task.txt
 *.pt
 /results/*/heatmaps/*.jpg
 /results/*/*/heatmaps/*.jpg
+
+
+
+
 /src/__pycache__/*.pyc
 /home/adil/Documents/TUE/preparationPhase/myProject/src/__pycache__/*
 *.pyc
-*.zip
