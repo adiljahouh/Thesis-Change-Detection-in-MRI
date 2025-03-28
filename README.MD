@@ -91,8 +91,9 @@ myProject/
     bash model_script.sh
     ```
 
+2. It is highly recommended to use --load_slices in your train and prediction script.
 
-2. Configuring skip, patience, load_slices parameter and thresholds in the modelscript file can enhance training.
+3. Configuring skip, patience, load_slices parameter and thresholds in the modelscript file can enhance training.
 
 
 ---
