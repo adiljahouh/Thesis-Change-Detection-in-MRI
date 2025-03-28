@@ -48,6 +48,34 @@ This project is designed to [briefly describe the purpose of the project]. It in
 
 ---
 ## Data Setup
+1. Unzip ```2D.zip```, ```ReMIND_dataset.zip``` in the ```./data``` directory.
+
+2. Now we should have:
+
+```
+myProject/
+├── data/
+│   ├── 2D/
+│       ├── overview/
+│       ├── ReMIND-102_slice_sagittal_99_change_map_label_0.npz
+│       ├── ReMIND-102_slice_sagittal_99_post_label_0.npz
+│       ├── ReMIND-102_slice_sagittal_99_post_tumor_label_0.npz
+│       ├── ReMIND-102_slice_sagittal_99_pre_label_0.npz
+│       ├── ReMIND-102_slice_sagittal_99_pre_tumor_label_0.npz
+│       ├── ...
+│   ├── ReMIND_dataset/
+│   └── test/
+├── environment.yml
+├── modelscript.sh
+├── notebooks/
+├── output.log
+├── predict.sh
+├── README.MD
+├── requirements.txt
+├── results/
+├── scripts/
+├── src/
+```
 ## Using the Model Script
 
 1. To train, run the model script:
