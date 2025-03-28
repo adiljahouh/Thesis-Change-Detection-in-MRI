@@ -15,7 +15,7 @@ Welcome to my **Change Detection in MRI** repository! This guide will help you u
 
 ## Introduction
 
-This project is designed to [briefly describe the purpose of the project]. It includes a model script that [describe what the model script does].
+This project is designed to detect image-based changes in intraoperative tumor resection. Inspired by Guo et al. (2018).
 
 ---
 
