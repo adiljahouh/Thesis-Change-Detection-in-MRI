@@ -76,7 +76,7 @@ myProject/
 ├── scripts/
 ├── src/
 ```
-## Using the Model Script
+## Training the model
 
 1. To train, run the model script:
     ```bash
@@ -84,13 +84,20 @@ myProject/
     ```
 
 
-2. To test the model, run:
+2. Configuring skip, patience and thresholds in the modelscript file can enhance training.
+
+---
+## Testing a pretrained model
+1. To test the model, run:
     ```bash 
     bash predict.sh
     ```
+2. This grabs the pretrained ```model.pth``` in ```results/MLO_l2_lr-0.001_marg-4.0_thresh-0.7_loss-TCL/train_test/model.pth```
+
+3. It then executes ```predictions.py``` on the 2D sliced data, applying augmentations and such. 
+
 
 ---
-
 ## Project Workflow
 
 The project follows this workflow:
@@ -105,7 +112,7 @@ The project follows this workflow:
 
 Below is the flowchart representing the project workflow:
 
-![Project Workflow](./assets/flowchart.png)
+![Project Workflow](./notebooks/images/Flow Chart Whiteboard in Red Blue Basic Style (2).png)
 
 ---
 
