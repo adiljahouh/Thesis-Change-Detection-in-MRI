@@ -43,7 +43,7 @@ This project is designed to detect image-based changes in intraoperative tumor r
 3. Configure the environment:
     - Make sure you have CUDA setup
     - Make sure you have all drivers installed
-    - Check by calling ```nvidia-smi````in CMD LINE
+    - Check by calling ```nvidia-smi``` in CMD LINE
     - Install the correct PyTorch https://pytorch.org/get-started/locally/
 
 ---
@@ -64,6 +64,11 @@ myProject/
 │       ├── ReMIND-102_slice_sagittal_99_pre_tumor_label_0.npz
 │       ├── ...
 │   ├── ReMIND_dataset/
+│       ├── ReMIND-Manifest-Sept-2023/
+│           ├── ReMIND
+│               ├── ReMIND-002
+│               ├── ReMIND-004
+│               ├── ...
 │   └── test/
 ├── environment.yml
 ├── modelscript.sh
@@ -101,7 +106,7 @@ myProject/
 ## Project Workflow
 
 The project follows this workflow:
-1. Preprocess the data.
+1. Optional: Preprocess the data (2D generation)
 2. Train the model using the provided script.
 3. Evaluate the model's performance.
 4. Generate predictions.
@@ -110,9 +115,9 @@ The project follows this workflow:
 
 ## Flowchart
 
-Below is the flowchart representing the project workflow:
+Below is the flowchart representing the project workflow during inference
 
-![Project Workflow](./notebooks/images/Flow Chart Whiteboard in Red Blue Basic Style (2).png)
+![Project Workflow](notebooks/images/flowchart_inference.png)
 
 ---
 
