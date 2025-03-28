@@ -12,7 +12,7 @@ from torchvision.transforms import Compose
 import torchvision.transforms as T
 from torch.utils.data import ConcatDataset
 from transformations import ShiftImage, RotateImage
-from main import predict, generate_roc_curve
+from main import predict, generate_roc_curve, ROC_BASELINE
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
@@ -61,10 +61,10 @@ if __name__ == "__main__":
     elif args.model == 'MLO':
         transform = Compose([
             T.ToTensor(),
-            ShiftImage(max_shift_x=50, max_shift_y=50),
+            #ShiftImage(max_shift_x=50, max_shift_y=50),
             # T.RandomVerticalFlip(),
             # T.RandomHorizontalFlip(),
-            # RotateImage(angle=random.randint(0, 180), padding_mode='border', align_corners=True)
+            #RotateImage(padding_mode='border', align_corners=True)
             ]
         )
         # remindImages = aertsDataset(proc_preop=args.aerts_dir, 
@@ -74,16 +74,16 @@ if __name__ == "__main__":
         print("Aerts dataset loaded")
         remindImages = remindDataset(preop_dir=args.remind_dir, 
                     image_ids=['t1_aligned_stripped'], save_dir=args.slice_dir,
-                    skip=50, tumor_sensitivity=0.30, transform=transform, load_slices=True)
+                    skip=10, tumor_sensitivity=0.30, transform=transform, load_slices=True)
         subject_images = remindImages
         model_type = DeepLabV3()
 
     print(f"Total number of images: {len(subject_images)}")
     ## No balancing, it is intentionally left unbalanced
-    subject_images: list[dict] = balance_dataset(subject_images)
-
-    print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
-    print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
+    #subject_images: list[dict] = balance_dataset(subject_images)
+    
+    # print("Number of similar pairs:", len([x for x in subject_images if x['label'] == 1]))
+    # print("Number of dissimilar pairs:", len([x for x in subject_images if x['label'] == 0]))
  
     
     ## using validation split to avoid overfitting
@@ -94,14 +94,19 @@ if __name__ == "__main__":
 
     model_type.load_state_dict(torch.load(args.model_path))
     
-    distances, labels, f1_score = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
+   
+    # distances, labels = ROC_BASELINE(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
+    # thresholds = generate_roc_curve(distances, labels, save_dir, f"_baseline")
+    
+    distances, labels, f_score, miou, all_f1_scores = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
     if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)
     elif args.model == 'MLO':
         # take the conv distance distance from each tuple
-        # thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, "_conv1")
-        # thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, "_conv2")
-        # thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, "_conv3")    # take the conv distance distance from each tuple
-        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f1_score}")
-        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f1_score}")
-        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f1_score}")
+        
+        
+        thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
+        thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
+        thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")
+        
+        create_histogram_f1(all_f1_scores, save_dir)

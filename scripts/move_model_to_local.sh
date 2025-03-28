@@ -1,0 +1,1 @@
+scp u50@hpc_cloud:/home/u50/results/MLO_l2_lr-0.001_marg-4.0_thresh-0.7_loss-TCL/train_test/model.pth ../results/MLO_l2_lr-0.001_marg-4.0_thresh-0.7_loss-TCL/

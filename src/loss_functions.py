@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import numpy as np
+from matplotlib import pyplot as plt
+
 class contrastiveLoss(nn.Module):
 
     def __init__(self,margin =2.0,dist_flag='l2'):
@@ -124,8 +126,11 @@ class contrastiveThresholdMaskLoss(nn.Module):
         distance = distance.view(n, h, w)  # Shape: (n, h, w) reshape it back to the original shape with distance scalar per pixel
         # Ensure ground truth tensor is compatible
         gt_rz = ground_truth.squeeze(1)  # Shape: (n, h, w)
-    
-        # Calculate the contrastive threshold loss
+
+        # if torch.sum(gt_rz) == 0:
+        #      similar_pair_penalty = torch.clamp(distance, min=0.0)
+        # else:
+        # # Calculate the contrastive threshold loss
         similar_pair_penalty = torch.clamp(distance - self.threshold, min=0.0) # distance below threshold resolves to 0
         dissimilar_pair_penalty = torch.clamp(self.margin - distance, min=0.0) # distance above margin resolves to 0
 
@@ -147,7 +152,83 @@ class contrastiveThresholdMaskLoss(nn.Module):
         #     (1 - gt_rz) * torch.pow(similar_pair_penalty, 2)
         # )
         return constractive_thresh_loss
+
+import numpy as np
+
+def compute_iou(tumor_seg, feature_map=None, threshold=None, pred_mask=None):
+    """
+    Computes the Intersection over Union (IoU) for a given threshold or a precomputed segmentation mask.
     
+    Parameters:
+    - tumor_seg: Ground truth binary segmentation (2D numpy array, 1 = tumor, 0 = background).
+    - feature_map: Model output (2D numpy array with probability values between 0 and 1) [optional if pred_mask is given].
+    - threshold: The threshold to binarize the feature map [required if pred_mask is not given].
+    - pred_mask: Precomputed binary segmentation mask (2D numpy array, 1 = tumor, 0 = background) [optional].
+    
+    Returns:
+    - IoU score for the given threshold or mask.
+    """
+    if pred_mask is None:
+        if feature_map is None or threshold is None:
+            raise ValueError("Either pred_mask or both feature_map and threshold must be provided.")
+        # Convert feature map into binary mask using the given threshold
+        pred_mask = feature_map >= threshold  # 1 where detected as tumor, 0 otherwise
+
+    # True Positives (TP): Pixels correctly classified as tumor
+    TP = np.sum((pred_mask == 1) & (tumor_seg == 1))
+
+    # False Positives (FP): Pixels incorrectly classified as tumor
+    FP = np.sum((pred_mask == 1) & (tumor_seg == 0))
+
+    # False Negatives (FN): Tumor pixels that were missed
+    FN = np.sum((pred_mask == 0) & (tumor_seg == 1))
+
+    # Compute IoU
+    IoU = TP / (TP + FP + FN + 1e-10)  # Avoid division by zero
+
+    return IoU
+
+
+def compute_f_score(tumor_seg, feature_map=None, threshold=None, pred_mask=None, beta=0.8):
+    """
+    Computes the F-score for a given threshold or a precomputed segmentation mask.
+    
+    Parameters:
+    - tumor_seg: Ground truth binary segmentation (2D numpy array, 1 = tumor, 0 = background).
+    - feature_map: Model output (2D numpy array with probability values between 0 and 1) [optional if pred_mask is given].
+    - threshold: The threshold to binarize the feature map [required if pred_mask is not given].
+    - pred_mask: Precomputed binary segmentation mask (2D numpy array, 1 = tumor, 0 = background) [optional].
+    - beta: Beta value for the F-score (default = 0.8, lower values emphasize precision).
+    
+    Returns:
+    - F-score for the given threshold or mask.
+    - Precision and recall values.
+    """
+    if pred_mask is None:
+        if feature_map is None or threshold is None:
+            raise ValueError("Either pred_mask or both feature_map and threshold must be provided.")
+        # Convert feature map into binary mask using the given threshold
+        pred_mask = feature_map >= threshold  # 1 where detected as tumor, 0 otherwise
+
+    # True Positives (TP): Pixels correctly classified as tumor
+    TP = np.sum((pred_mask == 1) & (tumor_seg == 1))
+
+    # False Positives (FP): Pixels incorrectly classified as tumor
+    FP = np.sum((pred_mask == 1) & (tumor_seg == 0))
+
+    # False Negatives (FN): Tumor pixels that were missed
+    FN = np.sum((pred_mask == 0) & (tumor_seg == 1))
+
+    # Compute precision and recall
+    precision = TP / (TP + FP + 1e-10)  # Add small value to avoid division by zero
+    recall = TP / (TP + FN + 1e-10)
+
+    # Compute F-score
+    betasq = beta ** 2
+    f_score = (1 + betasq) * (precision * recall) / ((betasq * precision) + recall + 1e-10)
+
+    return f_score, precision, recall
+   
 def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
     """
        tumor seg is the ground rtuth
@@ -166,36 +247,7 @@ def eval_feature_map(tumor_seg, feature_map, seg_value_index, beta=0.8):
                                      thresh)
     best_f1, f1_thresh, thresh_index, precision, recall = find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=beta)
     best_miou = find_best_thresh_for_miou(FN, FP, posNum, thresh_index)
-    # has_tumor_pixels = np.any(all_tumor_pixels)
-    # if not has_tumor_pixels:
-    #     print(f"No tumor pixels found for {extra}")
-    # # Visualize inputs
-    # import matplotlib.pyplot as plt
-    # import os
-    # randint = np.random.randint(0, 1000)
-    # fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-    
-    # axs[0].imshow(tumor_seg, cmap="gray")
-    # axs[0].set_title(f"All tumor pixels (has tumor pixels: {has_tumor_pixels}) for {extra}")
-    # axs[0].axis("off")
-        
-    # axs[1].imshow(significant_tumor_pixels, cmap="gray")
-    # axs[1].set_title("significant tumor pixels")
-    # axs[1].axis("off")
-    
-    # axs[2].imshow(feature_map, cmap="grey")
-    # axs[2].imshow(significant_tumor_pixels, cmap="jet", alpha=0.5)
-    # axs[2].set_title(f"Feature Map {best_f1:.2f} at {best_threshold:.2f}")
-    # axs[2].axis("off")
-    
-    
-    # # Save visualizations
-    # vis_path = os.path.join("/home/adil/Documents/TUE/preparationPhase/myProject/src/tests", f"{randint}.png")
-    # plt.tight_layout()
-    # plt.savefig(vis_path, bbox_inches="tight")
-    # plt.close(fig)
-    
-    return best_f1, best_miou, precision, recall
+    return best_f1, best_miou, precision, recall, 
 
 def find_best_thresh_for_f1(FN, FP, posNum, thresh, beta=0.8):
     # Calculate precision, recall, and beta-weighted F-score for each threshold
@@ -260,3 +312,4 @@ def calc_fn_fp_per_thresh(significant_tumor_pixels, feature_map, thres):
     ## return the number of false negatives, false positives per threshold
     # number of positive pixels, number of negative pixels
     return FN, FP, posNum, negNum
+    

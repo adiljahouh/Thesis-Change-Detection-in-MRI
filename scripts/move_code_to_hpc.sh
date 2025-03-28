@@ -1,1 +1,1 @@
-scp -r ../src/*.py u50@145.38.193.83:/home/u50/src/
+scp -r ../src/*.py u50@hpc_cloud:/home/u50/src/

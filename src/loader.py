@@ -3,7 +3,7 @@ import os
 import nibabel as nib
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from nilearn.image import resample_to_img
-from transformations import ShiftImage
+from transformations import ShiftImage, RotateImage, ConditionalFlip
 from numpy import ndarray
 from typing import Tuple
 import torch
@@ -491,8 +491,10 @@ class remindDataset(Dataset):
 
     def __getitem__(self, idx):
         triplet = self.data[idx]
-        pre_slice = np.load(triplet["pre_path"])['data']
-        post_slice = np.load(triplet["post_path"])['data']
+        pre_slice: ndarray = np.load(triplet["pre_path"])['data']
+        post_slice: ndarray = np.load(triplet["post_path"])['data']
+        l2_distance = np.linalg.norm(pre_slice.astype(np.float32).ravel() - post_slice.astype(np.float32).ravel())
+
         # pre_tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
         #post_tumor_slice = np.load(triplet["residual_path"])['data'] if triplet["residual_path"] else np.zeros_like(post_slice)
         change_map_slice = np.load(triplet["change_map"])['data'] if triplet["change_map"] else np.zeros_like(pre_slice)
@@ -501,18 +503,30 @@ class remindDataset(Dataset):
         # tumor_slice = np.load(triplet["tumor_path"]) if "tumor_path" in triplet else None
 
         # Apply any transformations if necessary
-        shift_x = torch.randint(-50, 51, (1,)).item()
-        shift_y = torch.randint(-50, 51, (1,)).item()
-        shift = (shift_x, shift_y)
+        rotation_angle = 0
+        shift = (0, 0)
         ## HACK: to shift the tumor slice by the same amount as the pre and post slices
         ## to later use for feature map evaluation
+        ## btw this hack is stupid, you should just balance the dataset beforehand and then you can transform everything without memory issue during training/testing etc
         if self.transform:
+            
             for transform in self.transform.transforms:
+                
                 if isinstance(transform, ShiftImage):
                     # pre_tumor = tumor_slice
+                    shift_x = torch.randint(-50, 51, (1,)).item()
+                    shift_y = torch.randint(-50, 51, (1,)).item()
+                    shift = (shift_x, shift_y)
+                    
                     post_slice = transform(post_slice, shift=shift)
                     change_map_slice = transform(change_map_slice, shift=shift)
                     baseline = transform(baseline, shift=shift)
+                elif isinstance(transform, RotateImage):
+                    rotation_angle = torch.randint(-30, 30, (1,), dtype=torch.float32)
+                
+                    post_slice = transform(post_slice, angle=rotation_angle)
+                    change_map_slice = transform(change_map_slice, angle=rotation_angle)
+                    baseline = transform(baseline, angle=rotation_angle)
                 else:
                     pre_slice = transform(pre_slice)
                     post_slice = transform(post_slice)
@@ -524,7 +538,8 @@ class remindDataset(Dataset):
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
                 "index_post": triplet["index_post"],
                 "baseline": baseline, "tumor_path": triplet['tumor_path'], "residual_path": triplet['residual_path'],
-                "change_map": change_map_slice, "shift_x": shift[0], "shift_y": shift[1]}
+                "change_map": change_map_slice, "shift_x": shift[0], "shift_y": shift[1], "rotation_angle": rotation_angle,
+                "l2_distance": l2_distance} 
     
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
@@ -711,17 +726,25 @@ class aertsDataset(Dataset):
         # Apply any transformations if necessary
         shift_x = torch.randint(-50, 101, (1,)).item()
         shift_y = torch.randint(-50, 101, (1,)).item()
+        # Generate a random rotation angle in the range [-180, 180]
+        rotation_angle = torch.randint(-180, 181, (1,), dtype=torch.float32)
         shift = (shift_x, shift_y)
         ## HACK: to get the preop tumor slice and postop tumor slice
         ## to later use for feature map evaluation
         if self.transform:
             for transform in self.transform.transforms:
+                print(transform)
                 if isinstance(transform, ShiftImage):
                     # pre_tumor = tumor_slice
                     post_slice = transform(post_slice, shift=shift)
                     tumor_slice = transform(tumor_slice, shift=shift)
                     baseline = transform(baseline, shift=shift)
+                elif isinstance(transform, RotateImage):
+                    post_slice = transform(post_slice, angle=rotation_angle)
+                    tumor_slice = transform(tumor_slice, angle=rotation_angle)
+                    baseline = transform(baseline, angle=rotation_angle)
                 else:
+                    print(transform)
                     pre_slice = transform(pre_slice)
                     post_slice = transform(post_slice)
                     tumor_slice = transform(tumor_slice)

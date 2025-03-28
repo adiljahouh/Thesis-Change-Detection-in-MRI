@@ -20,3 +20,4 @@ task.txt
 /src/__pycache__/*.pyc
 /home/adil/Documents/TUE/preparationPhase/myProject/src/__pycache__/*
 *.pyc
+*.zip
