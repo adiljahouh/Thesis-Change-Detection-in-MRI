@@ -48,6 +48,34 @@ from torchvision.transforms import Compose
 ## skipped CV can reintroduce it later
 
 ## https://medium.com/data-science-in-your-pocket/understanding-siamese-network-with-example-and-codes-e7518fe02612
+def ROC_BASELINE(siamese_net: torch.nn.Module, test_loader: DataLoader, 
+            base_dir, device, dist_flag):
+    distances_list = []
+    labels_list = []
+    print("Doing predictions...")
+    with torch.no_grad():
+        print(len(test_loader))
+        for index, batch in enumerate(test_loader):             
+            batch: dict[str, torch.Tensor]
+            labels = batch['label'].to(device)
+            dists = batch['l2_distance'].to(device)
+            # these are all batches
+
+            for batch_index in range(len(labels)):
+                print(batch_index)
+                label = labels[batch_index].item()  # Get the label for the i-th pair
+                dist = dists[batch_index].item()
+                print(label, dist)
+                # print(f"Pair has distances of: {dist[0].item()}, {dist[1].item()}, {dist[2].item()}, label: {label}")
+                # tumor maps should only be calculated for dissimilar pairs
+                    
+                distances_list.append(dist)
+                labels_list.append(label)
+        return distances_list, labels_list
+
+
+
+
 def predict(siamese_net: torch.nn.Module, test_loader: DataLoader, 
             base_dir, device, dist_flag):
     siamese_net.to(device)
@@ -219,30 +247,36 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                         # )
                     if label == 0:
                         try:
-                            visualize_change_detection(
-                                #(np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
-                                (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
-                                (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
-                                preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
-                                postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                                ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                                output_path=fmap_path,
-                                show_gt=True,
-                            )
+                            visualize_intraoperative_with_changemap(
+                                intraoperative=(np.rot90(post_image)),
+                                change_map=(np.rot90(conv3_sharpened_post)),
+                                output_path=fmap_path
+                                )
+                            # visualize_change_detection(
+                            #     (np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
+                            #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
+                            #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
+                            #     preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
+                            #     postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
+                            #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                            #     output_path=fmap_path,
+                            #     show_gt=False,
+                            # )
                         except Exception as e:
                             print(e)
                     else:
-                        visualize_change_detection_control(
-                            #(np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
-                            (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
-                            (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
-                            preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
-                            postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                            ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                            output_path=baseline_path,
-                            show_gt=False,
+                        pass
+                        # visualize_change_detection_control(
+                        #     #(np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
+                        #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
+                        #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
+                        #     preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
+                        #     postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
+                        #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                        #     output_path=baseline_path,
+                        #     show_gt=False,
                         
-                        )
+                        # )
                         # visualize_change_detection(
                         #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
                         #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),

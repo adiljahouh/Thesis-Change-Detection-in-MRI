@@ -110,7 +110,38 @@ def visualize_change_detection_control(
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close(fig)
+def visualize_intraoperative_with_changemap(
+        intraoperative: np.ndarray,
+        change_map: np.ndarray,
+        output_path: str,
+        change_map_title: str = "Change Map Overlay"
+    ):
+        """
+        Visualizes the intraoperative image and its overlay with a change map side by side.
 
+        Args:
+            intraoperative (np.ndarray): Grayscale intraoperative image.
+            change_map (np.ndarray): Change map to overlay.
+            output_path (str): Path to save the visualization.
+            change_map_title (str): Title for the overlay visualization.
+        """
+        fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+
+        # Display Intraoperative Image
+        axs[0].imshow(intraoperative, cmap="gray")
+        axs[0].axis("off")
+        axs[0].set_title("Intraoperative Image")
+
+        # Display Overlay of Change Map on Intraoperative Image
+        axs[1].imshow(intraoperative, cmap="gray")
+        axs[1].imshow(np.ma.masked_where(change_map == 0, change_map), cmap="jet", alpha=1, vmin = 0.1)
+        axs[1].axis("off")
+        axs[1].set_title(change_map_title)
+
+        # Adjust layout and save
+        plt.tight_layout()
+        plt.savefig(output_path)
+        plt.close(fig)
 def visualize_change_detection(
     *args: Tuple[np.ndarray, str, str, np.ndarray | None],  # change_map, title, scores, segmentation (possible)
     preoperative: Tuple[np.ndarray, np.ndarray], 

@@ -12,7 +12,7 @@ from torchvision.transforms import Compose
 import torchvision.transforms as T
 from torch.utils.data import ConcatDataset
 from transformations import ShiftImage, RotateImage
-from main import predict, generate_roc_curve
+from main import predict, generate_roc_curve, ROC_BASELINE
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Siamese Network Operations")
@@ -94,11 +94,17 @@ if __name__ == "__main__":
 
     model_type.load_state_dict(torch.load(args.model_path))
     
+   
+    # distances, labels = ROC_BASELINE(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
+    # thresholds = generate_roc_curve(distances, labels, save_dir, f"_baseline")
+    
     distances, labels, f_score, miou, all_f1_scores = predict(model_type, test_loader, save_dir, device, dist_flag=dist_flag)
     if args.model == 'SLO':
         thresholds = generate_roc_curve(distances, labels, save_dir)
     elif args.model == 'MLO':
         # take the conv distance distance from each tuple
+        
+        
         thresholds = generate_roc_curve([d[0].item() for d in distances], labels, save_dir, f"_conv1_{f_score}_miou_{miou}")
         thresholds = generate_roc_curve([d[1].item() for d in distances], labels, save_dir, f"_conv2_{f_score}_miou_{miou}")
         thresholds = generate_roc_curve([d[2].item() for d in distances], labels, save_dir, f"_conv3_{f_score}_miou_{miou}")

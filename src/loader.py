@@ -491,8 +491,10 @@ class remindDataset(Dataset):
 
     def __getitem__(self, idx):
         triplet = self.data[idx]
-        pre_slice = np.load(triplet["pre_path"])['data']
-        post_slice = np.load(triplet["post_path"])['data']
+        pre_slice: ndarray = np.load(triplet["pre_path"])['data']
+        post_slice: ndarray = np.load(triplet["post_path"])['data']
+        l2_distance = np.linalg.norm(pre_slice.astype(np.float32).ravel() - post_slice.astype(np.float32).ravel())
+
         # pre_tumor_slice = np.load(triplet["tumor_path"])['data'] if triplet["tumor_path"] else np.zeros_like(pre_slice) 
         #post_tumor_slice = np.load(triplet["residual_path"])['data'] if triplet["residual_path"] else np.zeros_like(post_slice)
         change_map_slice = np.load(triplet["change_map"])['data'] if triplet["change_map"] else np.zeros_like(pre_slice)
@@ -536,7 +538,8 @@ class remindDataset(Dataset):
                 "pat_id": triplet["pat_id"], "index_pre": triplet["index_pre"], 
                 "index_post": triplet["index_post"],
                 "baseline": baseline, "tumor_path": triplet['tumor_path'], "residual_path": triplet['residual_path'],
-                "change_map": change_map_slice, "shift_x": shift[0], "shift_y": shift[1], "rotation_angle": rotation_angle}
+                "change_map": change_map_slice, "shift_x": shift[0], "shift_y": shift[1], "rotation_angle": rotation_angle,
+                "l2_distance": l2_distance} 
     
 class aertsDataset(Dataset):
     def __init__(self, proc_preop: str, raw_tumor_dir: str, image_ids: list, save_dir: str, skip:int=1, tumor_sensitivity = 0.10, load_slices = False, transform=None):
