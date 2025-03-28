@@ -198,15 +198,14 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     distance_map_2d_conv3 = return_upsampled_norm_distance_map(
                     third_conv[0][batch_index], third_conv[1][batch_index], dist_flag=dist_flag, mode='bilinear')
                   
-                    # baseline_significant = np.where(baseline > 0.30, 1, 0)
+                  
+                    ## BASELINE THRESHOLDING USING DIFFERENCE MAPS
                     baseline = normalize_np_array(baseline)
                     baseline_masked = (baseline > 0.3).astype(np.uint8)
                     baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
-                    # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
                     f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
                                                             beta=1)
                     f1_scores_list.append(f1_score_conv3)
-                    #f1_score_baseline, mean_miou_score_baseline, _, _ = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline_z_scored, 0.30, beta=1)
                     f1_score_baseline, baseline_prec, baseline_recall = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], 
                                                         pred_mask=baseline_masked, beta=1)
                     mean_miou_score_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
@@ -216,6 +215,8 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                                                         pred_mask=baseline_z_scored, beta=1)
                     mean_miou_score_baseline_z_scored = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0],
                                                         pred_mask=baseline_z_scored)
+                    
+                    
                     
                     
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image, alpha=4)
@@ -265,18 +266,16 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                         except Exception as e:
                             print(e)
                     else:
-                        pass
-                        # visualize_change_detection_control(
-                        #     #(np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
-                        #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
-                        #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
-                        #     preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
-                        #     postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
-                        #     ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
-                        #     output_path=baseline_path,
-                        #     show_gt=False,
-                        
-                        # )
+                        visualize_change_detection_control(
+                            #(np.rot90(distance_map_2d_conv3), f"RiA prediction $\hat{{T}}_{{model}}$", f"F1={f1_score_conv3:.2f}, IoU={mean_miou_score_conv3:.2f}", np.rot90(conv3_sharpened_post)),
+                            (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
+                            (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),
+                            preoperative=(np.rot90(pre_image), np.rot90(pre_tumor)),  
+                            postoperative=(np.rot90(post_image), np.rot90(post_tumor)),
+                            ground_truth=(np.rot90(post_image), np.rot90(change_map_gt)),
+                            output_path=baseline_path,
+                            show_gt=False,
+                        )
                         # visualize_change_detection(
                         #     (np.rot90(baseline_masked), f"Fixed threshold prediction $\Delta \hat{{T}}_{{thresh}}$", f"F1={f1_score_baseline:.2f}, IoU={mean_miou_score_baseline:.2f}", None),
                         #     (np.rot90(baseline_z_scored), f"Z-scored prediction $\Delta \hat{{T}}_{{z-score}}$", f"F1={f1_score_baseline_z_scored:.2f}, IoU={mean_miou_score_baseline_z_scored:.2f}", None),

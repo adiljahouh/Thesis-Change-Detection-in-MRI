@@ -61,7 +61,7 @@ if __name__ == "__main__":
     elif args.model == 'MLO':
         transform = Compose([
             T.ToTensor(),
-            #ShiftImage(max_shift_x=50, max_shift_y=50),
+            ShiftImage(max_shift_x=50, max_shift_y=50),
             # T.RandomVerticalFlip(),
             # T.RandomHorizontalFlip(),
             #RotateImage(padding_mode='border', align_corners=True)
