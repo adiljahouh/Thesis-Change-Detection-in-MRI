@@ -2,7 +2,7 @@ import torch as torch
 import torch.optim as optim
 from network import complexSiameseExt, DeepLabExtended
 from loss_functions import contrastiveLoss, \
-    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map, compute_f_score
+    eval_feature_map, contrastiveThresholdMaskLoss, resize_tumor_to_feature_map, compute_f_score, compute_iou
 from loader import aertsDataset, remindDataset, balance_dataset
 from distance_measures import threshold_by_zscore_std, threshold_by_percentile
 from transformations import ShiftImage, RotateImage
@@ -81,16 +81,6 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
             # these are all batches
             
             first_conv, second_conv, third_conv = siamese_net(pre_batch, post_batch, mode='test')
-            # print(third_conv[0].shape)
-            # # Save the third conv tuple of tensors as npz files in 2d/test/
-            # save_dir = os.path.join(os.getcwd(), '2d/test')
-            # print(save_dir)
-            # print(third_conv[0].shape)
-            # shift_values = (batch['shift_x'][0], batch['shift_y'][0])
-            # os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-            # np.savez(os.path.join(save_dir, f'third_conv_{index}.npz'), third_conv_0=third_conv[0].data.cpu().numpy(), shift_values=shift_values)
-            # np.savez(os.path.join(save_dir, f'third_conv_{index}_post.npz'), third_conv_1=third_conv[1].data.cpu().numpy(), shift_values=shift_values)
-            # return
             flattened_batch_conv1_t0 = first_conv[0].view(first_conv[0].size(0), -1)
             flattened_batch_conv1_t1 = first_conv[1].view(first_conv[1].size(0), -1)
             distance_1 = F.pairwise_distance(flattened_batch_conv1_t0, flattened_batch_conv1_t1, p=2)
@@ -158,12 +148,19 @@ def predict(siamese_net: torch.nn.Module, test_loader: DataLoader,
                     # baseline_significant = np.where(baseline > 0.30, 1, 0)
                     ## TODO: this is not fair, pass the optimal threshold value to the eval function
                     ## change beta to 0.8?
-                    baseline_z_scored = threshold_by_zscore_std(baseline, threshold=4)
-                    baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
-                    compute_f_score(distance_map_2d_conv3)
-                    f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
-                                                            beta=1)
-                    f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
+                    baseline = threshold_by_zscore_std(baseline, threshold=4)
+                    # baseline_99th_percentile = threshold_by_percentile(baseline, percentile=99)
+                    mean_miou_score_conv3 = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], feature_map=distance_map_2d_conv3, 
+                                    threshold=thresh)
+                    mean_miou_score_baseline = compute_iou(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], pred_mask=baseline, 
+                                    )
+                    f1_score_conv3, conv3_prec, conv3_recall = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], feature_map=distance_map_2d_conv3, 
+                                    threshold=thresh, beta=1)
+                    f1_score_baseline, baseline_prec, baseline_recall = compute_f_score(tumor_seg=change_map_gt_batch.cpu().numpy()[batch_index][0], pred_mask=baseline
+                                                                                        , beta=1)
+                    # f1_score_conv3, mean_miou_score_conv3, conv3_prec, conv3_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], distance_map_2d_conv3, 0.30,
+                    #                                         beta=1)
+                    # f1_score_baseline, mean_miou_score_baseline, baseline_prec, baseline_recall = eval_feature_map(change_map_gt_batch.cpu().numpy()[batch_index][0], baseline, 0.30, beta=1)
                     
                     
                     conv3_sharpened_post = multiplicative_sharpening_and_filter(distance_map_2d_conv3, base_image=post_image)
@@ -350,14 +347,12 @@ def train(siamese_net: torch.nn.Module, optimizer: Optimizer, criterion: torch.n
         
         #print(f"Average sample loss for epoch {epoch+1}: Train Loss: {epoch_train_loss/total_train_samples}, Val Loss: {epoch_val_loss/total_val_samples}")
         print(f'Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_train_loss:.4f}, Average val loss: {avg_val_loss:.4f},\
-              Average f1 score {avg_f1_score:.4f} - Threshold: {thresh:.2f}')
+              Average f1 score {avg_f1_score:.4f} - Threshold: {thresh}')
         
         # Check for improvement in validation loss
         if avg_f1_score > best_f1_score:
             best_thresh = thresh
             best_f1_score = avg_f1_score
-        # if avg_val_loss < best_val_loss:
-        #     best_val_loss = avg_val_loss
             consecutive_no_improvement = 0
             # Save the best model
             save_path = os.path.join(save_dir, "model.pth")
